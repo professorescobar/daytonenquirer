@@ -1,30 +1,39 @@
-/* ======================================================
-   TOP STORIES CAROUSEL
-====================================================== */
+// ============================
+// TOP STORIES CAROUSEL
+// ============================
 const slides = document.querySelectorAll(".slide");
 let currentSlide = 0;
 
-document.getElementById("next")?.addEventListener("click", () => {
-  slides[currentSlide].classList.remove("active");
-  currentSlide = (currentSlide + 1) % slides.length;
-  slides[currentSlide].classList.add("active");
-});
+const nextBtn = document.getElementById("next");
+const prevBtn = document.getElementById("prev");
 
-document.getElementById("prev")?.addEventListener("click", () => {
-  slides[currentSlide].classList.remove("active");
-  currentSlide =
-    (currentSlide - 1 + slides.length) % slides.length;
-  slides[currentSlide].classList.add("active");
-});
+if (slides.length && nextBtn && prevBtn) {
+  nextBtn.addEventListener("click", () => {
+    slides[currentSlide].classList.remove("active");
+    currentSlide = (currentSlide + 1) % slides.length;
+    slides[currentSlide].classList.add("active");
+  });
 
-/* ======================================================
-   MARKET TICKER (TradingView)
-====================================================== */
+  prevBtn.addEventListener("click", () => {
+    slides[currentSlide].classList.remove("active");
+    currentSlide =
+      (currentSlide - 1 + slides.length) % slides.length;
+    slides[currentSlide].classList.add("active");
+  });
+}
+
+// ============================
+// MARKET TICKER (TradingView)
+// ============================
 (function () {
+  const container = document.querySelector(".tradingview-widget-container");
+  if (!container) return;
+
   const script = document.createElement("script");
   script.src =
     "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
   script.async = true;
+
   script.innerHTML = JSON.stringify({
     symbols: [
       { proName: "DJI", title: "Dow Jones" },
@@ -47,29 +56,28 @@ document.getElementById("prev")?.addEventListener("click", () => {
     locale: "en"
   });
 
-  document
-    .querySelector(".tradingview-widget-container")
-    ?.appendChild(script);
+  container.appendChild(script);
 })();
 
-/* ======================================================
-   WORLD NEWS (RSS via /api/world-news)
-====================================================== */
+// ============================
+// WORLD NEWS (RSS via API)
+// ============================
 async function loadWorldNews() {
   try {
     const res = await fetch("/api/world-news");
     if (!res.ok) throw new Error("World news fetch failed");
 
     const data = await res.json();
-    if (!Array.isArray(data.articles) || data.articles.length === 0) {
-      throw new Error("No world news articles returned");
-    }
+    if (!Array.isArray(data.articles) || !data.articles.length) return;
 
     const articles = data.articles;
 
-    /* ---------- Lead Story ---------- */
+    // ----------------
+    // LEAD STORY
+    // ----------------
     const lead = articles[0];
     const leadContainer = document.getElementById("gnews-lead");
+    if (!leadContainer) return;
 
     leadContainer.innerHTML = `
       <article class="lead-story">
@@ -80,7 +88,7 @@ async function loadWorldNews() {
         }
         <div class="lead-text">
           <h2>
-            <a href="${lead.url}" target="_blank" rel="noopener">
+            <a href="${lead.url}" target="_blank" rel="noopener noreferrer">
               ${lead.title}
             </a>
           </h2>
@@ -90,14 +98,18 @@ async function loadWorldNews() {
       </article>
     `;
 
-    /* ---------- Expandable Headlines ---------- */
+    // ----------------
+    // HEADLINES LIST
+    // ----------------
     const list = document.getElementById("gnews-list");
+    if (!list) return;
+
     list.innerHTML = "";
 
-    articles.slice(1, 12).forEach(article => {
+    articles.slice(1, 10).forEach(article => {
       const li = document.createElement("li");
       li.innerHTML = `
-        <a href="${article.url}" target="_blank" rel="noopener">
+        <a href="${article.url}" target="_blank" rel="noopener noreferrer">
           ${article.title}
         </a>
       `;
@@ -106,26 +118,33 @@ async function loadWorldNews() {
 
   } catch (err) {
     console.error("World news error:", err);
-    document.getElementById("gnews-lead").innerHTML =
-      "<p>World news is temporarily unavailable.</p>";
   }
 }
 
-loadWorldNews();
-
-/* ======================================================
-   HEADLINES TOGGLE (Expandable Section)
-====================================================== */
+// ============================
+// TOGGLE HEADLINES
+// ============================
 const toggleBtn = document.getElementById("toggle-headlines");
 const headlinesList = document.getElementById("gnews-list");
 
-toggleBtn?.addEventListener("click", () => {
-  const isExpanded = toggleBtn.getAttribute("aria-expanded") === "true";
+if (toggleBtn && headlinesList) {
+  toggleBtn.addEventListener("click", () => {
+    const isHidden = headlinesList.hasAttribute("hidden");
 
-  toggleBtn.setAttribute("aria-expanded", String(!isExpanded));
-  headlinesList.hidden = isExpanded;
+    if (isHidden) {
+      headlinesList.removeAttribute("hidden");
+      toggleBtn.textContent = "hide headlines";
+      toggleBtn.setAttribute("aria-expanded", "true");
+    } else {
+      headlinesList.setAttribute("hidden", "");
+      toggleBtn.textContent = "more headlines…";
+      toggleBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
 
-  toggleBtn.textContent = isExpanded
-    ? "more headlines…"
-    : "hide headlines";
-});
+// ============================
+// INIT
+// ============================
+loadWorldNews();
+
