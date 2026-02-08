@@ -122,75 +122,23 @@ nav a:hover {
 }
 
 /* ===============================
-   GNEWS LEAD + LINKS
+   GNEWS SECTION
 ================================ */
 .gnews-section {
-  margin: 3rem auto;
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 2rem;
-}
-
-.gnews-lead img {
-  width: 100%;
-  height: 280px;
-  object-fit: cover;
-  border-radius: 6px;
-}
-
-.gnews-lead h2 {
-  margin: 1rem 0 0.5rem;
-  font-size: 1.75rem;
-}
-
-.gnews-lead p {
-  color: #444;
-}
-
-.gnews-lead .source {
-  display: block;
-  margin-top: 0.5rem;
-  font-size: 0.85rem;
-  color: #777;
-}
-
-#gnews-list {
-  list-style: none;
-  padding-left: 0;
-}
-
-#gnews-list li {
-  margin-bottom: 0.75rem;
-}
-
-#gnews-list a {
-  text-decoration: none;
-  font-weight: bold;
-  color: #222;
-}
-
-#gnews-list a:hover {
-  text-decoration: underline;
-}
-
-/* --------------------
-   GNEWS SECTION
--------------------- */
-
-.gnews-section {
   border: 1px solid #ddd;
-  padding: 1.25rem;
-  margin-top: 2rem;
+  padding: 1.5rem;
+  margin: 3rem auto;
   background: #fff;
 }
 
 .gnews-title {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   margin-bottom: 1rem;
   border-bottom: 2px solid #000;
   padding-bottom: 0.25rem;
 }
 
+/* Layout */
 .gnews-content {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -204,16 +152,38 @@ nav a:hover {
 }
 
 .lead-story img {
-  width: 40%;
+  width: 45%;
+  height: 220px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 .lead-text h2 {
-  margin-top: 0;
+  margin: 0 0 0.5rem;
+  font-size: 1.4rem;
+}
+
+.lead-text p {
+  color: #444;
+}
+
+.lead-text .source {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #777;
 }
 
 /* Headlines sidebar */
+.gnews-headlines button {
+  background: none;
+  border: none;
+  padding: 0;
+  font-weight: bold;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .gnews-headlines ul {
   list-style: disc;
   padding-left: 1.25rem;
@@ -236,22 +206,10 @@ nav a:hover {
 /* ===============================
    SECONDARY NEWS LIST
 ================================ */
-#news h2 {
-  margin-bottom: 1rem;
-}
-
 #news-container {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 1.5rem;
-}
-
-.news-item img {
-  height: 150px;
-  width: 100%;
-  object-fit: cover;
-  border-radius: 4px;
-  margin-bottom: 0.5rem;
 }
 
 .news-item h3 {
@@ -321,21 +279,21 @@ nav a:hover {
   margin-top: 3rem;
 }
 
-.news-footer .social a {
-  color: #fff;
-  text-decoration: none;
-}
-
-.news-footer .social a:hover {
-  text-decoration: underline;
-}
-
 /* ===============================
    RESPONSIVE
 ================================ */
 @media (max-width: 900px) {
-  .gnews-section {
+  .gnews-content {
     grid-template-columns: 1fr;
+  }
+
+  .lead-story {
+    flex-direction: column;
+  }
+
+  .lead-story img {
+    width: 100%;
+    height: 240px;
   }
 
   .slide-text {

@@ -1,26 +1,29 @@
-// ====================
+// ============================
 // TOP STORIES CAROUSEL
-// ====================
+// ============================
 const slides = document.querySelectorAll(".slide");
 let currentSlide = 0;
 
-if (slides.length > 0) {
-  document.getElementById("next")?.addEventListener("click", () => {
+const nextBtn = document.getElementById("next");
+const prevBtn = document.getElementById("prev");
+
+if (slides.length && nextBtn && prevBtn) {
+  nextBtn.addEventListener("click", () => {
     slides[currentSlide].classList.remove("active");
     currentSlide = (currentSlide + 1) % slides.length;
     slides[currentSlide].classList.add("active");
   });
 
-  document.getElementById("prev")?.addEventListener("click", () => {
+  prevBtn.addEventListener("click", () => {
     slides[currentSlide].classList.remove("active");
     currentSlide = (currentSlide - 1 + slides.length) % slides.length;
     slides[currentSlide].classList.add("active");
   });
 }
 
-// ====================
-// MARKET TICKER
-// ====================
+// ============================
+// MARKET TICKER (TradingView)
+// ============================
 (function () {
   const container = document.querySelector(".tradingview-widget-container");
   if (!container) return;
@@ -55,118 +58,117 @@ if (slides.length > 0) {
   container.appendChild(script);
 })();
 
-// ====================
-// NEWS DATA (FETCH ONCE)
-// ====================
-let cachedArticles = [];
-
-async function fetchNews() {
+// ============================
+// GNEWS FEED (Lead + Toggle)
+// ============================
+async function loadGNews() {
   try {
     const res = await fetch("/api/news");
-    if (!res.ok) throw new Error("News API request failed");
+    if (!res.ok) throw new Error("Failed to fetch news");
 
     const data = await res.json();
+    if (!Array.isArray(data.articles) || !data.articles.length) return;
 
-    if (!data.articles || !Array.isArray(data.articles)) {
-      throw new Error("Invalid news format");
-    }
+    const articles = data.articles;
 
-    cachedArticles = data.articles;
+    // ----------------
+    // LEAD STORY
+    // ----------------
+    const lead = articles[0];
+    const leadContainer = document.getElementById("gnews-lead");
 
-    renderLatestNews();
-    renderGNews();
+    leadContainer.innerHTML = `
+      <article class="lead-story">
+        <img src="${lead.image || ""}" alt="${lead.title}">
+        <div class="lead-text">
+          <h2>
+            <a href="${lead.url}" target="_blank" rel="noopener noreferrer">
+              ${lead.title}
+            </a>
+          </h2>
+          <p>${lead.description || ""}</p>
+          <span class="source">${lead.source?.name || ""}</span>
+        </div>
+      </article>
+    `;
 
-  } catch (err) {
-    console.error("Failed to load news:", err);
-  }
-}
+    // ----------------
+    // HEADLINES LIST
+    // ----------------
+    const list = document.getElementById("gnews-list");
+    list.innerHTML = "";
 
-// ====================
-// LATEST NEWS LIST
-// ====================
-function renderLatestNews() {
-  const container = document.getElementById("news-container");
-  if (!container || cachedArticles.length === 0) return;
-
-  container.innerHTML = "";
-
-  cachedArticles.slice(0, 10).forEach(article => {
-    const item = document.createElement("div");
-    item.className = "news-item";
-
-    item.innerHTML = `
-      <h3>
+    articles.slice(1, 10).forEach(article => {
+      const li = document.createElement("li");
+      li.innerHTML = `
         <a href="${article.url}" target="_blank" rel="noopener noreferrer">
           ${article.title}
         </a>
-      </h3>
-      <p>${article.description || ""}</p>
-      <span class="source">${article.source?.name || ""}</span>
-    `;
+      `;
+      list.appendChild(li);
+    });
 
-    container.appendChild(item);
-  });
+  } catch (err) {
+    console.error("GNews error:", err);
+  }
 }
 
-// ====================
-// GNEWS LEAD + LINKS
-// ====================
-function renderGNews() {
-  if (cachedArticles.length === 0) return;
-
-  const leadContainer = document.getElementById("gnews-lead");
-  const listContainer = document.getElementById("gnews-list");
-
-  if (!leadContainer || !listContainer) return;
-
-  const lead = cachedArticles[0];
-
-  leadContainer.innerHTML = `
-    <article class="lead-story">
-      ${lead.image ? `<img src="${lead.image}" alt="${lead.title}">` : ""}
-      <div class="lead-text">
-        <h2>
-          <a href="${lead.url}" target="_blank" rel="noopener">
-            ${lead.title}
-          </a>
-        </h2>
-        <p>${lead.description || ""}</p>
-        <span class="source">${lead.source?.name || ""}</span>
-      </div>
-    </article>
-  `;
-
-  listContainer.innerHTML = "";
-
-  cachedArticles.slice(1, 8).forEach(article => {
-    const li = document.createElement("li");
-    li.innerHTML = `
-      <a href="${article.url}" target="_blank" rel="noopener">
-        ${article.title}
-      </a>
-    `;
-    listContainer.appendChild(li);
-  });
-}
-
-// ====================
-// INIT
-// ====================
-fetchNews();
-
-// --------------------
-// GNEWS HEADLINE TOGGLE
-// --------------------
+// ============================
+// TOGGLE HEADLINES
+// ============================
 const toggleBtn = document.getElementById("toggle-headlines");
 const headlinesList = document.getElementById("gnews-list");
 
-toggleBtn?.addEventListener("click", () => {
-  const isOpen = headlinesList.hasAttribute("hidden");
+if (toggleBtn && headlinesList) {
+  toggleBtn.addEventListener("click", () => {
+    const isHidden = headlinesList.hasAttribute("hidden");
 
-  headlinesList.toggleAttribute("hidden");
-  toggleBtn.textContent = isOpen
-    ? "hide headlines"
-    : "more headlines…";
+    if (isHidden) {
+      headlinesList.removeAttribute("hidden");
+      toggleBtn.textContent = "hide headlines";
+      toggleBtn.setAttribute("aria-expanded", "true");
+    } else {
+      headlinesList.setAttribute("hidden", "");
+      toggleBtn.textContent = "more headlines…";
+      toggleBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
 
-  toggleBtn.setAttribute("aria-expanded", String(isOpen));
-});
+// ============================
+// OPTIONAL SECONDARY FEED
+// ============================
+async function loadSecondaryNews() {
+  try {
+    const res = await fetch("/api/news");
+    if (!res.ok) return;
+
+    const data = await res.json();
+    const container = document.getElementById("news-container");
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    data.articles.slice(10, 16).forEach(article => {
+      const item = document.createElement("div");
+      item.className = "news-item";
+      item.innerHTML = `
+        <h3>
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+            ${article.title}
+          </a>
+        </h3>
+      `;
+      container.appendChild(item);
+    });
+  } catch (err) {
+    console.error("Secondary feed error:", err);
+  }
+}
+
+// ============================
+// INIT
+// ============================
+loadGNews();
+loadSecondaryNews();
+
