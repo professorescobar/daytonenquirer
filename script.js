@@ -1,6 +1,24 @@
-/*********************************
- * PRICE TICKER (TradingView)
- *********************************/
+// --------------------
+// TOP STORIES CAROUSEL
+// --------------------
+const slides = document.querySelectorAll(".slide");
+let currentSlide = 0;
+
+document.getElementById("next")?.addEventListener("click", () => {
+  slides[currentSlide].classList.remove("active");
+  currentSlide = (currentSlide + 1) % slides.length;
+  slides[currentSlide].classList.add("active");
+});
+
+document.getElementById("prev")?.addEventListener("click", () => {
+  slides[currentSlide].classList.remove("active");
+  currentSlide = (currentSlide - 1 + slides.length) % slides.length;
+  slides[currentSlide].classList.add("active");
+});
+
+// --------------------
+// MARKET TICKER
+// --------------------
 (function () {
   const script = document.createElement("script");
   script.src =
@@ -13,10 +31,8 @@
       { proName: "OANDA:NAS100USD", title: "NASDAQ 100" },
       { proName: "NYSE:NYA", title: "NYSE Composite" },
       { proName: "OANDA:US2000USD", title: "Russell 2000" },
-
-      { proName: "OANDA:EURUSD", title: "USD / Euro" },
-      { proName: "OANDA:USDJPY", title: "USD / Yen" },
-
+      { proName: "OANDA:EURUSD", title: "EUR/USD" },
+      { proName: "OANDA:USDJPY", title: "USD/JPY" },
       { proName: "TVC:GOLD", title: "Gold" },
       { proName: "TVC:SILVER", title: "Silver" },
       { proName: "TVC:USOIL", title: "Crude Oil" }
@@ -32,49 +48,62 @@
 
   document
     .querySelector(".tradingview-widget-container")
-    .appendChild(script);
+    ?.appendChild(script);
 })();
 
-/*********************************
- * TOP STORIES CAROUSEL
- *********************************/
-const slides = document.querySelectorAll(".slide");
-let currentSlide = 0;
-
-document.getElementById("next").addEventListener("click", () => {
-  slides[currentSlide].classList.remove("active");
-  currentSlide = (currentSlide + 1) % slides.length;
-  slides[currentSlide].classList.add("active");
-});
-
-document.getElementById("prev").addEventListener("click", () => {
-  slides[currentSlide].classList.remove("active");
-  currentSlide = (currentSlide - 1 + slides.length) % slides.length;
-  slides[currentSlide].classList.add("active");
-});
-
-/*********************************
- * GNEWS: LEAD STORY + LINKS
- *********************************/
-async function loadGNews() {
+// --------------------
+// INTERNAL NEWS API (/api/news)
+// --------------------
+async function loadNews() {
   try {
     const res = await fetch("/api/news");
-    const data = await res.json();
+    if (!res.ok) throw new Error("API response failed");
 
-    if (!data.articles || data.articles.length === 0) return;
+    const data = await res.json();
+    const container = document.getElementById("news-container");
+    container.innerHTML = "";
+
+    data.articles.slice(0, 10).forEach(article => {
+      const item = document.createElement("div");
+      item.className = "news-item";
+      item.innerHTML = `
+        <h3>
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+            ${article.title}
+          </a>
+        </h3>
+        <p>${article.description || ""}</p>
+        <span class="source">${article.source?.name || ""}</span>
+      `;
+      container.appendChild(item);
+    });
+  } catch (err) {
+    console.error("News load failed:", err);
+  }
+}
+
+loadNews();
+
+// --------------------
+// GNEWS FEED (LEAD + LINKS)
+// --------------------
+fetch(
+  "https://gnews.io/api/v4/top-headlines?country=us&max=6&token=YOUR_GNEWS_KEY"
+)
+  .then(res => res.json())
+  .then(data => {
+    if (!data.articles?.length) return;
 
     const lead = data.articles[0];
-    const rest = data.articles.slice(1, 8);
-
     const leadContainer = document.getElementById("gnews-lead");
     const listContainer = document.getElementById("gnews-list");
 
-    // Lead story (big)
+    // Lead story
     leadContainer.innerHTML = `
       <article class="gnews-lead">
         ${
           lead.image
-            ? `<img src="${lead.image}" alt="${lead.title}" />`
+            ? `<img src="${lead.image}" alt="${lead.title}">`
             : ""
         }
         <h2>
@@ -83,13 +112,11 @@ async function loadGNews() {
           </a>
         </h2>
         <p>${lead.description || ""}</p>
-        <span class="source">${lead.source.name}</span>
       </article>
     `;
 
-    // Headline list (links only)
-    listContainer.innerHTML = "";
-    rest.forEach(article => {
+    // Remaining links
+    data.articles.slice(1).forEach(article => {
       const li = document.createElement("li");
       li.innerHTML = `
         <a href="${article.url}" target="_blank" rel="noopener noreferrer">
@@ -98,49 +125,6 @@ async function loadGNews() {
       `;
       listContainer.appendChild(li);
     });
-  } catch (err) {
-    console.error("GNews failed to load", err);
-  }
-}
+  })
+  .catch(err => console.error("GNews failed:", err));
 
-loadGNews();
-
-/*********************************
- * OPTIONAL: SECONDARY NEWS FEED
- *********************************/
-async function loadSecondaryNews() {
-  try {
-    const res = await fetch("/api/news");
-    const data = await res.json();
-
-    const container = document.getElementById("news-container");
-    if (!container) return;
-
-    container.innerHTML = "";
-
-    data.articles.slice(0, 6).forEach(article => {
-      const item = document.createElement("div");
-      item.className = "news-item";
-
-      item.innerHTML = `
-        ${
-          article.image
-            ? `<img src="${article.image}" alt="${article.title}" />`
-            : ""
-        }
-        <h3>
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
-            ${article.title}
-          </a>
-        </h3>
-      `;
-
-      container.appendChild(item);
-    });
-  } catch (err) {
-    console.error("Secondary news failed to load", err);
-  }
-}
-
-// Comment this out if you don’t want it
-// loadSecondaryNews();
