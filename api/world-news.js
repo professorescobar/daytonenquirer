@@ -1,7 +1,7 @@
 const Parser = require("rss-parser");
 const parser = new Parser();
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
     const feeds = [
       { name: "Reuters", url: "https://feeds.reuters.com/reuters/worldNews" },
@@ -28,7 +28,8 @@ export default async function handler(req, res) {
 
     res.status(200).json({ articles });
   } catch (err) {
-    console.error(err);
+    console.error("RSS error:", err);
     res.status(500).json({ error: "Failed to fetch RSS feeds" });
   }
-}
+};
+
