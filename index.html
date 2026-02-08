@@ -15,7 +15,7 @@
       <h1 class="logo">The Dayton Enquirer</h1>
       <nav>
         <a href="#top-stories">Top Stories</a>
-        <a href="#latest">Latest</a>
+        <a href="#world-news">World</a>
         <a href="#local">Local</a>
         <a href="#national">National</a>
         <a href="#sports">Sports</a>
@@ -55,22 +55,25 @@
     <button id="next" aria-label="Next story">❯</button>
   </section>
 
-  <!-- GNEWS FEED -->
-<section id="latest" class="container gnews-section">
-  <h2 class="gnews-title">News from around the World</h2>
+  <!-- WORLD NEWS (RSS FED) -->
+  <section id="world-news" class="container world-news-section">
+    <h2 class="world-news-title">World News</h2>
 
-  <div class="gnews-content">
-    <div id="gnews-lead"></div>
+    <div class="world-news-content">
+      
+      <!-- Lead Story injected by JS -->
+      <div id="gnews-lead"></div>
 
-    <div class="gnews-headlines">
-      <button id="toggle-headlines" aria-expanded="false">
-        more headlines…
-      </button>
-      <ul id="gnews-list" hidden></ul>
+      <!-- Expandable headlines -->
+      <div class="world-news-headlines">
+        <button id="toggle-headlines" aria-expanded="false">
+          more headlines…
+        </button>
+        <ul id="gnews-list" hidden></ul>
+      </div>
+
     </div>
-  </div>
-</section>
-
+  </section>
 
   <!-- SECONDARY FEED -->
   <section class="container">
