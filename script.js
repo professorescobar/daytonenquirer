@@ -1,25 +1,10 @@
-// ==============================
-// PRICE TICKER CODE
-// ==============================
-
-const slides = document.querySelectorAll(".slide");
-let currentSlide = 0;
-
-document.getElementById("next")?.addEventListener("click", () => {
-  slides[currentSlide].classList.remove("active");
-  currentSlide = (currentSlide + 1) % slides.length;
-  slides[currentSlide].classList.add("active");
-});
-
-document.getElementById("prev")?.addEventListener("click", () => {
-  slides[currentSlide].classList.remove("active");
-  currentSlide = (currentSlide - 1 + slides.length) % slides.length;
-  slides[currentSlide].classList.add("active");
-});
-
+/*********************************
+ * PRICE TICKER (TradingView)
+ *********************************/
 (function () {
   const script = document.createElement("script");
-  script.src = "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
+  script.src =
+    "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
   script.async = true;
   script.innerHTML = JSON.stringify({
     symbols: [
@@ -28,8 +13,10 @@ document.getElementById("prev")?.addEventListener("click", () => {
       { proName: "OANDA:NAS100USD", title: "NASDAQ 100" },
       { proName: "NYSE:NYA", title: "NYSE Composite" },
       { proName: "OANDA:US2000USD", title: "Russell 2000" },
-      { proName: "OANDA:EURUSD", title: "USD/EUR" },
-      { proName: "OANDA:USDJPY", title: "USD/JPY" },
+
+      { proName: "OANDA:EURUSD", title: "USD / Euro" },
+      { proName: "OANDA:USDJPY", title: "USD / Yen" },
+
       { proName: "TVC:GOLD", title: "Gold" },
       { proName: "TVC:SILVER", title: "Silver" },
       { proName: "TVC:USOIL", title: "Crude Oil" }
@@ -45,44 +32,115 @@ document.getElementById("prev")?.addEventListener("click", () => {
 
   document
     .querySelector(".tradingview-widget-container")
-    ?.appendChild(script);
+    .appendChild(script);
 })();
 
+/*********************************
+ * TOP STORIES CAROUSEL
+ *********************************/
+const slides = document.querySelectorAll(".slide");
+let currentSlide = 0;
 
-// ==============================
-// NEWS CODE (Vercel API)
-// ==============================
+document.getElementById("next").addEventListener("click", () => {
+  slides[currentSlide].classList.remove("active");
+  currentSlide = (currentSlide + 1) % slides.length;
+  slides[currentSlide].classList.add("active");
+});
 
-async function loadNews() {
+document.getElementById("prev").addEventListener("click", () => {
+  slides[currentSlide].classList.remove("active");
+  currentSlide = (currentSlide - 1 + slides.length) % slides.length;
+  slides[currentSlide].classList.add("active");
+});
+
+/*********************************
+ * GNEWS: LEAD STORY + LINKS
+ *********************************/
+async function loadGNews() {
   try {
     const res = await fetch("/api/news");
     const data = await res.json();
 
-    const newsContainer = document.getElementById("news-container");
-    if (!newsContainer) return;
+    if (!data.articles || data.articles.length === 0) return;
 
-    newsContainer.innerHTML = "";
+    const lead = data.articles[0];
+    const rest = data.articles.slice(1, 8);
 
-    data.articles.slice(0, 10).forEach(article => {
+    const leadContainer = document.getElementById("gnews-lead");
+    const listContainer = document.getElementById("gnews-list");
+
+    // Lead story (big)
+    leadContainer.innerHTML = `
+      <article class="gnews-lead">
+        ${
+          lead.image
+            ? `<img src="${lead.image}" alt="${lead.title}" />`
+            : ""
+        }
+        <h2>
+          <a href="${lead.url}" target="_blank" rel="noopener noreferrer">
+            ${lead.title}
+          </a>
+        </h2>
+        <p>${lead.description || ""}</p>
+        <span class="source">${lead.source.name}</span>
+      </article>
+    `;
+
+    // Headline list (links only)
+    listContainer.innerHTML = "";
+    rest.forEach(article => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          ${article.title}
+        </a>
+      `;
+      listContainer.appendChild(li);
+    });
+  } catch (err) {
+    console.error("GNews failed to load", err);
+  }
+}
+
+loadGNews();
+
+/*********************************
+ * OPTIONAL: SECONDARY NEWS FEED
+ *********************************/
+async function loadSecondaryNews() {
+  try {
+    const res = await fetch("/api/news");
+    const data = await res.json();
+
+    const container = document.getElementById("news-container");
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    data.articles.slice(0, 6).forEach(article => {
       const item = document.createElement("div");
       item.className = "news-item";
 
       item.innerHTML = `
-      ${article.image ? `<img src="${article.image}" alt="${article.title}" />` : ""}
+        ${
+          article.image
+            ? `<img src="${article.image}" alt="${article.title}" />`
+            : ""
+        }
         <h3>
           <a href="${article.url}" target="_blank" rel="noopener noreferrer">
             ${article.title}
           </a>
         </h3>
-        <p>${article.description || ""}</p>
-        <span class="source">${article.source.name}</span>
       `;
 
-      newsContainer.appendChild(item);
+      container.appendChild(item);
     });
   } catch (err) {
-    console.error("News load failed", err);
+    console.error("Secondary news failed to load", err);
   }
 }
 
-loadNews();
+// Comment this out if you don’t want it
+// loadSecondaryNews();
