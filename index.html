@@ -10,26 +10,27 @@
 
   <!-- HEADER / NAV -->
   <header class="news-header">
-  <div class="container header-center">
-    <h1 class="logo">The Dayton Enquirer</h1>
-    <nav>
-      <a href="#top-stories">Top Stories</a>
-      <a href="#local">Local</a>
-      <a href="#national">National</a>
-      <a href="#sports">Sports</a>
-      <a href="#opinion">Opinion</a>
-    </nav>
-  </div>
-</header>
-
-<!-- Market Ticker -->
-<section class="market-ticker">
-  <div class="container">
-    <div class="tradingview-widget-container">
-      <div class="tradingview-widget-container__widget"></div>
+    <div class="container header-center">
+      <h1 class="logo">The Dayton Enquirer</h1>
+      <nav>
+        <a href="#top-stories">Top Stories</a>
+        <a href="#news">Latest</a>
+        <a href="#local">Local</a>
+        <a href="#national">National</a>
+        <a href="#sports">Sports</a>
+        <a href="#opinion">Opinion</a>
+      </nav>
     </div>
-  </div>
-</section>
+  </header>
+
+  <!-- MARKET TICKER -->
+  <section class="market-ticker">
+    <div class="container">
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget"></div>
+      </div>
+    </div>
+  </section>
 
   <!-- TOP STORIES CAROUSEL -->
   <section id="top-stories" class="carousel container">
@@ -40,6 +41,7 @@
         <p>Short summary of the headline news</p>
       </div>
     </div>
+
     <div class="slide">
       <img src="images/news2.jpg" alt="Second Story" />
       <div class="slide-text">
@@ -47,8 +49,15 @@
         <p>A brief description of this story</p>
       </div>
     </div>
+
     <button id="prev">❮</button>
     <button id="next">❯</button>
+  </section>
+
+  <!-- LATEST NEWS (DYNAMIC FROM API) -->
+  <section id="news" class="container">
+    <h2>Latest News</h2>
+    <div id="news-container"></div>
   </section>
 
   <!-- FEATURED ARTICLES -->
@@ -57,19 +66,21 @@
       <img src="images/article1.jpg" alt="Article Image" />
       <h3>Featured Story One</h3>
       <p>Summary of story one...</p>
-      <a href="article1.html">Read more →</a>
+      <a href="#">Read more →</a>
     </article>
+
     <article class="card">
       <img src="images/article2.jpg" alt="Article Image" />
       <h3>Featured Story Two</h3>
       <p>Summary of story two...</p>
-      <a href="article2.html">Read more →</a>
+      <a href="#">Read more →</a>
     </article>
+
     <article class="card">
       <img src="images/article3.jpg" alt="Article Image" />
       <h3>Featured Story Three</h3>
       <p>Summary of story three...</p>
-      <a href="article3.html">Read more →</a>
+      <a href="#">Read more →</a>
     </article>
   </section>
 
@@ -83,6 +94,7 @@
         <li><a href="#">Local news headline 3</a></li>
       </ul>
     </div>
+
     <div class="cat-box" id="national">
       <h3>National</h3>
       <ul>
@@ -91,6 +103,7 @@
         <li><a href="#">National headline 3</a></li>
       </ul>
     </div>
+
     <div class="cat-box" id="sports">
       <h3>Sports</h3>
       <ul>
@@ -99,6 +112,7 @@
         <li><a href="#">Sports headline 3</a></li>
       </ul>
     </div>
+
     <div class="cat-box" id="opinion">
       <h3>Opinion</h3>
       <ul>
@@ -112,7 +126,7 @@
   <!-- FOOTER -->
   <footer class="news-footer">
     <div class="container">
-      <p>© 2026 YourDailyNews • Trusted local & global reporting</p>
+      <p>© 2026 The Dayton Enquirer • Trusted local & global reporting</p>
       <div class="social">
         <a href="#">Twitter</a> | 
         <a href="#">Facebook</a> | 
@@ -121,6 +135,8 @@
     </div>
   </footer>
 
+  <!-- IMPORTANT: correct filename -->
   <script src="script.js"></script>
 </body>
 </html>
+
