@@ -1,29 +1,35 @@
-// --------------------
+// ====================
 // TOP STORIES CAROUSEL
-// --------------------
+// ====================
 const slides = document.querySelectorAll(".slide");
 let currentSlide = 0;
 
-document.getElementById("next")?.addEventListener("click", () => {
-  slides[currentSlide].classList.remove("active");
-  currentSlide = (currentSlide + 1) % slides.length;
-  slides[currentSlide].classList.add("active");
-});
+if (slides.length > 0) {
+  document.getElementById("next")?.addEventListener("click", () => {
+    slides[currentSlide].classList.remove("active");
+    currentSlide = (currentSlide + 1) % slides.length;
+    slides[currentSlide].classList.add("active");
+  });
 
-document.getElementById("prev")?.addEventListener("click", () => {
-  slides[currentSlide].classList.remove("active");
-  currentSlide = (currentSlide - 1 + slides.length) % slides.length;
-  slides[currentSlide].classList.add("active");
-});
+  document.getElementById("prev")?.addEventListener("click", () => {
+    slides[currentSlide].classList.remove("active");
+    currentSlide = (currentSlide - 1 + slides.length) % slides.length;
+    slides[currentSlide].classList.add("active");
+  });
+}
 
-// --------------------
+// ====================
 // MARKET TICKER
-// --------------------
+// ====================
 (function () {
+  const container = document.querySelector(".tradingview-widget-container");
+  if (!container) return;
+
   const script = document.createElement("script");
   script.src =
     "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
   script.async = true;
+
   script.innerHTML = JSON.stringify({
     symbols: [
       { proName: "DJI", title: "Dow Jones" },
@@ -46,85 +52,104 @@ document.getElementById("prev")?.addEventListener("click", () => {
     locale: "en"
   });
 
-  document
-    .querySelector(".tradingview-widget-container")
-    ?.appendChild(script);
+  container.appendChild(script);
 })();
 
-// --------------------
-// INTERNAL NEWS API (/api/news)
-// --------------------
-async function loadNews() {
+// ====================
+// NEWS DATA (FETCH ONCE)
+// ====================
+let cachedArticles = [];
+
+async function fetchNews() {
   try {
     const res = await fetch("/api/news");
-    if (!res.ok) throw new Error("API response failed");
+    if (!res.ok) throw new Error("News API request failed");
 
     const data = await res.json();
-    const container = document.getElementById("news-container");
-    container.innerHTML = "";
 
-    data.articles.slice(0, 10).forEach(article => {
-      const item = document.createElement("div");
-      item.className = "news-item";
-      item.innerHTML = `
-        <h3>
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
-            ${article.title}
-          </a>
-        </h3>
-        <p>${article.description || ""}</p>
-        <span class="source">${article.source?.name || ""}</span>
-      `;
-      container.appendChild(item);
-    });
+    if (!data.articles || !Array.isArray(data.articles)) {
+      throw new Error("Invalid news format");
+    }
+
+    cachedArticles = data.articles;
+
+    renderLatestNews();
+    renderGNews();
+
   } catch (err) {
-    console.error("News load failed:", err);
+    console.error("Failed to load news:", err);
   }
 }
 
-loadNews();
+// ====================
+// LATEST NEWS LIST
+// ====================
+function renderLatestNews() {
+  const container = document.getElementById("news-container");
+  if (!container || cachedArticles.length === 0) return;
 
-// --------------------
-// GNEWS FEED (LEAD + LINKS)
-// --------------------
-fetch(
-  "https://gnews.io/api/v4/top-headlines?country=us&max=6&token=YOUR_GNEWS_KEY"
-)
-  .then(res => res.json())
-  .then(data => {
-    if (!data.articles?.length) return;
+  container.innerHTML = "";
 
-    const lead = data.articles[0];
-    const leadContainer = document.getElementById("gnews-lead");
-    const listContainer = document.getElementById("gnews-list");
+  cachedArticles.slice(0, 10).forEach(article => {
+    const item = document.createElement("div");
+    item.className = "news-item";
 
-    // Lead story
-    leadContainer.innerHTML = `
-      <article class="gnews-lead">
-        ${
-          lead.image
-            ? `<img src="${lead.image}" alt="${lead.title}">`
-            : ""
-        }
+    item.innerHTML = `
+      <h3>
+        <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          ${article.title}
+        </a>
+      </h3>
+      <p>${article.description || ""}</p>
+      <span class="source">${article.source?.name || ""}</span>
+    `;
+
+    container.appendChild(item);
+  });
+}
+
+// ====================
+// GNEWS LEAD + LINKS
+// ====================
+function renderGNews() {
+  if (cachedArticles.length === 0) return;
+
+  const leadContainer = document.getElementById("gnews-lead");
+  const listContainer = document.getElementById("gnews-list");
+
+  if (!leadContainer || !listContainer) return;
+
+  const lead = cachedArticles[0];
+
+  leadContainer.innerHTML = `
+    <article class="lead-story">
+      ${lead.image ? `<img src="${lead.image}" alt="${lead.title}">` : ""}
+      <div class="lead-text">
         <h2>
-          <a href="${lead.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${lead.url}" target="_blank" rel="noopener">
             ${lead.title}
           </a>
         </h2>
         <p>${lead.description || ""}</p>
-      </article>
+        <span class="source">${lead.source?.name || ""}</span>
+      </div>
+    </article>
+  `;
+
+  listContainer.innerHTML = "";
+
+  cachedArticles.slice(1, 8).forEach(article => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <a href="${article.url}" target="_blank" rel="noopener">
+        ${article.title}
+      </a>
     `;
+    listContainer.appendChild(li);
+  });
+}
 
-    // Remaining links
-    data.articles.slice(1).forEach(article => {
-      const li = document.createElement("li");
-      li.innerHTML = `
-        <a href="${article.url}" target="_blank" rel="noopener noreferrer">
-          ${article.title}
-        </a>
-      `;
-      listContainer.appendChild(li);
-    });
-  })
-  .catch(err => console.error("GNews failed:", err));
-
+// ====================
+// INIT
+// ====================
+fetchNews();
