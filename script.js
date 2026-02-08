@@ -153,3 +153,20 @@ function renderGNews() {
 // INIT
 // ====================
 fetchNews();
+
+// --------------------
+// GNEWS HEADLINE TOGGLE
+// --------------------
+const toggleBtn = document.getElementById("toggle-headlines");
+const headlinesList = document.getElementById("gnews-list");
+
+toggleBtn?.addEventListener("click", () => {
+  const isOpen = headlinesList.hasAttribute("hidden");
+
+  headlinesList.toggleAttribute("hidden");
+  toggleBtn.textContent = isOpen
+    ? "hide headlines"
+    : "more headlines…";
+
+  toggleBtn.setAttribute("aria-expanded", String(isOpen));
+});

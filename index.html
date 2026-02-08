@@ -56,10 +56,21 @@
   </section>
 
   <!-- GNEWS FEED -->
-  <section id="latest" class="container gnews-section">
+<section id="latest" class="container gnews-section">
+  <h2 class="gnews-title">News from around the World</h2>
+
+  <div class="gnews-content">
     <div id="gnews-lead"></div>
-    <ul id="gnews-list"></ul>
-  </section>
+
+    <div class="gnews-headlines">
+      <button id="toggle-headlines" aria-expanded="false">
+        more headlines…
+      </button>
+      <ul id="gnews-list" hidden></ul>
+    </div>
+  </div>
+</section>
+
 
   <!-- SECONDARY FEED -->
   <section class="container">

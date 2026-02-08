@@ -173,6 +173,66 @@ nav a:hover {
   text-decoration: underline;
 }
 
+/* --------------------
+   GNEWS SECTION
+-------------------- */
+
+.gnews-section {
+  border: 1px solid #ddd;
+  padding: 1.25rem;
+  margin-top: 2rem;
+  background: #fff;
+}
+
+.gnews-title {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #000;
+  padding-bottom: 0.25rem;
+}
+
+.gnews-content {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+}
+
+/* Lead story */
+.lead-story {
+  display: flex;
+  gap: 1rem;
+}
+
+.lead-story img {
+  width: 40%;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.lead-text h2 {
+  margin-top: 0;
+}
+
+/* Headlines sidebar */
+.gnews-headlines ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin-top: 0.75rem;
+}
+
+.gnews-headlines li {
+  margin-bottom: 0.5rem;
+}
+
+.gnews-headlines a {
+  text-decoration: underline;
+  color: #000;
+}
+
+.gnews-headlines a:hover {
+  text-decoration-thickness: 2px;
+}
+
 /* ===============================
    SECONDARY NEWS LIST
 ================================ */
