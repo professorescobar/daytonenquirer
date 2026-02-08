@@ -68,6 +68,7 @@ async function loadNews() {
       item.className = "news-item";
 
       item.innerHTML = `
+      ${article.image ? `<img src="${article.image}" alt="${article.title}" />` : ""}
         <h3>
           <a href="${article.url}" target="_blank" rel="noopener noreferrer">
             ${article.title}
