@@ -1,38 +1,30 @@
-// ============================
-// TOP STORIES CAROUSEL
-// ============================
+/* ======================================================
+   TOP STORIES CAROUSEL
+====================================================== */
 const slides = document.querySelectorAll(".slide");
 let currentSlide = 0;
 
-const nextBtn = document.getElementById("next");
-const prevBtn = document.getElementById("prev");
+document.getElementById("next")?.addEventListener("click", () => {
+  slides[currentSlide].classList.remove("active");
+  currentSlide = (currentSlide + 1) % slides.length;
+  slides[currentSlide].classList.add("active");
+});
 
-if (slides.length && nextBtn && prevBtn) {
-  nextBtn.addEventListener("click", () => {
-    slides[currentSlide].classList.remove("active");
-    currentSlide = (currentSlide + 1) % slides.length;
-    slides[currentSlide].classList.add("active");
-  });
+document.getElementById("prev")?.addEventListener("click", () => {
+  slides[currentSlide].classList.remove("active");
+  currentSlide =
+    (currentSlide - 1 + slides.length) % slides.length;
+  slides[currentSlide].classList.add("active");
+});
 
-  prevBtn.addEventListener("click", () => {
-    slides[currentSlide].classList.remove("active");
-    currentSlide = (currentSlide - 1 + slides.length) % slides.length;
-    slides[currentSlide].classList.add("active");
-  });
-}
-
-// ============================
-// MARKET TICKER (TradingView)
-// ============================
+/* ======================================================
+   MARKET TICKER (TradingView)
+====================================================== */
 (function () {
-  const container = document.querySelector(".tradingview-widget-container");
-  if (!container) return;
-
   const script = document.createElement("script");
   script.src =
     "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
   script.async = true;
-
   script.innerHTML = JSON.stringify({
     symbols: [
       { proName: "DJI", title: "Dow Jones" },
@@ -55,53 +47,57 @@ if (slides.length && nextBtn && prevBtn) {
     locale: "en"
   });
 
-  container.appendChild(script);
+  document
+    .querySelector(".tradingview-widget-container")
+    ?.appendChild(script);
 })();
 
-// ============================
-// GNEWS FEED (Lead + Toggle)
-// ============================
-async function loadGNews() {
+/* ======================================================
+   WORLD NEWS (RSS via /api/world-news)
+====================================================== */
+async function loadWorldNews() {
   try {
-    const res = await fetch("/api/news");
-    if (!res.ok) throw new Error("Failed to fetch news");
+    const res = await fetch("/api/world-news");
+    if (!res.ok) throw new Error("World news fetch failed");
 
     const data = await res.json();
-    if (!Array.isArray(data.articles) || !data.articles.length) return;
+    if (!Array.isArray(data.articles) || data.articles.length === 0) {
+      throw new Error("No world news articles returned");
+    }
 
     const articles = data.articles;
 
-    // ----------------
-    // LEAD STORY
-    // ----------------
+    /* ---------- Lead Story ---------- */
     const lead = articles[0];
     const leadContainer = document.getElementById("gnews-lead");
 
     leadContainer.innerHTML = `
       <article class="lead-story">
-        <img src="${lead.image || ""}" alt="${lead.title}">
+        ${
+          lead.image
+            ? `<img src="${lead.image}" alt="${lead.title}">`
+            : ""
+        }
         <div class="lead-text">
           <h2>
-            <a href="${lead.url}" target="_blank" rel="noopener noreferrer">
+            <a href="${lead.url}" target="_blank" rel="noopener">
               ${lead.title}
             </a>
           </h2>
           <p>${lead.description || ""}</p>
-          <span class="source">${lead.source?.name || ""}</span>
+          <span class="source">${lead.source}</span>
         </div>
       </article>
     `;
 
-    // ----------------
-    // HEADLINES LIST
-    // ----------------
+    /* ---------- Expandable Headlines ---------- */
     const list = document.getElementById("gnews-list");
     list.innerHTML = "";
 
-    articles.slice(1, 10).forEach(article => {
+    articles.slice(1, 12).forEach(article => {
       const li = document.createElement("li");
       li.innerHTML = `
-        <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+        <a href="${article.url}" target="_blank" rel="noopener">
           ${article.title}
         </a>
       `;
@@ -109,66 +105,27 @@ async function loadGNews() {
     });
 
   } catch (err) {
-    console.error("GNews error:", err);
+    console.error("World news error:", err);
+    document.getElementById("gnews-lead").innerHTML =
+      "<p>World news is temporarily unavailable.</p>";
   }
 }
 
-// ============================
-// TOGGLE HEADLINES
-// ============================
+loadWorldNews();
+
+/* ======================================================
+   HEADLINES TOGGLE (Expandable Section)
+====================================================== */
 const toggleBtn = document.getElementById("toggle-headlines");
 const headlinesList = document.getElementById("gnews-list");
 
-if (toggleBtn && headlinesList) {
-  toggleBtn.addEventListener("click", () => {
-    const isHidden = headlinesList.hasAttribute("hidden");
+toggleBtn?.addEventListener("click", () => {
+  const isExpanded = toggleBtn.getAttribute("aria-expanded") === "true";
 
-    if (isHidden) {
-      headlinesList.removeAttribute("hidden");
-      toggleBtn.textContent = "hide headlines";
-      toggleBtn.setAttribute("aria-expanded", "true");
-    } else {
-      headlinesList.setAttribute("hidden", "");
-      toggleBtn.textContent = "more headlines…";
-      toggleBtn.setAttribute("aria-expanded", "false");
-    }
-  });
-}
+  toggleBtn.setAttribute("aria-expanded", String(!isExpanded));
+  headlinesList.hidden = isExpanded;
 
-// ============================
-// OPTIONAL SECONDARY FEED
-// ============================
-async function loadSecondaryNews() {
-  try {
-    const res = await fetch("/api/news");
-    if (!res.ok) return;
-
-    const data = await res.json();
-    const container = document.getElementById("news-container");
-    if (!container) return;
-
-    container.innerHTML = "";
-
-    data.articles.slice(10, 16).forEach(article => {
-      const item = document.createElement("div");
-      item.className = "news-item";
-      item.innerHTML = `
-        <h3>
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
-            ${article.title}
-          </a>
-        </h3>
-      `;
-      container.appendChild(item);
-    });
-  } catch (err) {
-    console.error("Secondary feed error:", err);
-  }
-}
-
-// ============================
-// INIT
-// ============================
-loadGNews();
-loadSecondaryNews();
-
+  toggleBtn.textContent = isExpanded
+    ? "more headlines…"
+    : "hide headlines";
+});
