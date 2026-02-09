@@ -1,13 +1,17 @@
 const Parser = require("rss-parser");
-const parser = new Parser();
+const parser = new Parser({
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)'
+  }
+});
 
 module.exports = async (req, res) => {
   try {
     const feeds = [
       { name: "Reuters", url: "https://feeds.reuters.com/reuters/worldNews" },
-      { name: "AP", url: "https://apnews.com/rss" },
-      { name: "AFP", url: "https://www.afp.com/rss" },
-      { name: "NHK", url: "https://www3.nhk.or.jp/rss/news/cat0.xml" }
+      { name: "AP", url: "https://apnews.com/index.rss" },
+      { name: "AFP", url: "https://www.afp.com/en/rss" },
+      { name: "NHK World", url: "https://www3.nhk.or.jp/nhkworld/en/news/rss.xml" }
     ];
 
     const articles = [];
