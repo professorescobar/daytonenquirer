@@ -2,16 +2,17 @@ const Parser = require("rss-parser");
 const parser = new Parser({
   headers: {
     'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)'
-  }
+  },
+  timeout: 10000
 });
 
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      { name: "Reuters", url: "https://feeds.reuters.com/reuters/worldNews" },
-      { name: "AP", url: "https://apnews.com/index.rss" },
-      { name: "AFP", url: "https://www.afp.com/en/rss" },
-      { name: "NHK World", url: "https://www3.nhk.or.jp/nhkworld/en/news/rss.xml" }
+      { name: "AP News", url: "https://feeds.apnews.com/rss/world" },
+      { name: "NHK World", url: "https://www3.nhk.or.jp/nhkworld/en/news/rss.xml" },
+      { name: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
+      { name: "France24", url: "https://www.france24.com/en/rss" }
     ];
 
     const articles = [];
@@ -23,9 +24,9 @@ module.exports = async (req, res) => {
           articles.push({
             title: item.title,
             url: item.link,
-            description: item.contentSnippet || "",
+            description: item.contentSnippet || item.description || "",
             source: feed.name,
-            image: item.enclosure?.url || ""
+            image: item.enclosure?.url || item.media?.$ || ""
           });
         });
       } catch (feedError) {
