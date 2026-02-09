@@ -19,18 +19,19 @@ module.exports = async (req, res) => {
       { name: "France24", url: "https://www.france24.com/en/rss" },
       { name: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
       { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
-      { name: "BBC", url: "http://feeds.bbci.co.uk/news/world/rss.xml" }  // Try BBC instead
+      { name: "BBC", url: "http://feeds.bbci.co.uk/news/world/rss.xml" }
     ];
 
-    const allArticles = [];
+    const articlesBySource = {};
     const feedStatus = {};
 
+    // Fetch all feeds
     for (const feed of feeds) {
       try {
         const parsed = await parser.parseURL(feed.url);
         feedStatus[feed.name] = `Success: ${parsed.items.length} items`;
         
-        parsed.items.slice(0, 10).forEach(item => {
+        articlesBySource[feed.name] = parsed.items.slice(0, 10).map(item => {
           // Try multiple ways to get the image
           let imageUrl = '';
           
@@ -44,36 +45,60 @@ module.exports = async (req, res) => {
             imageUrl = item['media:content'].$.url;
           }
 
-          allArticles.push({
+          return {
             title: item.title,
             url: item.link,
             description: item.contentSnippet || item.description || "",
             source: feed.name,
             image: imageUrl,
             pubDate: item.pubDate || item.isoDate || ""
-          });
+          };
         });
       } catch (feedError) {
         feedStatus[feed.name] = `Failed: ${feedError.message}`;
         console.error(`Failed to fetch ${feed.name}:`, feedError.message);
+        articlesBySource[feed.name] = [];
       }
     }
 
-    // Sort by date (most recent first), but keep France24 with images at the top
-    allArticles.sort((a, b) => {
-      // Prioritize France24 articles with images for featured story
-      if (a.source === "France24" && a.image && (!b.image || b.source !== "France24")) return -1;
-      if (b.source === "France24" && b.image && (!a.image || a.source !== "France24")) return 1;
-      
-      // Then sort by date
-      const dateA = new Date(a.pubDate);
-      const dateB = new Date(b.pubDate);
-      return dateB - dateA; // Most recent first
+    // FEATURED ARTICLE: Most recent article WITH image from BBC or France24
+    const featuredSources = ['BBC', 'France24'];
+    const articlesWithImages = featuredSources
+      .flatMap(source => articlesBySource[source] || [])
+      .filter(article => article.image)
+      .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+    
+    const featuredArticle = articlesWithImages[0];
+
+    // OTHER HEADLINES: Interleave all sources for diversity, sorted by date within each source
+    const headlineSources = ['BBC', 'France24', 'Al Jazeera', 'Deutsche Welle'];
+    
+    // Sort each source's articles by date
+    const sortedBySource = headlineSources.map(source => {
+      const articles = (articlesBySource[source] || [])
+        .filter(article => article !== featuredArticle) // Exclude the featured article
+        .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+      return articles;
     });
 
+    // Interleave sources for diversity
+    const headlines = [];
+    let maxLength = Math.max(...sortedBySource.map(arr => arr.length));
+    
+    for (let i = 0; i < maxLength; i++) {
+      sortedBySource.forEach(sourceArticles => {
+        if (sourceArticles[i]) {
+          headlines.push(sourceArticles[i]);
+        }
+      });
+    }
+
+    // Combine: featured first, then headlines
+    const articles = featuredArticle ? [featuredArticle, ...headlines] : headlines;
+
     res.status(200).json({ 
-      articles: allArticles, 
-      articleCount: allArticles.length,
+      articles, 
+      articleCount: articles.length,
       feedStatus
     });
   } catch (err) {
