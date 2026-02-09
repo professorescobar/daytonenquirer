@@ -55,25 +55,24 @@
     <button id="next" aria-label="Next story">❯</button>
   </section>
 
-  <!-- WORLD NEWS (RSS FED) -->
-  <section id="world-news" class="container world-news-section">
-    <h2 class="world-news-title">World News</h2>
+<!-- WORLD NEWS (RSS FED) -->
+<section id="world-news" class="container world-news-section">
+  <h2 class="world-news-title">World News</h2>
 
-    <div class="world-news-content">
-      
-      <!-- Lead Story injected by JS -->
-      <div id="gnews-lead"></div>
+  <div class="world-news-content">
+    
+    <!-- Featured Story with Image -->
+    <div id="featured-story"></div>
 
-      <!-- Expandable headlines -->
-      <div class="world-news-headlines">
-        <button id="toggle-headlines" aria-expanded="false">
-          more headlines…
-        </button>
-        <ul id="gnews-list" hidden></ul>
-      </div>
-
+    <!-- Headlines Sidebar -->
+    <div class="headlines-sidebar">
+      <ul id="headlines-list"></ul>
+      <button id="toggle-more" aria-expanded="false">More...</button>
+      <ul id="more-headlines-list" hidden></ul>
     </div>
-  </section>
+
+  </div>
+</section>
 
   <!-- SECONDARY FEED -->
   <section class="container">

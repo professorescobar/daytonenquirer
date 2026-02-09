@@ -73,48 +73,61 @@ async function loadWorldNews() {
     const articles = data.articles;
 
     // ----------------
-    // LEAD STORY
+    // FEATURED STORY (first article with image overlay)
     // ----------------
-    const lead = articles[0];
-    const leadContainer = document.getElementById("gnews-lead");
-    if (!leadContainer) return;
-
-    leadContainer.innerHTML = `
-      <article class="lead-story">
-        ${
-          lead.image
-            ? `<img src="${lead.image}" alt="${lead.title}">`
-            : ""
-        }
-        <div class="lead-text">
-          <h2>
-            <a href="${lead.url}" target="_blank" rel="noopener noreferrer">
-              ${lead.title}
-            </a>
-          </h2>
-          <p>${lead.description || ""}</p>
-          <span class="source">${lead.source}</span>
-        </div>
-      </article>
-    `;
-
-    // ----------------
-    // HEADLINES LIST
-    // ----------------
-    const list = document.getElementById("gnews-list");
-    if (!list) return;
-
-    list.innerHTML = "";
-
-    articles.slice(1, 10).forEach(article => {
-      const li = document.createElement("li");
-      li.innerHTML = `
-        <a href="${article.url}" target="_blank" rel="noopener noreferrer">
-          ${article.title}
-        </a>
+    const featured = articles[0];
+    const featuredContainer = document.getElementById("featured-story");
+    if (featuredContainer) {
+      featuredContainer.innerHTML = `
+        <article class="featured-article">
+          ${featured.image 
+            ? `<img src="${featured.image}" alt="${featured.title}">`
+            : '<div class="placeholder-image"></div>'
+          }
+          <div class="featured-overlay">
+            <h3>
+              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+                ${featured.title}
+              </a>
+            </h3>
+          </div>
+        </article>
       `;
-      list.appendChild(li);
-    });
+    }
+
+    // ----------------
+    // VISIBLE HEADLINES (next 5 articles)
+    // ----------------
+    const headlinesList = document.getElementById("headlines-list");
+    if (headlinesList) {
+      headlinesList.innerHTML = "";
+      articles.slice(1, 6).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+            ${article.title}
+          </a>
+        `;
+        headlinesList.appendChild(li);
+      });
+    }
+
+    // ----------------
+    // MORE HEADLINES (remaining articles, hidden by default)
+    // ----------------
+    const moreList = document.getElementById("more-headlines-list");
+    if (moreList && articles.length > 6) {
+      moreList.innerHTML = "";
+      articles.slice(6).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+            ${article.title}
+          </a>
+        `;
+        moreList.appendChild(li);
+      });
+    }
 
   } catch (err) {
     console.error("World news error:", err);
@@ -122,23 +135,23 @@ async function loadWorldNews() {
 }
 
 // ============================
-// TOGGLE HEADLINES
+// TOGGLE "MORE" HEADLINES
 // ============================
-const toggleBtn = document.getElementById("toggle-headlines");
-const headlinesList = document.getElementById("gnews-list");
+const toggleMoreBtn = document.getElementById("toggle-more");
+const moreHeadlinesList = document.getElementById("more-headlines-list");
 
-if (toggleBtn && headlinesList) {
-  toggleBtn.addEventListener("click", () => {
-    const isHidden = headlinesList.hasAttribute("hidden");
+if (toggleMoreBtn && moreHeadlinesList) {
+  toggleMoreBtn.addEventListener("click", () => {
+    const isHidden = moreHeadlinesList.hasAttribute("hidden");
 
     if (isHidden) {
-      headlinesList.removeAttribute("hidden");
-      toggleBtn.textContent = "hide headlines";
-      toggleBtn.setAttribute("aria-expanded", "true");
+      moreHeadlinesList.removeAttribute("hidden");
+      toggleMoreBtn.textContent = "Less...";
+      toggleMoreBtn.setAttribute("aria-expanded", "true");
     } else {
-      headlinesList.setAttribute("hidden", "");
-      toggleBtn.textContent = "more headlines…";
-      toggleBtn.setAttribute("aria-expanded", "false");
+      moreHeadlinesList.setAttribute("hidden", "");
+      toggleMoreBtn.textContent = "More...";
+      toggleMoreBtn.setAttribute("aria-expanded", "false");
     }
   });
 }

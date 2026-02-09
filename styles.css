@@ -122,85 +122,126 @@ nav a:hover {
 }
 
 /* ===============================
-   GNEWS SECTION
+   WORLD NEWS SECTION
 ================================ */
-.gnews-section {
+.world-news-section {
   border: 1px solid #ddd;
   padding: 1.5rem;
   margin: 3rem auto;
   background: #fff;
 }
 
-.gnews-title {
+.world-news-title {
   font-size: 1.6rem;
   margin-bottom: 1rem;
   border-bottom: 2px solid #000;
   padding-bottom: 0.25rem;
 }
 
-/* Layout */
-.gnews-content {
+.world-news-content {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 1.5rem;
 }
 
-/* Lead story */
-.lead-story {
-  display: flex;
-  gap: 1rem;
-}
-
-.lead-story img {
-  width: 45%;
-  height: 220px;
-  object-fit: cover;
+/* Featured Article with Image Overlay */
+.featured-article {
+  position: relative;
+  height: 350px;
   border-radius: 6px;
+  overflow: hidden;
 }
 
-.lead-text h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.4rem;
+.featured-article img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.lead-text p {
-  color: #444;
+.placeholder-image {
+  width: 100%;
+  height: 100%;
+  background: #ddd;
 }
 
-.lead-text .source {
-  display: block;
-  margin-top: 0.5rem;
-  font-size: 0.85rem;
-  color: #777;
+.featured-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.3));
+  padding: 1.5rem;
 }
 
-/* Headlines sidebar */
-.gnews-headlines button {
+.featured-overlay h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+
+.featured-overlay a {
+  color: #fff;
+  text-decoration: none;
+}
+
+.featured-overlay a:hover {
+  text-decoration: underline;
+}
+
+/* Headlines Sidebar */
+.headlines-sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
+.headlines-sidebar ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0 0 0.75rem 0;
+}
+
+.headlines-sidebar li {
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+}
+
+.headlines-sidebar a {
+  text-decoration: none;
+  color: #000;
+  font-size: 0.95rem;
+}
+
+.headlines-sidebar a:hover {
+  text-decoration: underline;
+}
+
+#toggle-more {
   background: none;
   border: none;
   padding: 0;
   font-weight: bold;
   cursor: pointer;
   text-decoration: underline;
+  text-align: left;
+  font-size: 0.95rem;
+  margin-bottom: 0.75rem;
 }
 
-.gnews-headlines ul {
-  list-style: disc;
-  padding-left: 1.25rem;
-  margin-top: 0.75rem;
-}
-
-.gnews-headlines li {
-  margin-bottom: 0.5rem;
-}
-
-.gnews-headlines a {
-  text-decoration: underline;
-  color: #000;
-}
-
-.gnews-headlines a:hover {
+#toggle-more:hover {
   text-decoration-thickness: 2px;
+}
+
+/* ===============================
+   RESPONSIVE
+================================ */
+@media (max-width: 900px) {
+  .world-news-content {
+    grid-template-columns: 1fr;
+  }
+
+  .featured-article {
+    height: 280px;
+  }
 }
 
 /* ===============================
