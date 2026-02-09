@@ -24,10 +24,13 @@ module.exports = async (req, res) => {
 
     const france24Articles = [];
     const otherArticles = [];
+    const feedStatus = {}; // Track which feeds work
 
     for (const feed of feeds) {
       try {
         const parsed = await parser.parseURL(feed.url);
+        feedStatus[feed.name] = `Success: ${parsed.items.length} items`;
+        
         parsed.items.slice(0, 10).forEach(item => {
           // Try multiple ways to get the image
           let imageUrl = '';
@@ -59,6 +62,7 @@ module.exports = async (req, res) => {
           }
         });
       } catch (feedError) {
+        feedStatus[feed.name] = `Failed: ${feedError.message}`;
         console.error(`Failed to fetch ${feed.name}:`, feedError.message);
       }
     }
@@ -66,7 +70,11 @@ module.exports = async (req, res) => {
     // Put France24 first (for featured image), then mix in others
     const articles = [...france24Articles, ...otherArticles];
 
-    res.status(200).json({ articles, articleCount: articles.length });
+    res.status(200).json({ 
+      articles, 
+      articleCount: articles.length,
+      feedStatus  // Include status info
+    });
   } catch (err) {
     console.error("Full error:", err);
     res.status(500).json({ error: "Failed to fetch RSS feeds", details: err.message });
