@@ -24,7 +24,7 @@
     </div>
   </header>
 
-  <!-- MARKET TICKER -->
+ <!-- MARKET TICKER -->
   <section class="market-ticker">
     <div class="container">
       <div class="tradingview-widget-container">
@@ -55,100 +55,84 @@
     <button id="next" aria-label="Next story">❯</button>
   </section>
 
-<!-- WORLD NEWS (RSS FED) -->
-<section id="world-news" class="container world-news-section">
-  <h2 class="world-news-title">World News</h2>
+  <!-- NATIONAL NEWS -->
+  <section id="national" class="container world-news-section">
+    <h2 class="world-news-title">National News</h2>
 
-  <div class="world-news-content">
-    
-    <!-- Featured Story with Image -->
-    <div id="featured-story"></div>
-
-    <!-- Headlines Sidebar -->
-    <div class="headlines-sidebar">
-      <ul id="headlines-list"></ul>
+    <div class="world-news-content">
+      <div id="national-featured-story"></div>
+      <div class="headlines-sidebar">
+        <ul id="national-headlines-list"></ul>
+      </div>
     </div>
 
-  </div>
+    <div id="national-more-headlines-container" hidden>
+      <ul id="national-more-headlines-list"></ul>
+    </div>
 
-  <!-- Expandable More Headlines (full width below) -->
-  <div id="more-headlines-container" hidden>
-    <ul id="more-headlines-list"></ul>
-  </div>
-
-  <!-- More Button (full width) -->
-  <button id="toggle-more" class="more-button" aria-expanded="false">
-    <span class="arrow-down">▼</span>
-  </button>
-</section>
-
-  <!-- SECONDARY FEED -->
-  <section class="container">
-    <h2>More Headlines</h2>
-    <div id="news-container"></div>
+    <button id="national-toggle-more" class="more-button" aria-expanded="false">
+      <span class="arrow-down">▼</span>
+    </button>
   </section>
 
-  <!-- FEATURED ARTICLES -->
-  <section class="container featured-grid">
-    <article class="card">
-      <img src="images/article1.jpg" alt="Article Image" />
-      <h3>Featured Story One</h3>
-      <p>Summary of story one...</p>
-      <a href="#">Read more →</a>
-    </article>
+  <!-- BUSINESS NEWS -->
+  <section id="business" class="container world-news-section">
+    <h2 class="world-news-title">Business</h2>
 
-    <article class="card">
-      <img src="images/article2.jpg" alt="Article Image" />
-      <h3>Featured Story Two</h3>
-      <p>Summary of story two...</p>
-      <a href="#">Read more →</a>
-    </article>
+    <div class="world-news-content">
+      <div id="business-featured-story"></div>
+      <div class="headlines-sidebar">
+        <ul id="business-headlines-list"></ul>
+      </div>
+    </div>
 
-    <article class="card">
-      <img src="images/article3.jpg" alt="Article Image" />
-      <h3>Featured Story Three</h3>
-      <p>Summary of story three...</p>
-      <a href="#">Read more →</a>
-    </article>
+    <div id="business-more-headlines-container" hidden>
+      <ul id="business-more-headlines-list"></ul>
+    </div>
+
+    <button id="business-toggle-more" class="more-button" aria-expanded="false">
+      <span class="arrow-down">▼</span>
+    </button>
   </section>
 
-  <!-- CATEGORIES -->
-  <section class="container categories">
-    <div class="cat-box" id="local">
-      <h3>Local</h3>
-      <ul>
-        <li><a href="#">Local headline 1</a></li>
-        <li><a href="#">Local headline 2</a></li>
-        <li><a href="#">Local headline 3</a></li>
-      </ul>
+  <!-- SPORTS NEWS -->
+  <section id="sports" class="container world-news-section">
+    <h2 class="world-news-title">Sports</h2>
+
+    <div class="world-news-content">
+      <div id="sports-featured-story"></div>
+      <div class="headlines-sidebar">
+        <ul id="sports-headlines-list"></ul>
+      </div>
     </div>
 
-    <div class="cat-box" id="national">
-      <h3>National</h3>
-      <ul>
-        <li><a href="#">National headline 1</a></li>
-        <li><a href="#">National headline 2</a></li>
-        <li><a href="#">National headline 3</a></li>
-      </ul>
+    <div id="sports-more-headlines-container" hidden>
+      <ul id="sports-more-headlines-list"></ul>
     </div>
 
-    <div class="cat-box" id="sports">
-      <h3>Sports</h3>
-      <ul>
-        <li><a href="#">Sports headline 1</a></li>
-        <li><a href="#">Sports headline 2</a></li>
-        <li><a href="#">Sports headline 3</a></li>
-      </ul>
+    <button id="sports-toggle-more" class="more-button" aria-expanded="false">
+      <span class="arrow-down">▼</span>
+    </button>
+  </section>
+
+  <!-- WORLD NEWS -->
+  <section id="world-news" class="container world-news-section">
+    <h2 class="world-news-title">World News</h2>
+
+    <div class="world-news-content">
+      <div id="featured-story"></div>
+      <div class="headlines-sidebar">
+        <ul id="headlines-list"></ul>
+      </div>
     </div>
 
-    <div class="cat-box" id="opinion">
-      <h3>Opinion</h3>
-      <ul>
-        <li><a href="#">Opinion piece 1</a></li>
-        <li><a href="#">Opinion piece 2</a></li>
-        <li><a href="#">Opinion piece 3</a></li>
-      </ul>
+    <div id="more-headlines-container" hidden>
+      <ul id="more-headlines-list"></ul>
     </div>
+
+    <button id="toggle-more" class="more-button" aria-expanded="false">
+      <span class="arrow-down">▼</span>
+    </button>
   </section>
 
   <!-- FOOTER -->
@@ -160,6 +144,5 @@
 
   <!-- SCRIPT -->
   <script src="script.js"></script>
-
 </body>
 </html>

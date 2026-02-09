@@ -184,3 +184,335 @@ if (toggleMoreBtn && moreHeadlinesContainer) {
 // INIT
 // ============================
 loadWorldNews();
+
+// ============================
+// NATIONAL NEWS (RSS via API)
+// ============================
+async function loadNationalNews() {
+  try {
+    const res = await fetch("/api/national-news");
+    if (!res.ok) throw new Error("National news fetch failed");
+
+    const data = await res.json();
+    if (!Array.isArray(data.articles) || !data.articles.length) return;
+
+    const articles = data.articles;
+
+    function formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const now = new Date();
+      const diff = now - date;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      
+      if (hours < 1) return 'Just now';
+      if (hours < 24) return `${hours}h ago`;
+      if (hours < 48) return 'Yesterday';
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    const featured = articles[0];
+    const featuredContainer = document.getElementById("national-featured-story");
+    if (featuredContainer) {
+      featuredContainer.innerHTML = `
+        <article class="featured-article">
+          ${featured.image 
+            ? `<img src="${featured.image}" alt="${featured.title}">`
+            : '<div class="placeholder-image"></div>'
+          }
+          <div class="featured-overlay">
+            <h3>
+              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+                ${featured.title}
+              </a>
+            </h3>
+            <div class="article-meta">
+              <span class="source">${featured.source}</span>
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    const headlinesList = document.getElementById("national-headlines-list");
+    if (headlinesList) {
+      headlinesList.innerHTML = "";
+      articles.slice(1, 6).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+            ${article.title}
+          </a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
+        `;
+        headlinesList.appendChild(li);
+      });
+    }
+
+    const moreList = document.getElementById("national-more-headlines-list");
+    if (moreList && articles.length > 6) {
+      moreList.innerHTML = "";
+      articles.slice(6, 24).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+            ${article.title}
+          </a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
+        `;
+        moreList.appendChild(li);
+      });
+    }
+
+  } catch (err) {
+    console.error("National news error:", err);
+  }
+}
+
+// ============================
+// BUSINESS NEWS (RSS via API)
+// ============================
+async function loadBusinessNews() {
+  try {
+    const res = await fetch("/api/business-news");
+    if (!res.ok) throw new Error("Business news fetch failed");
+
+    const data = await res.json();
+    if (!Array.isArray(data.articles) || !data.articles.length) return;
+
+    const articles = data.articles;
+
+    function formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const now = new Date();
+      const diff = now - date;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      
+      if (hours < 1) return 'Just now';
+      if (hours < 24) return `${hours}h ago`;
+      if (hours < 48) return 'Yesterday';
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    const featured = articles[0];
+    const featuredContainer = document.getElementById("business-featured-story");
+    if (featuredContainer) {
+      featuredContainer.innerHTML = `
+        <article class="featured-article">
+          ${featured.image 
+            ? `<img src="${featured.image}" alt="${featured.title}">`
+            : '<div class="placeholder-image"></div>'
+          }
+          <div class="featured-overlay">
+            <h3>
+              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+                ${featured.title}
+              </a>
+            </h3>
+            <div class="article-meta">
+              <span class="source">${featured.source}</span>
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    const headlinesList = document.getElementById("business-headlines-list");
+    if (headlinesList) {
+      headlinesList.innerHTML = "";
+      articles.slice(1, 6).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+            ${article.title}
+          </a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
+        `;
+        headlinesList.appendChild(li);
+      });
+    }
+
+    const moreList = document.getElementById("business-more-headlines-list");
+    if (moreList && articles.length > 6) {
+      moreList.innerHTML = "";
+      articles.slice(6, 24).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+            ${article.title}
+          </a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
+        `;
+        moreList.appendChild(li);
+      });
+    }
+
+  } catch (err) {
+    console.error("Business news error:", err);
+  }
+}
+
+// ============================
+// SPORTS NEWS (RSS via API)
+// ============================
+async function loadSportsNews() {
+  try {
+    const res = await fetch("/api/sports-news");
+    if (!res.ok) throw new Error("Sports news fetch failed");
+
+    const data = await res.json();
+    if (!Array.isArray(data.articles) || !data.articles.length) return;
+
+    const articles = data.articles;
+
+    function formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const now = new Date();
+      const diff = now - date;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      
+      if (hours < 1) return 'Just now';
+      if (hours < 24) return `${hours}h ago`;
+      if (hours < 48) return 'Yesterday';
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    const featured = articles[0];
+    const featuredContainer = document.getElementById("sports-featured-story");
+    if (featuredContainer) {
+      featuredContainer.innerHTML = `
+        <article class="featured-article">
+          ${featured.image 
+            ? `<img src="${featured.image}" alt="${featured.title}">`
+            : '<div class="placeholder-image"></div>'
+          }
+          <div class="featured-overlay">
+            <h3>
+              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+                ${featured.title}
+              </a>
+            </h3>
+            <div class="article-meta">
+              <span class="source">${featured.source}</span>
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    const headlinesList = document.getElementById("sports-headlines-list");
+    if (headlinesList) {
+      headlinesList.innerHTML = "";
+      articles.slice(1, 6).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+            ${article.title}
+          </a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
+        `;
+        headlinesList.appendChild(li);
+      });
+    }
+
+    const moreList = document.getElementById("sports-more-headlines-list");
+    if (moreList && articles.length > 6) {
+      moreList.innerHTML = "";
+      articles.slice(6, 24).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+            ${article.title}
+          </a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
+        `;
+        moreList.appendChild(li);
+      });
+    }
+
+  } catch (err) {
+    console.error("Sports news error:", err);
+  }
+}
+
+// ============================
+// TOGGLE BUTTONS FOR ALL SECTIONS
+// ============================
+const nationalToggleBtn = document.getElementById("national-toggle-more");
+const nationalMoreContainer = document.getElementById("national-more-headlines-container");
+
+if (nationalToggleBtn && nationalMoreContainer) {
+  nationalToggleBtn.addEventListener("click", () => {
+    const isHidden = nationalMoreContainer.hasAttribute("hidden");
+    if (isHidden) {
+      nationalMoreContainer.removeAttribute("hidden");
+      nationalToggleBtn.setAttribute("aria-expanded", "true");
+    } else {
+      nationalMoreContainer.setAttribute("hidden", "");
+      nationalToggleBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+const businessToggleBtn = document.getElementById("business-toggle-more");
+const businessMoreContainer = document.getElementById("business-more-headlines-container");
+
+if (businessToggleBtn && businessMoreContainer) {
+  businessToggleBtn.addEventListener("click", () => {
+    const isHidden = businessMoreContainer.hasAttribute("hidden");
+    if (isHidden) {
+      businessMoreContainer.removeAttribute("hidden");
+      businessToggleBtn.setAttribute("aria-expanded", "true");
+    } else {
+      businessMoreContainer.setAttribute("hidden", "");
+      businessToggleBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+const sportsToggleBtn = document.getElementById("sports-toggle-more");
+const sportsMoreContainer = document.getElementById("sports-more-headlines-container");
+
+if (sportsToggleBtn && sportsMoreContainer) {
+  sportsToggleBtn.addEventListener("click", () => {
+    const isHidden = sportsMoreContainer.hasAttribute("hidden");
+    if (isHidden) {
+      sportsMoreContainer.removeAttribute("hidden");
+      sportsToggleBtn.setAttribute("aria-expanded", "true");
+    } else {
+      sportsMoreContainer.setAttribute("hidden", "");
+      sportsToggleBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+// ============================
+// INIT
+// ============================
+loadNationalNews();
+loadBusinessNews();
+loadSportsNews();
+loadWorldNews();
