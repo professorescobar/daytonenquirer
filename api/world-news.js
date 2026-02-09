@@ -16,20 +16,17 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      // Current working feeds
+      // Feeds with images (for featured article)
       { name: "France24", url: "https://www.france24.com/en/rss" },
-      { name: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
-      { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
       { name: "BBC", url: "http://feeds.bbci.co.uk/news/world/rss.xml" },
-      
-      // New feeds to test
-      { name: "AP News", url: "https://rss.ap.org/rss/world.rss" },
-      { name: "AFP", url: "https://www.afp.com/en/rss/all" },
-      { name: "NPR", url: "https://feeds.npr.org/1004/rss.xml" },
-      { name: "CBC", url: "https://www.cbc.ca/webfeed/rss/rss-world" },
-      { name: "ABC Australia", url: "https://www.abc.net.au/news/feed/51120/rss.xml" },
       { name: "RTE", url: "https://www.rte.ie/news/rss/news-headlines.xml" },
       { name: "The Guardian", url: "https://www.theguardian.com/world/rss" },
+      
+      // Additional feeds (for headline diversity)
+      { name: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
+      { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
+      { name: "NPR", url: "https://feeds.npr.org/1004/rss.xml" },
+      { name: "ABC Australia", url: "https://www.abc.net.au/news/feed/51120/rss.xml" },
       { name: "Euronews", url: "https://www.euronews.com/rss" }
     ];
 
@@ -72,18 +69,21 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Get list of sources that actually worked
-    const workingSources = Object.keys(articlesBySource).filter(
-      source => articlesBySource[source].length > 0
-    );
-
-    // FEATURED ARTICLE: Most recent article WITH image from working sources
-    const articlesWithImages = workingSources
+    // Sources with images (for featured article)
+    const imageSources = ['France24', 'BBC', 'RTE', 'The Guardian'];
+    
+    // FEATURED ARTICLE: Most recent article WITH image from image sources
+    const articlesWithImages = imageSources
       .flatMap(source => articlesBySource[source] || [])
       .filter(article => article.image)
       .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
     
     const featuredArticle = articlesWithImages[0];
+
+    // Get all working sources
+    const workingSources = Object.keys(articlesBySource).filter(
+      source => articlesBySource[source].length > 0
+    );
 
     // OTHER HEADLINES: Interleave all working sources for diversity
     const sortedBySource = workingSources.map(source => {
@@ -111,7 +111,7 @@ module.exports = async (req, res) => {
     res.status(200).json({ 
       articles, 
       articleCount: articles.length,
-      feedStatus  // This will show which feeds worked and which failed
+      feedStatus
     });
   } catch (err) {
     console.error("Full error:", err);
