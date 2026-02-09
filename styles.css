@@ -224,7 +224,11 @@ nav a:hover {
   margin-bottom: 0.5rem;
 }
 
-#more-headlines-list {
+#more-headlines-list,
+#local-more-headlines-list,
+#national-more-headlines-list,
+#business-more-headlines-list,
+#sports-more-headlines-list  {
   list-style: disc;
   padding-left: 1.25rem;
   margin: 0;

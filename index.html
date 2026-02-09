@@ -13,14 +13,13 @@
   <header class="news-header">
     <div class="container header-center">
       <h1 class="logo">The Dayton Enquirer</h1>
-      <nav>
-        <a href="#top-stories">Top Stories</a>
-        <a href="#world-news">World</a>
-        <a href="#local">Local</a>
-        <a href="#national">National</a>
-        <a href="#sports">Sports</a>
-        <a href="#opinion">Opinion</a>
-      </nav>
+    <nav>
+  <a href="#local">Local</a>
+  <a href="#national">National</a>
+  <a href="#world-news">World</a>
+  <a href="#sports">Sports</a>
+  <a href="#business">Business</a>
+</nav>
     </div>
   </header>
 
@@ -55,6 +54,26 @@
     <button id="next" aria-label="Next story">❯</button>
   </section>
 
+  <!-- LOCAL NEWS -->
+  <section id="local" class="container world-news-section">
+    <h2 class="world-news-title">Local News</h2>
+
+    <div class="world-news-content">
+      <div id="local-featured-story"></div>
+      <div class="headlines-sidebar">
+        <ul id="local-headlines-list"></ul>
+      </div>
+    </div>
+
+    <div id="local-more-headlines-container" hidden>
+      <ul id="local-more-headlines-list"></ul>
+    </div>
+
+    <button id="local-toggle-more" class="more-button" aria-expanded="false">
+      <span class="arrow-down">▼</span>
+    </button>
+  </section>
+  
   <!-- NATIONAL NEWS -->
   <section id="national" class="container world-news-section">
     <h2 class="world-news-title">National News</h2>
