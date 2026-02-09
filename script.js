@@ -86,32 +86,32 @@ async function loadWorldNews() {
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-// ----------------
-// FEATURED STORY (first article with image overlay)
-// ----------------
-const featured = articles[0];
-const featuredContainer = document.getElementById("featured-story");
-if (featuredContainer) {
-  featuredContainer.innerHTML = `
-    <article class="featured-article">
-      ${featured.image 
-        ? `<img src="${featured.image}" alt="${featured.title}">`
-        : '<div class="placeholder-image"></div>'
-      }
-      <div class="featured-overlay">
-        <h3>
-          <a href="#" data-article-url="${featured.url}" data-article-title="${featured.title}" data-article-source="${featured.source}">
-            ${featured.title}
-          </a>
-        </h3>
-        <div class="article-meta">
-          <span class="source">${featured.source}</span>
-          ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
-        </div>
-      </div>
-    </article>
-  `;
-}
+    // ----------------
+    // FEATURED STORY (first article with image overlay)
+    // ----------------
+    const featured = articles[0];
+    const featuredContainer = document.getElementById("featured-story");
+    if (featuredContainer) {
+      featuredContainer.innerHTML = `
+        <article class="featured-article">
+          ${featured.image 
+            ? `<img src="${featured.image}" alt="${featured.title}">`
+            : '<div class="placeholder-image"></div>'
+          }
+          <div class="featured-overlay">
+            <h3>
+              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+                ${featured.title}
+              </a>
+            </h3>
+            <div class="article-meta">
+              <span class="source">${featured.source}</span>
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+            </div>
+          </div>
+        </article>
+      `;
+    }
 
     // ----------------
     // VISIBLE HEADLINES (next 5 articles)
@@ -122,7 +122,7 @@ if (featuredContainer) {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="#" data-article-url="${article.url}" data-article-title="${article.title}" data-article-source="${article.source}">
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -143,7 +143,7 @@ if (featuredContainer) {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="#" data-article-url="${article.url}" data-article-title="${article.title}" data-article-source="${article.source}">
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -184,87 +184,3 @@ if (toggleMoreBtn && moreHeadlinesContainer) {
 // INIT
 // ============================
 loadWorldNews();
-
-// Add click handlers for article links
-document.addEventListener('click', (e) => {
-  const link = e.target.closest('a[data-article-url]');
-  if (link) {
-    e.preventDefault();
-    const url = link.dataset.articleUrl;
-    const title = link.dataset.articleTitle;
-    const source = link.dataset.articleSource;
-    showArticleSummary(title, url, source);
-  }
-});
-
-// ============================
-// ARTICLE SUMMARY MODAL
-// ============================
-let modal, closeModalBtn, modalBody;
-
-async function showArticleSummary(title, url, source) {
-  console.log("showArticleSummary called with:", title, url, source);
-  console.trace(); // This will show us where it was called from
-  
-  // Get elements if not already loaded
-  if (!modal) {
-    modal = document.getElementById("article-modal");
-    modalBody = document.getElementById("modal-body");
-  }
-
-  if (!modal || !modalBody) return;
-
-  // Show modal with loading state
-  modal.removeAttribute("hidden");
-  modalBody.innerHTML = '<div class="loading">Loading summary...</div>';
-
-  try {
-    const response = await fetch("/api/summarize-article", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, url, source })
-    });
-
-    if (!response.ok) throw new Error("Failed to load summary");
-
-    const data = await response.json();
-
-    modalBody.innerHTML = `
-      <h2>${data.title}</h2>
-      <div class="source-info">Source: ${data.source}</div>
-      <div class="summary">${data.summary}</div>
-      <a href="${data.originalUrl}" target="_blank" rel="noopener noreferrer" class="read-full">
-        Read Full Article →
-      </a>
-    `;
-  } catch (err) {
-    console.error("Summary error:", err);
-    modalBody.innerHTML = `
-      <h2>Unable to load summary</h2>
-      <p>Sorry, we couldn't generate a summary for this article.</p>
-      <a href="${url}" target="_blank" rel="noopener noreferrer" class="read-full">
-        Read Original Article →
-      </a>
-    `;
-  }
-}
-
-// Setup modal close handlers when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  modal = document.getElementById("article-modal");
-  closeModalBtn = document.getElementById("close-modal");
-  modalBody = document.getElementById("modal-body");
-  
-  if (closeModalBtn && modal) {
-    closeModalBtn.addEventListener("click", () => {
-      modal.setAttribute("hidden", "");
-    });
-
-    // Close on background click
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) {
-        modal.setAttribute("hidden", "");
-      }
-    });
-  }
-});
