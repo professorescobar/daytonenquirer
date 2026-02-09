@@ -140,7 +140,7 @@ async function loadWorldNews() {
     const moreList = document.getElementById("more-headlines-list");
     if (moreList && articles.length > 6) {
       moreList.innerHTML = "";
-      articles.slice(6).forEach(article => {
+      articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${article.url}" target="_blank" rel="noopener noreferrer">
