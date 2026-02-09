@@ -100,7 +100,7 @@ async function loadWorldNews() {
           }
           <div class="featured-overlay">
             <h3>
-              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+              <a href="#" data-article-url="${article.url}" data-article-title="${article.title}" data-article-source="${article.source}">
                 ${featured.title}
               </a>
             </h3>
@@ -122,7 +122,7 @@ async function loadWorldNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="#" data-article-url="${article.url}" data-article-title="${article.title}" data-article-source="${article.source}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -143,7 +143,7 @@ async function loadWorldNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="#" data-article-url="${article.url}" data-article-title="${article.title}" data-article-source="${article.source}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -185,3 +185,71 @@ if (toggleMoreBtn && moreHeadlinesContainer) {
 // ============================
 loadWorldNews();
 
+// Add click handlers for article links
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('a[data-article-url]');
+  if (link) {
+    e.preventDefault();
+    const url = link.dataset.articleUrl;
+    const title = link.dataset.articleTitle;
+    const source = link.dataset.articleSource;
+    showArticleSummary(title, url, source);
+  }
+});
+
+// ============================
+// ARTICLE SUMMARY MODAL
+// ============================
+const modal = document.getElementById("article-modal");
+const closeModalBtn = document.getElementById("close-modal");
+const modalBody = document.getElementById("modal-body");
+
+async function showArticleSummary(title, url, source) {
+  // Show modal with loading state
+  modal.removeAttribute("hidden");
+  modalBody.innerHTML = '<div class="loading">Loading summary...</div>';
+
+  try {
+    const response = await fetch("/api/summarize-article", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, url, source })
+    });
+
+    if (!response.ok) throw new Error("Failed to load summary");
+
+    const data = await response.json();
+
+    modalBody.innerHTML = `
+      <h2>${data.title}</h2>
+      <div class="source-info">Source: ${data.source}</div>
+      <div class="summary">${data.summary}</div>
+      <a href="${data.originalUrl}" target="_blank" rel="noopener noreferrer" class="read-full">
+        Read Full Article →
+      </a>
+    `;
+  } catch (err) {
+    console.error("Summary error:", err);
+    modalBody.innerHTML = `
+      <h2>Unable to load summary</h2>
+      <p>Sorry, we couldn't generate a summary for this article.</p>
+      <a href="${url}" target="_blank" rel="noopener noreferrer" class="read-full">
+        Read Original Article →
+      </a>
+    `;
+  }
+}
+
+// Close modal
+if (closeModalBtn && modal) {
+  closeModalBtn.addEventListener("click", () => {
+    modal.setAttribute("hidden", "");
+  });
+
+  // Close on background click
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      modal.setAttribute("hidden", "");
+    }
+  });
+}
