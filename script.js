@@ -203,6 +203,9 @@ document.addEventListener('click', (e) => {
 let modal, closeModalBtn, modalBody;
 
 async function showArticleSummary(title, url, source) {
+  console.log("showArticleSummary called with:", title, url, source);
+  console.trace(); // This will show us where it was called from
+  
   // Get elements if not already loaded
   if (!modal) {
     modal = document.getElementById("article-modal");
@@ -245,22 +248,3 @@ async function showArticleSummary(title, url, source) {
     `;
   }
 }
-
-// Setup modal close handlers when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  modal = document.getElementById("article-modal");
-  closeModalBtn = document.getElementById("close-modal");
-  
-  if (closeModalBtn && modal) {
-    closeModalBtn.addEventListener("click", () => {
-      modal.setAttribute("hidden", "");
-    });
-
-    // Close on background click
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) {
-        modal.setAttribute("hidden", "");
-      }
-    });
-  }
-});
