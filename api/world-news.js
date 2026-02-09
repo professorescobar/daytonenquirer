@@ -27,7 +27,7 @@ module.exports = async (req, res) => {
     for (const feed of feeds) {
       try {
         const parsed = await parser.parseURL(feed.url);
-        parsed.items.slice(0, 5).forEach(item => {
+        parsed.items.slice(0, 10).forEach(item => {  // Changed from 5 to 10
           // Try multiple ways to get the image
           let imageUrl = '';
           
