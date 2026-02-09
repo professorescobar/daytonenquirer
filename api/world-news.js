@@ -16,7 +16,7 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      { name: "France24", url: "https://www.france24.com/en/rss" },  // Move France24 first (has images!)
+      { name: "France24", url: "https://www.france24.com/en/rss" },
       { name: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
       { name: "AP News", url: "https://feeds.apnews.com/rss/world" },
       { name: "NHK World", url: "https://www3.nhk.or.jp/nhkworld/en/news/rss.xml" }
@@ -46,7 +46,8 @@ module.exports = async (req, res) => {
             url: item.link,
             description: item.contentSnippet || item.description || "",
             source: feed.name,
-            image: imageUrl
+            image: imageUrl,
+            pubDate: item.pubDate || item.isoDate || ""
           });
         });
       } catch (feedError) {

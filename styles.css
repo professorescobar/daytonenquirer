@@ -188,6 +188,29 @@ nav a:hover {
   text-decoration: underline;
 }
 
+/* Article metadata (source and time) */
+.article-meta {
+  font-size: 0.75rem;
+  color: #999;
+  margin-top: 0.25rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.featured-overlay .article-meta {
+  color: #ddd;
+  margin-top: 0.5rem;
+}
+
+.article-meta .source {
+  font-weight: 600;
+}
+
+.article-meta .time::before {
+  content: "• ";
+  margin-right: 0.25rem;
+}
+
 /* Headlines Sidebar */
 .headlines-sidebar {
   display: flex;

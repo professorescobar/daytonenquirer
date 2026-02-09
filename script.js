@@ -72,6 +72,20 @@ async function loadWorldNews() {
 
     const articles = data.articles;
 
+    // Helper function to format date
+    function formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const now = new Date();
+      const diff = now - date;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      
+      if (hours < 1) return 'Just now';
+      if (hours < 24) return `${hours}h ago`;
+      if (hours < 48) return 'Yesterday';
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
     // ----------------
     // FEATURED STORY (first article with image overlay)
     // ----------------
@@ -90,6 +104,10 @@ async function loadWorldNews() {
                 ${featured.title}
               </a>
             </h3>
+            <div class="article-meta">
+              <span class="source">${featured.source}</span>
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+            </div>
           </div>
         </article>
       `;
@@ -107,6 +125,10 @@ async function loadWorldNews() {
           <a href="${article.url}" target="_blank" rel="noopener noreferrer">
             ${article.title}
           </a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
         `;
         headlinesList.appendChild(li);
       });
@@ -124,6 +146,10 @@ async function loadWorldNews() {
           <a href="${article.url}" target="_blank" rel="noopener noreferrer">
             ${article.title}
           </a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
         `;
         moreList.appendChild(li);
       });
@@ -132,28 +158,6 @@ async function loadWorldNews() {
   } catch (err) {
     console.error("World news error:", err);
   }
-}
-
-// ============================
-// TOGGLE "MORE" HEADLINES
-// ============================
-const toggleMoreBtn = document.getElementById("toggle-more");
-const moreHeadlinesList = document.getElementById("more-headlines-list");
-
-if (toggleMoreBtn && moreHeadlinesList) {
-  toggleMoreBtn.addEventListener("click", () => {
-    const isHidden = moreHeadlinesList.hasAttribute("hidden");
-
-    if (isHidden) {
-      moreHeadlinesList.removeAttribute("hidden");
-      toggleMoreBtn.textContent = "Less...";
-      toggleMoreBtn.setAttribute("aria-expanded", "true");
-    } else {
-      moreHeadlinesList.setAttribute("hidden", "");
-      toggleMoreBtn.textContent = "More...";
-      toggleMoreBtn.setAttribute("aria-expanded", "false");
-    }
-  });
 }
 
 // ============================
