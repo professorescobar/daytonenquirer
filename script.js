@@ -240,11 +240,24 @@ async function showArticleSummary(title, url, source) {
   }
 }
 
-// Close modal
-if (closeModalBtn && modal) {
-  closeModalBtn.addEventListener("click", () => {
-    modal.setAttribute("hidden", "");
-  });
+// Close modal - make sure this runs after page loads
+document.addEventListener('DOMContentLoaded', () => {
+  const modal = document.getElementById("article-modal");
+  const closeModalBtn = document.getElementById("close-modal");
+  
+  if (closeModalBtn && modal) {
+    closeModalBtn.addEventListener("click", () => {
+      modal.setAttribute("hidden", "");
+    });
+
+    // Close on background click
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        modal.setAttribute("hidden", "");
+      }
+    });
+  }
+});
 
   // Close on background click
   modal.addEventListener("click", (e) => {
@@ -252,4 +265,4 @@ if (closeModalBtn && modal) {
       modal.setAttribute("hidden", "");
     }
   });
-}
+
