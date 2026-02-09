@@ -19,11 +19,10 @@ module.exports = async (req, res) => {
       { name: "France24", url: "https://www.france24.com/en/rss" },
       { name: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
       { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
-      { name: "Euronews", url: "https://www.euronews.com/rss" }
+      { name: "BBC", url: "http://feeds.bbci.co.uk/news/world/rss.xml" }  // Try BBC instead
     ];
 
-    const france24Articles = [];
-    const otherArticles = [];
+    const allArticles = [];
     const feedStatus = {};
 
     for (const feed of feeds) {
@@ -45,20 +44,14 @@ module.exports = async (req, res) => {
             imageUrl = item['media:content'].$.url;
           }
 
-          const article = {
+          allArticles.push({
             title: item.title,
             url: item.link,
             description: item.contentSnippet || item.description || "",
             source: feed.name,
             image: imageUrl,
             pubDate: item.pubDate || item.isoDate || ""
-          };
-
-          if (feed.name === "France24") {
-            france24Articles.push(article);
-          } else {
-            otherArticles.push(article);
-          }
+          });
         });
       } catch (feedError) {
         feedStatus[feed.name] = `Failed: ${feedError.message}`;
@@ -66,11 +59,21 @@ module.exports = async (req, res) => {
       }
     }
 
-    const articles = [...france24Articles, ...otherArticles];
+    // Sort by date (most recent first), but keep France24 with images at the top
+    allArticles.sort((a, b) => {
+      // Prioritize France24 articles with images for featured story
+      if (a.source === "France24" && a.image && (!b.image || b.source !== "France24")) return -1;
+      if (b.source === "France24" && b.image && (!a.image || a.source !== "France24")) return 1;
+      
+      // Then sort by date
+      const dateA = new Date(a.pubDate);
+      const dateB = new Date(b.pubDate);
+      return dateB - dateA; // Most recent first
+    });
 
     res.status(200).json({ 
-      articles, 
-      articleCount: articles.length,
+      articles: allArticles, 
+      articleCount: allArticles.length,
       feedStatus
     });
   } catch (err) {
