@@ -200,11 +200,17 @@ document.addEventListener('click', (e) => {
 // ============================
 // ARTICLE SUMMARY MODAL
 // ============================
-const modal = document.getElementById("article-modal");
-const closeModalBtn = document.getElementById("close-modal");
-const modalBody = document.getElementById("modal-body");
+let modal, closeModalBtn, modalBody;
 
 async function showArticleSummary(title, url, source) {
+  // Get elements if not already loaded
+  if (!modal) {
+    modal = document.getElementById("article-modal");
+    modalBody = document.getElementById("modal-body");
+  }
+
+  if (!modal || !modalBody) return;
+
   // Show modal with loading state
   modal.removeAttribute("hidden");
   modalBody.innerHTML = '<div class="loading">Loading summary...</div>';
@@ -240,10 +246,10 @@ async function showArticleSummary(title, url, source) {
   }
 }
 
-// Close modal - make sure this runs after page loads
+// Setup modal close handlers when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  const modal = document.getElementById("article-modal");
-  const closeModalBtn = document.getElementById("close-modal");
+  modal = document.getElementById("article-modal");
+  closeModalBtn = document.getElementById("close-modal");
   
   if (closeModalBtn && modal) {
     closeModalBtn.addEventListener("click", () => {
@@ -258,4 +264,3 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-
