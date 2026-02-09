@@ -86,32 +86,32 @@ async function loadWorldNews() {
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    // ----------------
-    // FEATURED STORY (first article with image overlay)
-    // ----------------
-    const featured = articles[0];
-    const featuredContainer = document.getElementById("featured-story");
-    if (featuredContainer) {
-      featuredContainer.innerHTML = `
-        <article class="featured-article">
-          ${featured.image 
-            ? `<img src="${featured.image}" alt="${featured.title}">`
-            : '<div class="placeholder-image"></div>'
-          }
-          <div class="featured-overlay">
-            <h3>
-              <a href="#" data-article-url="${article.url}" data-article-title="${article.title}" data-article-source="${article.source}">
-                ${featured.title}
-              </a>
-            </h3>
-            <div class="article-meta">
-              <span class="source">${featured.source}</span>
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
-            </div>
-          </div>
-        </article>
-      `;
-    }
+// ----------------
+// FEATURED STORY (first article with image overlay)
+// ----------------
+const featured = articles[0];
+const featuredContainer = document.getElementById("featured-story");
+if (featuredContainer) {
+  featuredContainer.innerHTML = `
+    <article class="featured-article">
+      ${featured.image 
+        ? `<img src="${featured.image}" alt="${featured.title}">`
+        : '<div class="placeholder-image"></div>'
+      }
+      <div class="featured-overlay">
+        <h3>
+          <a href="#" data-article-url="${featured.url}" data-article-title="${featured.title}" data-article-source="${featured.source}">
+            ${featured.title}
+          </a>
+        </h3>
+        <div class="article-meta">
+          <span class="source">${featured.source}</span>
+          ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+        </div>
+      </div>
+    </article>
+  `;
+}
 
     // ----------------
     // VISIBLE HEADLINES (next 5 articles)
