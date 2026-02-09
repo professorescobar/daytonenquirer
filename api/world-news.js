@@ -16,10 +16,10 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      { name: "AP News", url: "https://feeds.apnews.com/rss/world" },
-      { name: "NHK World", url: "https://www3.nhk.or.jp/nhkworld/en/news/rss.xml" },
+      { name: "France24", url: "https://www.france24.com/en/rss" },  // Move France24 first (has images!)
       { name: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
-      { name: "France24", url: "https://www.france24.com/en/rss" }
+      { name: "AP News", url: "https://feeds.apnews.com/rss/world" },
+      { name: "NHK World", url: "https://www3.nhk.or.jp/nhkworld/en/news/rss.xml" }
     ];
 
     const articles = [];
