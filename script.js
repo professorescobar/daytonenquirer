@@ -1,25 +1,65 @@
 // ============================
 // TOP STORIES CAROUSEL
 // ============================
-const slides = document.querySelectorAll(".slide");
-let currentSlide = 0;
+async function loadCarousel() {
+  try {
+    const res = await fetch("/api/carousel-stories");
+    if (!res.ok) throw new Error("Carousel fetch failed");
 
-const nextBtn = document.getElementById("next");
-const prevBtn = document.getElementById("prev");
+    const data = await res.json();
+    if (!Array.isArray(data.stories) || !data.stories.length) return;
 
-if (slides.length && nextBtn && prevBtn) {
-  nextBtn.addEventListener("click", () => {
-    slides[currentSlide].classList.remove("active");
-    currentSlide = (currentSlide + 1) % slides.length;
-    slides[currentSlide].classList.add("active");
-  });
+    const carouselContainer = document.querySelector(".carousel");
+    if (!carouselContainer) return;
 
-  prevBtn.addEventListener("click", () => {
-    slides[currentSlide].classList.remove("active");
-    currentSlide =
-      (currentSlide - 1 + slides.length) % slides.length;
-    slides[currentSlide].classList.add("active");
-  });
+    // Clear existing slides
+    carouselContainer.innerHTML = '';
+
+    // Create slides
+    data.stories.forEach((story, index) => {
+      const slide = document.createElement('div');
+      slide.className = index === 0 ? 'slide active' : 'slide';
+      slide.innerHTML = `
+        <img src="${story.image}" alt="${story.title}" />
+        <div class="slide-text">
+          <h2><a href="${story.url}" target="_blank" rel="noopener noreferrer">${story.title}</a></h2>
+          <p>${story.description ? story.description.slice(0, 150) + '...' : ''}</p>
+          <span class="slide-category">${story.category} | ${story.source}</span>
+        </div>
+      `;
+      carouselContainer.appendChild(slide);
+    });
+
+    // Add navigation buttons
+    carouselContainer.innerHTML += `
+      <button id="prev" aria-label="Previous story">❮</button>
+      <button id="next" aria-label="Next story">❯</button>
+    `;
+
+    // Setup carousel navigation
+    const slides = document.querySelectorAll(".slide");
+    let currentSlide = 0;
+
+    const nextBtn = document.getElementById("next");
+    const prevBtn = document.getElementById("prev");
+
+    if (slides.length && nextBtn && prevBtn) {
+      nextBtn.addEventListener("click", () => {
+        slides[currentSlide].classList.remove("active");
+        currentSlide = (currentSlide + 1) % slides.length;
+        slides[currentSlide].classList.add("active");
+      });
+
+      prevBtn.addEventListener("click", () => {
+        slides[currentSlide].classList.remove("active");
+        currentSlide = (currentSlide - 1 + slides.length) % slides.length;
+        slides[currentSlide].classList.add("active");
+      });
+    }
+
+  } catch (err) {
+    console.error("Carousel error:", err);
+  }
 }
 
 // ============================
@@ -619,6 +659,7 @@ if (localToggleBtn && localMoreContainer) {
 // ============================
 // INIT
 // ============================
+loadCarousel();
 loadLocalNews();
 loadNationalNews();
 loadBusinessNews();
