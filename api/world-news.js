@@ -22,12 +22,13 @@ module.exports = async (req, res) => {
       { name: "NHK World", url: "https://www3.nhk.or.jp/nhkworld/en/news/rss.xml" }
     ];
 
-    const articles = [];
+    const france24Articles = [];
+    const otherArticles = [];
 
     for (const feed of feeds) {
       try {
         const parsed = await parser.parseURL(feed.url);
-        parsed.items.slice(0, 10).forEach(item => {  // Changed from 5 to 10
+        parsed.items.slice(0, 10).forEach(item => {
           // Try multiple ways to get the image
           let imageUrl = '';
           
@@ -41,19 +42,29 @@ module.exports = async (req, res) => {
             imageUrl = item['media:content'].$.url;
           }
 
-          articles.push({
+          const article = {
             title: item.title,
             url: item.link,
             description: item.contentSnippet || item.description || "",
             source: feed.name,
             image: imageUrl,
             pubDate: item.pubDate || item.isoDate || ""
-          });
+          };
+
+          // Separate France24 articles (for featured image)
+          if (feed.name === "France24") {
+            france24Articles.push(article);
+          } else {
+            otherArticles.push(article);
+          }
         });
       } catch (feedError) {
         console.error(`Failed to fetch ${feed.name}:`, feedError.message);
       }
     }
+
+    // Put France24 first (for featured image), then mix in others
+    const articles = [...france24Articles, ...otherArticles];
 
     res.status(200).json({ articles, articleCount: articles.length });
   } catch (err) {
