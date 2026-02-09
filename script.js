@@ -248,3 +248,23 @@ async function showArticleSummary(title, url, source) {
     `;
   }
 }
+
+// Setup modal close handlers when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  modal = document.getElementById("article-modal");
+  closeModalBtn = document.getElementById("close-modal");
+  modalBody = document.getElementById("modal-body");
+  
+  if (closeModalBtn && modal) {
+    closeModalBtn.addEventListener("click", () => {
+      modal.setAttribute("hidden", "");
+    });
+
+    // Close on background click
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        modal.setAttribute("hidden", "");
+      }
+    });
+  }
+});
