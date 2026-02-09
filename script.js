@@ -161,6 +161,28 @@ async function loadWorldNews() {
 }
 
 // ============================
+// TOGGLE "MORE" HEADLINES
+// ============================
+const toggleMoreBtn = document.getElementById("toggle-more");
+const moreHeadlinesList = document.getElementById("more-headlines-list");
+
+if (toggleMoreBtn && moreHeadlinesList) {
+  toggleMoreBtn.addEventListener("click", () => {
+    const isHidden = moreHeadlinesList.hasAttribute("hidden");
+
+    if (isHidden) {
+      moreHeadlinesList.removeAttribute("hidden");
+      toggleMoreBtn.textContent = "Less...";
+      toggleMoreBtn.setAttribute("aria-expanded", "true");
+    } else {
+      moreHeadlinesList.setAttribute("hidden", "");
+      toggleMoreBtn.textContent = "More...";
+      toggleMoreBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+// ============================
 // INIT
 // ============================
 loadWorldNews();
