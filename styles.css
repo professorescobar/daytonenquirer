@@ -120,15 +120,16 @@ nav a:hover {
 #next {
   right: 10px;
 }
-
 /* ===============================
    WORLD NEWS SECTION
 ================================ */
 .world-news-section {
   border: 1px solid #ddd;
   padding: 1.5rem;
+  padding-bottom: 0; /* Remove bottom padding for button */
   margin: 3rem auto;
   background: #fff;
+  position: relative;
 }
 
 .world-news-title {
@@ -142,6 +143,7 @@ nav a:hover {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 /* Featured Article with Image Overlay */
@@ -188,6 +190,98 @@ nav a:hover {
   text-decoration: underline;
 }
 
+/* Headlines Sidebar */
+.headlines-sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
+.headlines-sidebar ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0;
+}
+
+.headlines-sidebar li {
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+}
+
+.headlines-sidebar a {
+  text-decoration: none;
+  color: #000;
+  font-size: 0.95rem;
+}
+
+.headlines-sidebar a:hover {
+  text-decoration: underline;
+}
+
+/* More Headlines Container (full width below main content) */
+#more-headlines-container {
+  border-top: 1px solid #ddd;
+  padding: 1rem 0;
+  margin-bottom: 0.5rem;
+}
+
+#more-headlines-list {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0;
+  column-count: 2;
+  column-gap: 2rem;
+}
+
+#more-headlines-list li {
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+  break-inside: avoid;
+}
+
+#more-headlines-list a {
+  text-decoration: none;
+  color: #000;
+  font-size: 0.95rem;
+}
+
+#more-headlines-list a:hover {
+  text-decoration: underline;
+}
+
+/* More Button (full width, invisible until hover) */
+.more-button {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-top: 1px solid #ddd;
+  padding: 1rem;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.more-button:hover {
+  background-color: #f0f0f0;
+}
+
+.more-button .arrow-down {
+  font-size: 1.2rem;
+  color: #999;
+  transition: color 0.2s ease;
+}
+
+.more-button:hover .arrow-down {
+  color: #000;
+}
+
+.more-button[aria-expanded="true"] .arrow-down {
+  transform: rotate(180deg);
+  display: inline-block;
+}
+
 /* Article metadata (source and time) */
 .article-meta {
   font-size: 0.75rem;
@@ -211,49 +305,6 @@ nav a:hover {
   margin-right: 0.25rem;
 }
 
-/* Headlines Sidebar */
-.headlines-sidebar {
-  display: flex;
-  flex-direction: column;
-}
-
-.headlines-sidebar ul {
-  list-style: disc;
-  padding-left: 1.25rem;
-  margin: 0 0 0.75rem 0;
-}
-
-.headlines-sidebar li {
-  margin-bottom: 0.75rem;
-  line-height: 1.4;
-}
-
-.headlines-sidebar a {
-  text-decoration: none;
-  color: #000;
-  font-size: 0.95rem;
-}
-
-.headlines-sidebar a:hover {
-  text-decoration: underline;
-}
-
-#toggle-more {
-  background: none;
-  border: none;
-  padding: 0;
-  font-weight: bold;
-  cursor: pointer;
-  text-decoration: underline;
-  text-align: left;
-  font-size: 0.95rem;
-  margin-bottom: 0.75rem;
-}
-
-#toggle-more:hover {
-  text-decoration-thickness: 2px;
-}
-
 /* ===============================
    RESPONSIVE
 ================================ */
@@ -265,8 +316,11 @@ nav a:hover {
   .featured-article {
     height: 280px;
   }
-}
 
+  #more-headlines-list {
+    column-count: 1;
+  }
+}
 /* ===============================
    SECONDARY NEWS LIST
 ================================ */

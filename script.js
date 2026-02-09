@@ -164,19 +164,17 @@ async function loadWorldNews() {
 // TOGGLE "MORE" HEADLINES
 // ============================
 const toggleMoreBtn = document.getElementById("toggle-more");
-const moreHeadlinesList = document.getElementById("more-headlines-list");
+const moreHeadlinesContainer = document.getElementById("more-headlines-container");
 
-if (toggleMoreBtn && moreHeadlinesList) {
+if (toggleMoreBtn && moreHeadlinesContainer) {
   toggleMoreBtn.addEventListener("click", () => {
-    const isHidden = moreHeadlinesList.hasAttribute("hidden");
+    const isHidden = moreHeadlinesContainer.hasAttribute("hidden");
 
     if (isHidden) {
-      moreHeadlinesList.removeAttribute("hidden");
-      toggleMoreBtn.textContent = "Less...";
+      moreHeadlinesContainer.removeAttribute("hidden");
       toggleMoreBtn.setAttribute("aria-expanded", "true");
     } else {
-      moreHeadlinesList.setAttribute("hidden", "");
-      toggleMoreBtn.textContent = "More...";
+      moreHeadlinesContainer.setAttribute("hidden", "");
       toggleMoreBtn.setAttribute("aria-expanded", "false");
     }
   });
