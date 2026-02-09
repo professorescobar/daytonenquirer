@@ -18,13 +18,13 @@ module.exports = async (req, res) => {
     const feeds = [
       { name: "France24", url: "https://www.france24.com/en/rss" },
       { name: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
-      { name: "AP News", url: "https://feeds.apnews.com/rss/world" },
-      { name: "NHK World", url: "https://www3.nhk.or.jp/nhkworld/en/news/rss.xml" }
+      { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
+      { name: "Euronews", url: "https://www.euronews.com/rss" }
     ];
 
     const france24Articles = [];
     const otherArticles = [];
-    const feedStatus = {}; // Track which feeds work
+    const feedStatus = {};
 
     for (const feed of feeds) {
       try {
@@ -54,7 +54,6 @@ module.exports = async (req, res) => {
             pubDate: item.pubDate || item.isoDate || ""
           };
 
-          // Separate France24 articles (for featured image)
           if (feed.name === "France24") {
             france24Articles.push(article);
           } else {
@@ -67,13 +66,12 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Put France24 first (for featured image), then mix in others
     const articles = [...france24Articles, ...otherArticles];
 
     res.status(200).json({ 
       articles, 
       articleCount: articles.length,
-      feedStatus  // Include status info
+      feedStatus
     });
   } catch (err) {
     console.error("Full error:", err);
