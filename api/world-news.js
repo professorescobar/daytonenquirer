@@ -3,7 +3,14 @@ const parser = new Parser({
   headers: {
     'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)'
   },
-  timeout: 10000
+  timeout: 10000,
+  customFields: {
+    item: [
+      ['media:content', 'media'],
+      ['media:thumbnail', 'thumbnail'],
+      ['enclosure', 'enclosure']
+    ]
+  }
 });
 
 module.exports = async (req, res) => {
@@ -21,12 +28,25 @@ module.exports = async (req, res) => {
       try {
         const parsed = await parser.parseURL(feed.url);
         parsed.items.slice(0, 5).forEach(item => {
+          // Try multiple ways to get the image
+          let imageUrl = '';
+          
+          if (item.enclosure && item.enclosure.url) {
+            imageUrl = item.enclosure.url;
+          } else if (item.media && item.media.$) {
+            imageUrl = item.media.$.url;
+          } else if (item.thumbnail && item.thumbnail.$) {
+            imageUrl = item.thumbnail.$.url;
+          } else if (item['media:content'] && item['media:content'].$) {
+            imageUrl = item['media:content'].$.url;
+          }
+
           articles.push({
             title: item.title,
             url: item.link,
             description: item.contentSnippet || item.description || "",
             source: feed.name,
-            image: item.enclosure?.url || item.media?.$ || ""
+            image: imageUrl
           });
         });
       } catch (feedError) {
