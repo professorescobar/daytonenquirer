@@ -259,10 +259,3 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-  // Close on background click
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) {
-      modal.setAttribute("hidden", "");
-    }
-  });
-
