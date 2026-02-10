@@ -85,6 +85,13 @@ async function loadCarousel() {
 }
 
 // ============================
+// ARTICLE LINK HELPER
+// ============================
+function articleLink(article, section) {
+  return `/article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${section}`;
+}
+
+// ============================
 // MARKET TICKER (TradingView)
 // ============================
 (function () {
@@ -162,7 +169,7 @@ async function loadWorldNews() {
           }
           <div class="featured-overlay">
             <h3>
-              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+              <a href="${articleLink(featured, 'world')}">
                 ${featured.title}
               </a>
             </h3>
@@ -184,7 +191,7 @@ async function loadWorldNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${articleLink(featured, 'world')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -205,7 +212,7 @@ async function loadWorldNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${articleLink(featured, 'world')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -284,7 +291,7 @@ async function loadNationalNews() {
           }
           <div class="featured-overlay">
             <h3>
-              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+              <a href="${articleLink(featured, 'national')}">
                 ${featured.title}
               </a>
             </h3>
@@ -303,7 +310,7 @@ async function loadNationalNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${articleLink(featured, 'national')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -321,7 +328,7 @@ async function loadNationalNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${articleLink(featured, 'national')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -375,7 +382,7 @@ async function loadBusinessNews() {
           }
           <div class="featured-overlay">
             <h3>
-              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+              <a href="${articleLink(featured, 'business')}">
                 ${featured.title}
               </a>
             </h3>
@@ -394,7 +401,7 @@ async function loadBusinessNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${articleLink(featured, 'business')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -412,7 +419,7 @@ async function loadBusinessNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${articleLink(featured, 'business')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -466,7 +473,7 @@ async function loadSportsNews() {
           }
           <div class="featured-overlay">
             <h3>
-              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+              <a href="${articleLink(featured, 'sports')}">
                 ${featured.title}
               </a>
             </h3>
@@ -485,7 +492,7 @@ async function loadSportsNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${articleLink(featured, 'sports')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -503,7 +510,7 @@ async function loadSportsNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${articleLink(featured, 'sports')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -549,7 +556,7 @@ async function loadHealthNews() {
         <article class="featured-article">
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
-            <h3><a href="${featured.url}" target="_blank" rel="noopener noreferrer">${featured.title}</a></h3>
+            <h3><a href="${articleLink(featured, 'health')}">${featured.title}</a></h3>
             <div class="article-meta">
               <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
@@ -564,7 +571,7 @@ async function loadHealthNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <a href="${articleLink(featured, 'health')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -579,7 +586,7 @@ async function loadHealthNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <a href="${articleLink(featured, 'health')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -621,7 +628,7 @@ async function loadEntertainmentNews() {
         <article class="featured-article">
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
-            <h3><a href="${featured.url}" target="_blank" rel="noopener noreferrer">${featured.title}</a></h3>
+            <h3><a href="${articleLink(featured, 'entertainment')}">${featured.title}</a></h3>
             <div class="article-meta">
               <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
@@ -636,7 +643,7 @@ async function loadEntertainmentNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <a href="${articleLink(featured, 'entertainment')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -651,7 +658,7 @@ async function loadEntertainmentNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <a href="${articleLink(featured, 'entertainment')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -693,7 +700,7 @@ async function loadTechnologyNews() {
         <article class="featured-article">
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
-            <h3><a href="${featured.url}" target="_blank" rel="noopener noreferrer">${featured.title}</a></h3>
+            <h3><a href="${articleLink(featured, 'technology')}">${featured.title}</a></h3>
             <div class="article-meta">
               <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
@@ -708,7 +715,7 @@ async function loadTechnologyNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <a href="${articleLink(featured, 'technology')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -723,7 +730,7 @@ async function loadTechnologyNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <a href="${articleLink(featured, 'technology')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -870,7 +877,7 @@ async function loadLocalNews() {
           }
           <div class="featured-overlay">
             <h3>
-              <a href="${featured.url}" target="_blank" rel="noopener noreferrer">
+              <a href="${articleLink(featured, 'local')}">
                 ${featured.title}
               </a>
             </h3>
@@ -889,7 +896,7 @@ async function loadLocalNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${articleLink(featured, 'local')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -907,7 +914,7 @@ async function loadLocalNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${article.url}" target="_blank" rel="noopener noreferrer">
+          <a href="${articleLink(featured, 'local')}">
             ${article.title}
           </a>
           <div class="article-meta">

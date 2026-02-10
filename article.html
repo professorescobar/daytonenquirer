@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Dayton Enquirer</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="news-header">
+    <div class="container header-inner">
+      <div class="logo">
+        <a href="/"><h1>The Dayton Enquirer</h1></a>
+      </div>
+      <nav>
+        <a href="/#local">Local</a>
+        <a href="/#national">National</a>
+        <a href="/#world-news">World</a>
+        <a href="/#business">Business</a>
+        <a href="/#sports">Sports</a>
+        <a href="/#health">Health</a>
+        <a href="/#entertainment">Entertainment</a>
+        <a href="/#technology">Technology</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ARTICLE PAGE CONTENT -->
+  <main class="container article-page">
+
+    <div class="article-page-header">
+      <a href="javascript:history.back()" class="back-link">← Back</a>
+    </div>
+
+    <!-- LOADING STATE -->
+    <div id="article-loading" class="article-loading">
+      <p>Loading article...</p>
+    </div>
+
+    <!-- ARTICLE CONTENT -->
+    <article id="article-content" class="article-content" hidden>
+
+      <div class="article-category" id="article-category"></div>
+
+      <h1 id="article-title"></h1>
+
+      <div class="article-byline">
+        <span id="article-source" class="article-source"></span>
+        <span id="article-date" class="article-date"></span>
+      </div>
+
+      <div id="article-image-container" class="article-image-container"></div>
+
+      <div id="article-description" class="article-description"></div>
+
+      <div id="article-summary" class="article-summary" hidden>
+        <h3>Article Preview</h3>
+        <div id="article-summary-text"></div>
+      </div>
+
+      <a id="article-read-full" href="#" target="_blank" rel="noopener noreferrer" class="read-full-btn">
+        Read Full Article at <span id="article-source-name"></span> →
+      </a>
+
+    </article>
+
+    <!-- RELATED ARTICLES -->
+    <div id="related-section" class="related-section" hidden>
+      <h3 class="related-title">More from this section</h3>
+      <div id="related-grid" class="related-grid"></div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="news-footer">
+    <div class="container">
+      <p>© 2026 The Dayton Enquirer</p>
+    </div>
+  </footer>
+
+  <script src="/article.js"></script>
+</body>
+</html>
