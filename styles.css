@@ -238,7 +238,10 @@ nav a:hover {
 #local-more-headlines-container,
 #national-more-headlines-container,
 #business-more-headlines-container,
-#sports-more-headlines-container {
+#sports-more-headlines-container,
+#health-more-headlines-container,
+#entertainment-more-headlines-container,
+#technology-more-headlines-container {
   border-top: 1px solid #ddd;
   padding: 1rem 0;
   margin-bottom: 0.5rem;
@@ -248,7 +251,10 @@ nav a:hover {
 #local-more-headlines-list,
 #national-more-headlines-list,
 #business-more-headlines-list,
-#sports-more-headlines-list  {
+#sports-more-headlines-list,
+#health-more-headlines-list,
+#entertainment-more-headlines-list,
+#technology-more-headlines-list   {
   list-style: disc;
   padding-left: 1.25rem;
   margin: 0;
@@ -260,19 +266,36 @@ nav a:hover {
 #local-more-headlines-list li,
 #national-more-headlines-list li,
 #business-more-headlines-list li,
-#sports-more-headlines-list li {
+#sports-more-headlines-list li,
+#health-more-headlines-list li,
+#entertainment-more-headlines-list li,
+#technology-more-headlines-list li {
   margin-bottom: 0.75rem;
   line-height: 1.4;
   break-inside: avoid;
 }
 
-#more-headlines-list a {
+#more-headlines-list a,
+#local-more-headlines-list a,
+#national-more-headlines-list a,
+#business-more-headlines-list a,
+#sports-more-headlines-list a,
+#health-more-headlines-list a,
+#entertainment-more-headlines-list a,
+#technology-more-headlines-list a  {
   text-decoration: none;
   color: #000;
   font-size: 0.95rem;
 }
 
-#more-headlines-list a:hover {
+#more-headlines-list a:hover,
+#local-more-headlines-list a:hover,
+#national-more-headlines-list a:hover,
+#business-more-headlines-list a:hover,
+#sports-more-headlines-list a:hover,
+#health-more-headlines-list a:hover,
+#entertainment-more-headlines-list a:hover,
+#technology-more-headlines-list a:hover {
   text-decoration: underline;
 }
 

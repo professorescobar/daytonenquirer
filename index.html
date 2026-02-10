@@ -13,12 +13,15 @@
   <header class="news-header">
     <div class="container header-center">
       <h1 class="logo">The Dayton Enquirer</h1>
-    <nav>
+  <nav>
   <a href="#local">Local</a>
   <a href="#national">National</a>
   <a href="#world-news">World</a>
-  <a href="#sports">Sports</a>
   <a href="#business">Business</a>
+  <a href="#sports">Sports</a>
+  <a href="#health">Health</a>
+  <a href="#entertainment">Entertainment</a>
+  <a href="#technology">Technology</a>
 </nav>
     </div>
   </header>
@@ -94,6 +97,26 @@
     </button>
   </section>
 
+   <!-- WORLD NEWS -->
+  <section id="world-news" class="container world-news-section">
+    <h2 class="world-news-title">World News</h2>
+
+    <div class="world-news-content">
+      <div id="featured-story"></div>
+      <div class="headlines-sidebar">
+        <ul id="headlines-list"></ul>
+      </div>
+    </div>
+
+    <div id="more-headlines-container" hidden>
+      <ul id="more-headlines-list"></ul>
+    </div>
+
+    <button id="toggle-more" class="more-button" aria-expanded="false">
+      <span class="arrow-down">▼</span>
+    </button>
+  </section>
+  
   <!-- BUSINESS NEWS -->
   <section id="business" class="container world-news-section">
     <h2 class="world-news-title">Business</h2>
@@ -134,22 +157,53 @@
     </button>
   </section>
 
-  <!-- WORLD NEWS -->
-  <section id="world-news" class="container world-news-section">
-    <h2 class="world-news-title">World News</h2>
-
+<!-- HEALTH NEWS -->
+  <section id="health" class="container world-news-section">
+    <h2 class="world-news-title">Health</h2>
     <div class="world-news-content">
-      <div id="featured-story"></div>
+      <div id="health-featured-story"></div>
       <div class="headlines-sidebar">
-        <ul id="headlines-list"></ul>
+        <ul id="health-headlines-list"></ul>
       </div>
     </div>
-
-    <div id="more-headlines-container" hidden>
-      <ul id="more-headlines-list"></ul>
+    <div id="health-more-headlines-container" hidden>
+      <ul id="health-more-headlines-list"></ul>
     </div>
+    <button id="health-toggle-more" class="more-button" aria-expanded="false">
+      <span class="arrow-down">▼</span>
+    </button>
+  </section>
 
-    <button id="toggle-more" class="more-button" aria-expanded="false">
+  <!-- ENTERTAINMENT NEWS -->
+  <section id="entertainment" class="container world-news-section">
+    <h2 class="world-news-title">Entertainment</h2>
+    <div class="world-news-content">
+      <div id="entertainment-featured-story"></div>
+      <div class="headlines-sidebar">
+        <ul id="entertainment-headlines-list"></ul>
+      </div>
+    </div>
+    <div id="entertainment-more-headlines-container" hidden>
+      <ul id="entertainment-more-headlines-list"></ul>
+    </div>
+    <button id="entertainment-toggle-more" class="more-button" aria-expanded="false">
+      <span class="arrow-down">▼</span>
+    </button>
+  </section>
+
+  <!-- TECHNOLOGY NEWS -->
+  <section id="technology" class="container world-news-section">
+    <h2 class="world-news-title">Technology</h2>
+    <div class="world-news-content">
+      <div id="technology-featured-story"></div>
+      <div class="headlines-sidebar">
+        <ul id="technology-headlines-list"></ul>
+      </div>
+    </div>
+    <div id="technology-more-headlines-container" hidden>
+      <ul id="technology-more-headlines-list"></ul>
+    </div>
+    <button id="technology-toggle-more" class="more-button" aria-expanded="false">
       <span class="arrow-down">▼</span>
     </button>
   </section>

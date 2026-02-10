@@ -521,6 +521,268 @@ async function loadSportsNews() {
 }
 
 // ============================
+// HEALTH NEWS (RSS via API)
+// ============================
+async function loadHealthNews() {
+  try {
+    const res = await fetch("/api/health-news");
+    if (!res.ok) throw new Error("Health news fetch failed");
+    const data = await res.json();
+    if (!Array.isArray(data.articles) || !data.articles.length) return;
+    const articles = data.articles;
+
+    function formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const now = new Date();
+      const hours = Math.floor((now - date) / (1000 * 60 * 60));
+      if (hours < 1) return 'Just now';
+      if (hours < 24) return `${hours}h ago`;
+      if (hours < 48) return 'Yesterday';
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    const featured = articles[0];
+    const featuredContainer = document.getElementById("health-featured-story");
+    if (featuredContainer && featured) {
+      featuredContainer.innerHTML = `
+        <article class="featured-article">
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}">` : '<div class="placeholder-image"></div>'}
+          <div class="featured-overlay">
+            <h3><a href="${featured.url}" target="_blank" rel="noopener noreferrer">${featured.title}</a></h3>
+            <div class="article-meta">
+              <span class="source">${featured.source}</span>
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+            </div>
+          </div>
+        </article>`;
+    }
+
+    const headlinesList = document.getElementById("health-headlines-list");
+    if (headlinesList) {
+      headlinesList.innerHTML = "";
+      articles.slice(1, 6).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>`;
+        headlinesList.appendChild(li);
+      });
+    }
+
+    const moreList = document.getElementById("health-more-headlines-list");
+    if (moreList && articles.length > 6) {
+      moreList.innerHTML = "";
+      articles.slice(6, 24).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>`;
+        moreList.appendChild(li);
+      });
+    }
+  } catch (err) {
+    console.error("Health news error:", err);
+  }
+}
+
+// ============================
+// ENTERTAINMENT NEWS (RSS via API)
+// ============================
+async function loadEntertainmentNews() {
+  try {
+    const res = await fetch("/api/entertainment-news");
+    if (!res.ok) throw new Error("Entertainment news fetch failed");
+    const data = await res.json();
+    if (!Array.isArray(data.articles) || !data.articles.length) return;
+    const articles = data.articles;
+
+    function formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const now = new Date();
+      const hours = Math.floor((now - date) / (1000 * 60 * 60));
+      if (hours < 1) return 'Just now';
+      if (hours < 24) return `${hours}h ago`;
+      if (hours < 48) return 'Yesterday';
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    const featured = articles[0];
+    const featuredContainer = document.getElementById("entertainment-featured-story");
+    if (featuredContainer && featured) {
+      featuredContainer.innerHTML = `
+        <article class="featured-article">
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}">` : '<div class="placeholder-image"></div>'}
+          <div class="featured-overlay">
+            <h3><a href="${featured.url}" target="_blank" rel="noopener noreferrer">${featured.title}</a></h3>
+            <div class="article-meta">
+              <span class="source">${featured.source}</span>
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+            </div>
+          </div>
+        </article>`;
+    }
+
+    const headlinesList = document.getElementById("entertainment-headlines-list");
+    if (headlinesList) {
+      headlinesList.innerHTML = "";
+      articles.slice(1, 6).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>`;
+        headlinesList.appendChild(li);
+      });
+    }
+
+    const moreList = document.getElementById("entertainment-more-headlines-list");
+    if (moreList && articles.length > 6) {
+      moreList.innerHTML = "";
+      articles.slice(6, 24).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>`;
+        moreList.appendChild(li);
+      });
+    }
+  } catch (err) {
+    console.error("Entertainment news error:", err);
+  }
+}
+
+// ============================
+// TECHNOLOGY NEWS (RSS via API)
+// ============================
+async function loadTechnologyNews() {
+  try {
+    const res = await fetch("/api/technology-news");
+    if (!res.ok) throw new Error("Technology news fetch failed");
+    const data = await res.json();
+    if (!Array.isArray(data.articles) || !data.articles.length) return;
+    const articles = data.articles;
+
+    function formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const now = new Date();
+      const hours = Math.floor((now - date) / (1000 * 60 * 60));
+      if (hours < 1) return 'Just now';
+      if (hours < 24) return `${hours}h ago`;
+      if (hours < 48) return 'Yesterday';
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    const featured = articles[0];
+    const featuredContainer = document.getElementById("technology-featured-story");
+    if (featuredContainer && featured) {
+      featuredContainer.innerHTML = `
+        <article class="featured-article">
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}">` : '<div class="placeholder-image"></div>'}
+          <div class="featured-overlay">
+            <h3><a href="${featured.url}" target="_blank" rel="noopener noreferrer">${featured.title}</a></h3>
+            <div class="article-meta">
+              <span class="source">${featured.source}</span>
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+            </div>
+          </div>
+        </article>`;
+    }
+
+    const headlinesList = document.getElementById("technology-headlines-list");
+    if (headlinesList) {
+      headlinesList.innerHTML = "";
+      articles.slice(1, 6).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>`;
+        headlinesList.appendChild(li);
+      });
+    }
+
+    const moreList = document.getElementById("technology-more-headlines-list");
+    if (moreList && articles.length > 6) {
+      moreList.innerHTML = "";
+      articles.slice(6, 24).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>`;
+        moreList.appendChild(li);
+      });
+    }
+  } catch (err) {
+    console.error("Technology news error:", err);
+  }
+}
+
+// Toggle buttons for new sections
+const healthToggleBtn = document.getElementById("health-toggle-more");
+const healthMoreContainer = document.getElementById("health-more-headlines-container");
+if (healthToggleBtn && healthMoreContainer) {
+  healthToggleBtn.addEventListener("click", () => {
+    const isHidden = healthMoreContainer.hasAttribute("hidden");
+    if (isHidden) {
+      healthMoreContainer.removeAttribute("hidden");
+      healthToggleBtn.setAttribute("aria-expanded", "true");
+    } else {
+      healthMoreContainer.setAttribute("hidden", "");
+      healthToggleBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+const entertainmentToggleBtn = document.getElementById("entertainment-toggle-more");
+const entertainmentMoreContainer = document.getElementById("entertainment-more-headlines-container");
+if (entertainmentToggleBtn && entertainmentMoreContainer) {
+  entertainmentToggleBtn.addEventListener("click", () => {
+    const isHidden = entertainmentMoreContainer.hasAttribute("hidden");
+    if (isHidden) {
+      entertainmentMoreContainer.removeAttribute("hidden");
+      entertainmentToggleBtn.setAttribute("aria-expanded", "true");
+    } else {
+      entertainmentMoreContainer.setAttribute("hidden", "");
+      entertainmentToggleBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+const technologyToggleBtn = document.getElementById("technology-toggle-more");
+const technologyMoreContainer = document.getElementById("technology-more-headlines-container");
+if (technologyToggleBtn && technologyMoreContainer) {
+  technologyToggleBtn.addEventListener("click", () => {
+    const isHidden = technologyMoreContainer.hasAttribute("hidden");
+    if (isHidden) {
+      technologyMoreContainer.removeAttribute("hidden");
+      technologyToggleBtn.setAttribute("aria-expanded", "true");
+    } else {
+      technologyMoreContainer.setAttribute("hidden", "");
+      technologyToggleBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+// ============================
 // TOGGLE BUTTONS FOR ALL SECTIONS
 // ============================
 const nationalToggleBtn = document.getElementById("national-toggle-more");
@@ -684,20 +946,26 @@ if (localToggleBtn && localMoreContainer) {
 loadCarousel();
 loadLocalNews();
 loadNationalNews();
+loadWorldNews();
 loadBusinessNews();
 loadSportsNews();
-loadWorldNews();
+loadHealthNews();
+loadEntertainmentNews();
+loadTechnologyNews();
 
 // Auto-refresh all news sections every 5 minutes
 setInterval(() => {
   loadLocalNews();
   loadNationalNews();
+  loadWorldNews();
   loadBusinessNews();
   loadSportsNews();
-  loadWorldNews();
-}, 5 * 60 * 1000); // 5 minutes
+  loadHealthNews();
+  loadEntertainmentNews();
+  loadTechnologyNews();
+}, 5 * 60 * 1000);
 
-// Auto-refresh carousel every 30 minutes (new stories)
+// Auto-refresh carousel every 30 minutes
 setInterval(() => {
   loadCarousel();
 }, 30 * 60 * 1000); // 30 minutes
