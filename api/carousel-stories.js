@@ -47,27 +47,27 @@ async function fetchFeed(feed) {
 
 module.exports = async (req, res) => {
   try {
-    const feeds = [
-      // Local (if available)
-      { name: "WHIO", url: "https://www.whio.com/arc/outboundfeeds/rss/", category: "Local" },
-      
-      // National
-      { name: "NPR", url: "https://feeds.npr.org/1001/rss.xml", category: "National" },
-      { name: "CBS News", url: "https://www.cbsnews.com/latest/rss/main", category: "National" },
-      
-      // Business
-      { name: "CNBC", url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", category: "Business" },
-      { name: "MarketWatch", url: "https://www.marketwatch.com/rss/topstories", category: "Business" },
-      
-      // Sports
-      { name: "ESPN", url: "https://www.espn.com/espn/rss/news", category: "Sports" },
-      { name: "CBS Sports", url: "https://www.cbssports.com/rss/headlines", category: "Sports" },
-      
-      // World
-      { name: "France24", url: "https://www.france24.com/en/rss", category: "World" },
-      { name: "BBC", url: "http://feeds.bbci.co.uk/news/world/rss.xml", category: "World" },
-      { name: "The Guardian", url: "https://www.theguardian.com/world/rss", category: "World" }
-    ];
+   const feeds = [
+  // Local
+  { name: "WHIO", url: "https://www.whio.com/arc/outboundfeeds/rss/", category: "Local" },
+  
+  // National
+  { name: "NPR", url: "https://feeds.npr.org/1001/rss.xml", category: "National" },
+  { name: "CBS News", url: "https://www.cbsnews.com/latest/rss/main", category: "National" },
+  { name: "PBS NewsHour", url: "https://www.pbs.org/newshour/feeds/rss/headlines", category: "National" },
+  
+  // Business
+  { name: "CNBC", url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", category: "Business" },
+  { name: "MarketWatch", url: "https://www.marketwatch.com/rss/topstories", category: "Business" },
+  
+  // Sports
+  { name: "ESPN", url: "https://www.espn.com/espn/rss/news", category: "Sports" },
+  { name: "CBS Sports", url: "https://www.cbssports.com/rss/headlines", category: "Sports" },
+  
+  // World (only France24 and RTE for image quality)
+  { name: "France24", url: "https://www.france24.com/en/rss", category: "World" },
+  { name: "RTE", url: "https://www.rte.ie/news/rss/news-headlines.xml", category: "World" }
+];
 
     // Fetch all feeds in parallel
     const allArticlesPromises = feeds.map(feed => fetchFeed(feed));

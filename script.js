@@ -31,31 +31,53 @@ async function loadCarousel() {
     });
 
     // Add navigation buttons
-    carouselContainer.innerHTML += `
-      <button id="prev" aria-label="Previous story">❮</button>
-      <button id="next" aria-label="Next story">❯</button>
-    `;
+    const prevBtn = document.createElement('button');
+    prevBtn.id = 'prev';
+    prevBtn.setAttribute('aria-label', 'Previous story');
+    prevBtn.textContent = '❮';
+    
+    const nextBtn = document.createElement('button');
+    nextBtn.id = 'next';
+    nextBtn.setAttribute('aria-label', 'Next story');
+    nextBtn.textContent = '❯';
+    
+    carouselContainer.appendChild(prevBtn);
+    carouselContainer.appendChild(nextBtn);
 
     // Setup carousel navigation
     const slides = document.querySelectorAll(".slide");
     let currentSlide = 0;
+    let autoTimer;
 
-    const nextBtn = document.getElementById("next");
-    const prevBtn = document.getElementById("prev");
-
-    if (slides.length && nextBtn && prevBtn) {
-      nextBtn.addEventListener("click", () => {
-        slides[currentSlide].classList.remove("active");
-        currentSlide = (currentSlide + 1) % slides.length;
-        slides[currentSlide].classList.add("active");
-      });
-
-      prevBtn.addEventListener("click", () => {
-        slides[currentSlide].classList.remove("active");
-        currentSlide = (currentSlide - 1 + slides.length) % slides.length;
-        slides[currentSlide].classList.add("active");
-      });
+    function goToSlide(index) {
+      slides[currentSlide].classList.remove("active");
+      currentSlide = (index + slides.length) % slides.length;
+      slides[currentSlide].classList.add("active");
     }
+
+    function startAutoTimer() {
+      autoTimer = setInterval(() => {
+        goToSlide(currentSlide + 1);
+      }, 10000); // 10 seconds
+    }
+
+    function resetAutoTimer() {
+      clearInterval(autoTimer);
+      startAutoTimer();
+    }
+
+    nextBtn.addEventListener("click", () => {
+      goToSlide(currentSlide + 1);
+      resetAutoTimer();
+    });
+
+    prevBtn.addEventListener("click", () => {
+      goToSlide(currentSlide - 1);
+      resetAutoTimer();
+    });
+
+    // Start auto-cycling
+    startAutoTimer();
 
   } catch (err) {
     console.error("Carousel error:", err);
@@ -665,3 +687,17 @@ loadNationalNews();
 loadBusinessNews();
 loadSportsNews();
 loadWorldNews();
+
+// Auto-refresh all news sections every 5 minutes
+setInterval(() => {
+  loadLocalNews();
+  loadNationalNews();
+  loadBusinessNews();
+  loadSportsNews();
+  loadWorldNews();
+}, 5 * 60 * 1000); // 5 minutes
+
+// Auto-refresh carousel every 30 minutes (new stories)
+setInterval(() => {
+  loadCarousel();
+}, 30 * 60 * 1000); // 30 minutes

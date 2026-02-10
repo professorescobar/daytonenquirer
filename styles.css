@@ -143,7 +143,7 @@ nav a:hover {
   border: 1px solid #ddd;
   padding: 1.5rem;
   padding-bottom: 0; /* Remove bottom padding for button */
-  margin: 3rem auto;
+  margin: 1.5rem auto;
   background: #fff;
   position: relative;
 }
@@ -234,7 +234,11 @@ nav a:hover {
 }
 
 /* More Headlines Container (full width below main content) */
-#more-headlines-container {
+#more-headlines-container,
+#local-more-headlines-container,
+#national-more-headlines-container,
+#business-more-headlines-container,
+#sports-more-headlines-container {
   border-top: 1px solid #ddd;
   padding: 1rem 0;
   margin-bottom: 0.5rem;
