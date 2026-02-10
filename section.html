@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Dayton Enquirer</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="news-header">
+    <div class="container header-inner">
+      <div class="logo">
+        <a href="/"><h1>The Dayton Enquirer</h1></a>
+      </div>
+      <nav>
+        <a href="/#local">Local</a>
+        <a href="/#national">National</a>
+        <a href="/#world-news">World</a>
+        <a href="/#business">Business</a>
+        <a href="/#sports">Sports</a>
+        <a href="/#health">Health</a>
+        <a href="/#entertainment">Entertainment</a>
+        <a href="/#technology">Technology</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- SECTION PAGE CONTENT -->
+  <main class="container section-page">
+    <div class="section-page-header">
+      <a href="/" class="back-link">← Back to Home</a>
+      <h2 id="section-title">Loading...</h2>
+    </div>
+
+    <!-- FEATURED ARTICLE -->
+    <div id="section-featured"></div>
+
+    <!-- ALL ARTICLES GRID -->
+    <div id="section-articles-grid" class="section-articles-grid"></div>
+
+    <!-- LOAD MORE BUTTON -->
+    <button id="load-more-btn" class="load-more-btn" hidden>Load More</button>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="news-footer">
+    <div class="container">
+      <p>© 2026 The Dayton Enquirer</p>
+    </div>
+  </footer>
+
+  <script src="/section.js"></script>
+</body>
+</html>
