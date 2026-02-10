@@ -191,7 +191,7 @@ async function loadWorldNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'world')}">
+          <a href="${articleLink(article, 'world')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -212,7 +212,7 @@ async function loadWorldNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'world')}">
+          <a href="${articleLink(article, 'world')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -310,7 +310,7 @@ async function loadNationalNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'national')}">
+          <a href="${articleLink(article, 'national')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -328,7 +328,7 @@ async function loadNationalNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'national')}">
+          <a href="${articleLink(article, 'national')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -401,7 +401,7 @@ async function loadBusinessNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'business')}">
+          <a href="${articleLink(article, 'business')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -419,7 +419,7 @@ async function loadBusinessNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'business')}">
+          <a href="${articleLink(article, 'business')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -492,7 +492,7 @@ async function loadSportsNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'sports')}">
+          <a href="${articleLink(article, 'sports')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -510,7 +510,7 @@ async function loadSportsNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'sports')}">
+          <a href="${articleLink(article, 'sports')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -571,7 +571,7 @@ async function loadHealthNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'health')}">${article.title}</a>
+          <a href="${articleLink(article, 'health')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -586,7 +586,7 @@ async function loadHealthNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'health')}">${article.title}</a>
+          <a href="${articleLink(article, 'health')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -643,7 +643,7 @@ async function loadEntertainmentNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'entertainment')}">${article.title}</a>
+          <a href="${articleLink(article, 'entertainment')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -658,7 +658,7 @@ async function loadEntertainmentNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'entertainment')}">${article.title}</a>
+          <a href="${articleLink(article, 'entertainment')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -715,7 +715,7 @@ async function loadTechnologyNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'technology')}">${article.title}</a>
+          <a href="${articleLink(article, 'technology')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -730,7 +730,7 @@ async function loadTechnologyNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'technology')}">${article.title}</a>
+          <a href="${articleLink(article, 'technology')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -896,7 +896,7 @@ async function loadLocalNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'local')}">
+          <a href="${articleLink(article, 'local')}">
             ${article.title}
           </a>
           <div class="article-meta">
@@ -914,7 +914,7 @@ async function loadLocalNews() {
       articles.slice(6, 24).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(featured, 'local')}">
+          <a href="${articleLink(article, 'local')}">
             ${article.title}
           </a>
           <div class="article-meta">
