@@ -1,3 +1,4 @@
+const getCustomArticles = require('./custom-articles');
 const Parser = require("rss-parser");
 const parser = new Parser({
   headers: {
@@ -77,7 +78,11 @@ module.exports = async (req, res) => {
       ...Object.values(articlesBySource).flat()
     ];
 
-    // Sort by date
+    // Mix in custom articles for this section
+    const customArticles = getCustomArticles('local'); // change section name for each API
+    allArticles.push(...customArticles);
+
+    // Sort all articles by date (most recent first)
     allArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
     // Find featured article (first one with image)

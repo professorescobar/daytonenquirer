@@ -95,16 +95,24 @@ async function loadArticle() {
     }
   }
 
-  if (readFullBtn && articleUrl) {
-    readFullBtn.href = decodeURIComponent(articleUrl);
+ // Handle custom articles (no external URL)
+const decodedUrl = articleUrl ? decodeURIComponent(articleUrl) : '';
+const isCustom = decodedUrl.startsWith('custom-');
+
+if (readFullBtn) {
+  if (isCustom) {
+    readFullBtn.setAttribute("hidden", "");
+  } else {
+    readFullBtn.href = decodedUrl;
   }
+}
 
   // Show content, hide loading
   if (loading) loading.setAttribute("hidden", "");
   if (content) content.removeAttribute("hidden");
 
   // Try to get extended summary from summarize API
-  if (articleUrl && articleTitle && articleSource) {
+  if (articleUrl && articleTitle && articleSource && !isCustom) {
     try {
       const summaryRes = await fetch("/api/summarize-article", {
         method: "POST",

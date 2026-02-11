@@ -1,3 +1,4 @@
+const getCustomArticles = require('./custom-articles');
 const Parser = require("rss-parser");
 const parser = new Parser({
   headers: {
@@ -90,6 +91,13 @@ module.exports = async (req, res) => {
         }
       });
     }
+
+    // Mix in custom articles for this section
+    const customArticles = getCustomArticles('sports'); // change section name for each API
+    allArticles.push(...customArticles);
+
+    // Sort all articles by date (most recent first)
+    allArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
     const articles = featuredArticle ? [featuredArticle, ...headlines] : headlines;
 
