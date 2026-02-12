@@ -91,7 +91,7 @@ async function loadArticle() {
   if (descriptionEl && articleDescription) {
     const decoded = decodeURIComponent(articleDescription);
     if (decoded) {
-      descriptionEl.innerHTML = `<p>${decoded}</p>`;
+      descriptionEl.innerHTML = `<p>${decoded.replace(/\n\n/g, '</p><p>')}</p>`;
     }
   }
 
