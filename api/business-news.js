@@ -17,7 +17,6 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      // Business news sources
       { name: "CNBC", url: "https://www.cnbc.com/id/100003114/device/rss/rss.html" },
       { name: "MarketWatch", url: "https://www.marketwatch.com/rss/topstories" },
       { name: "Bloomberg", url: "https://www.bloomberg.com/feed/podcast/etf-report.xml" },
@@ -27,7 +26,7 @@ module.exports = async (req, res) => {
       { name: "Investor's Business Daily", url: "https://www.investors.com/feed/" }
     ];
 
-    const articlesBySource = {};
+    const allArticles = [];
     const feedStatus = {};
 
     for (const feed of feeds) {
@@ -35,18 +34,12 @@ module.exports = async (req, res) => {
         const parsed = await parser.parseURL(feed.url);
         feedStatus[feed.name] = `Success: ${parsed.items.length} items`;
         
-        articlesBySource[feed.name] = parsed.items.slice(0, 10).map(item => {
+        const articles = parsed.items.slice(0, 10).map(item => {
           let imageUrl = '';
-          
-          if (item.enclosure && item.enclosure.url) {
-            imageUrl = item.enclosure.url;
-          } else if (item.media && item.media.$) {
-            imageUrl = item.media.$.url;
-          } else if (item.thumbnail && item.thumbnail.$) {
-            imageUrl = item.thumbnail.$.url;
-          } else if (item['media:content'] && item['media:content'].$) {
-            imageUrl = item['media:content'].$.url;
-          }
+          if (item.enclosure && item.enclosure.url) imageUrl = item.enclosure.url;
+          else if (item.media && item.media.$) imageUrl = item.media.$.url;
+          else if (item.thumbnail && item.thumbnail.$) imageUrl = item.thumbnail.$.url;
+          else if (item['media:content'] && item['media:content'].$) imageUrl = item['media:content'].$.url;
 
           return {
             title: item.title,
@@ -57,50 +50,25 @@ module.exports = async (req, res) => {
             pubDate: item.pubDate || item.isoDate || ""
           };
         });
+        
+        allArticles.push(...articles);
       } catch (feedError) {
         feedStatus[feed.name] = `Failed: ${feedError.message}`;
         console.error(`Failed to fetch ${feed.name}:`, feedError.message);
-        articlesBySource[feed.name] = [];
       }
     }
 
-    const workingSources = Object.keys(articlesBySource).filter(
-      source => articlesBySource[source].length > 0
-    );
-
-    const articlesWithImages = workingSources
-      .flatMap(source => articlesBySource[source] || [])
-      .filter(article => article.image)
-      .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
-    const sortedBySource = workingSources.map(source => {
-      const articles = (articlesBySource[source] || [])
-        .filter(article => article !== featuredArticle)
-        .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-      return articles;
-    });
-
-    let maxLength = Math.max(...sortedBySource.map(arr => arr.length));
-    
-    for (let i = 0; i < maxLength; i++) {
-      sortedBySource.forEach(sourceArticles => {
-        if (sourceArticles[i]) {
-          headlines.push(sourceArticles[i]);
-        }
-      });
-    }
-
-     // Mix in custom articles for this section
-    const customArticles = getCustomArticles('business'); // change for each API
+    // Mix in custom articles
+    const customArticles = getCustomArticles('business');
     allArticles.push(...customArticles);
 
-    // Sort all articles by date (most recent first)
+    // Sort all by date
     allArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
-    // Featured: most recent article WITH an image
+    // Featured: most recent with image
     const featuredArticle = allArticles.find(article => article.image);
 
-    // Headlines: everything else in date order
+    // Headlines: everything else
     const headlines = allArticles.filter(article => article !== featuredArticle);
 
     const articles = featuredArticle ? [featuredArticle, ...headlines] : headlines;
