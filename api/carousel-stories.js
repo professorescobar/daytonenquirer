@@ -1,4 +1,6 @@
 const Parser = require("rss-parser");
+const getCustomArticles = require('./custom-articles');
+
 const parser = new Parser({
   headers: {
     'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)'
@@ -78,35 +80,91 @@ module.exports = async (req, res) => {
       { name: "TechCrunch", url: "https://techcrunch.com/feed/", category: "Technology" }
     ];
 
-    // Fetch all feeds in parallel
+    // Fetch all RSS feeds in parallel
     const results = await Promise.allSettled(
       feeds.map(feed => fetchFeed(feed).then(articles => ({ feed, articles })))
     );
 
-    // Group by category
-    const byCategory = {};
+    // Group RSS articles by category
+    const rssByCategory = {};
     results.forEach(result => {
       if (result.status === 'fulfilled') {
         const { feed, articles } = result.value;
-        if (!byCategory[feed.category]) byCategory[feed.category] = [];
-        byCategory[feed.category].push(...articles);
+        if (!rssByCategory[feed.category]) rssByCategory[feed.category] = [];
+        rssByCategory[feed.category].push(...articles);
       }
     });
 
-    // Pick one random article with image from each category
+    // Get all custom articles and group by section
+    const allCustomArticles = [
+      ...getCustomArticles('local'),
+      ...getCustomArticles('national'),
+      ...getCustomArticles('world'),
+      ...getCustomArticles('business'),
+      ...getCustomArticles('sports'),
+      ...getCustomArticles('health'),
+      ...getCustomArticles('entertainment'),
+      ...getCustomArticles('technology'),
+      ...getCustomArticles('all') // Articles that should appear in all sections
+    ];
+
+    const customByCategory = {};
+    allCustomArticles.forEach(article => {
+      const category = article.section === 'all' ? 'All' : 
+                      article.section === 'local' ? 'Local' :
+                      article.section === 'national' ? 'National' :
+                      article.section === 'world' ? 'World' :
+                      article.section === 'business' ? 'Business' :
+                      article.section === 'sports' ? 'Sports' :
+                      article.section === 'health' ? 'Health' :
+                      article.section === 'entertainment' ? 'Entertainment' :
+                      article.section === 'technology' ? 'Technology' : null;
+      
+      if (category) {
+        if (!customByCategory[category]) customByCategory[category] = [];
+        customByCategory[category].push({...article, category});
+      }
+    });
+
+    // Build carousel: prioritize custom articles, fill remaining with RSS
     const categories = ["Local", "National", "World", "Business", "Sports", "Health", "Entertainment", "Technology"];
     const carouselStories = [];
 
     for (const category of categories) {
-      const articles = byCategory[category] || [];
-      if (articles.length > 0) {
-        const randomIndex = Math.floor(Math.random() * Math.min(articles.length, 5));
-        carouselStories.push(articles[randomIndex]);
+      const customs = customByCategory[category] || [];
+      
+      // PRIORITY: If custom articles exist for this section, use the most recent one with an image
+      if (customs.length > 0) {
+        const customsWithImages = customs
+          .filter(a => a.image)
+          .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+        
+        if (customsWithImages.length > 0) {
+          carouselStories.push(customsWithImages[0]);
+          continue;
+        }
+      }
+
+      // FALLBACK: No custom article, use random RSS article from this category
+      const rssArticles = rssByCategory[category] || [];
+      if (rssArticles.length > 0) {
+        const randomIndex = Math.floor(Math.random() * Math.min(rssArticles.length, 5));
+        carouselStories.push(rssArticles[randomIndex]);
       }
     }
 
+    // If we have "all" custom articles with images, add them at the end
+    const allCustoms = customByCategory['All'] || [];
+    const allCustomsWithImages = allCustoms
+      .filter(a => a.image)
+      .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+    
+    if (allCustomsWithImages.length > 0 && carouselStories.length < 10) {
+      carouselStories.push(...allCustomsWithImages.slice(0, 10 - carouselStories.length));
+    }
+
     res.status(200).json({
-      stories: carouselStories.slice(0, 8),
+      stories: carouselStories,
       count: carouselStories.length
     });
   } catch (err) {
