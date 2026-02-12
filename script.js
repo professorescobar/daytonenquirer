@@ -19,14 +19,17 @@ async function loadCarousel() {
     data.stories.forEach((story, index) => {
       const slide = document.createElement('div');
       slide.className = index === 0 ? 'slide active' : 'slide';
-      slide.innerHTML = `
-        <img src="${story.image}" alt="${story.title}" />
-        <div class="slide-text">
-          <h2><a href="${story.url}" target="_blank" rel="noopener noreferrer">${story.title}</a></h2>
-          <p>${story.description ? story.description.slice(0, 150) + '...' : ''}</p>
-          <span class="slide-category">${story.category} | ${story.source}</span>
-        </div>
-      `;
+      const sectionKey = story.category.toLowerCase().replace(' ', '-');
+const slideLink = articleLink(story, sectionKey === 'world-news' ? 'world' : sectionKey);
+
+slide.innerHTML = `
+  <img src="${story.image}" alt="${story.title}" />
+  <div class="slide-text">
+    <h2><a href="${slideLink}">${story.title}</a></h2>
+    <p>${story.description ? story.description.slice(0, 150) + '...' : ''}</p>
+    <span class="slide-category">${story.category} | ${story.source}</span>
+  </div>
+`;
       carouselContainer.appendChild(slide);
     });
 
