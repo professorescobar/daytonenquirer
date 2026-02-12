@@ -13,11 +13,10 @@ const sectionConfig = {
   technology:    { title: "Technology",          api: "/api/technology-news" }
 };
 
-// Get section from URL - handles /section/national etc
-const pathParts = window.location.pathname.split('/');
-const sectionKey = pathParts[pathParts.length - 1].toLowerCase();
+// Get section from URL query parameter
+const params = new URLSearchParams(window.location.search);
+const sectionKey = (params.get('s') || '').toLowerCase();
 const config = sectionConfig[sectionKey];
-
 // Update page title
 const sectionTitle = document.getElementById("section-title");
 if (config) {
