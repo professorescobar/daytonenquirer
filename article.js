@@ -95,15 +95,23 @@ async function loadArticle() {
     }
   }
 
- // Handle custom articles (no external URL)
+// Handle custom articles (no external URL)
 const decodedUrl = articleUrl ? decodeURIComponent(articleUrl) : '';
 const params = new URLSearchParams(window.location.search);
 const isCustom = params.get('custom') === 'true';
 
+console.log('Debug - articleUrl:', articleUrl);
+console.log('Debug - decodedUrl:', decodedUrl);
+console.log('Debug - custom param:', params.get('custom'));
+console.log('Debug - isCustom:', isCustom);
+console.log('Debug - readFullBtn:', readFullBtn);
+
 if (readFullBtn) {
   if (isCustom) {
+    console.log('Hiding read full button for custom article');
     readFullBtn.setAttribute("hidden", "");
   } else {
+    console.log('Setting href for regular article');
     readFullBtn.href = decodedUrl;
   }
 }
