@@ -17,8 +17,7 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      // National news sources with images
-      { name: "NPR", url: "https://feeds.npr.org/1001/rss.xml" }, // NPR News
+      { name: "NPR", url: "https://feeds.npr.org/1001/rss.xml" },
       { name: "PBS NewsHour", url: "https://www.pbs.org/newshour/feeds/rss/headlines" },
       { name: "Politico", url: "https://www.politico.com/rss/politics08.xml" },
       { name: "The Hill", url: "https://thehill.com/feed/" },
@@ -28,7 +27,7 @@ module.exports = async (req, res) => {
       { name: "ABC News", url: "https://abcnews.go.com/abcnews/topstories" }
     ];
 
-    const articlesBySource = {};
+    const allArticles = [];
     const feedStatus = {};
 
     for (const feed of feeds) {
@@ -36,18 +35,12 @@ module.exports = async (req, res) => {
         const parsed = await parser.parseURL(feed.url);
         feedStatus[feed.name] = `Success: ${parsed.items.length} items`;
         
-        articlesBySource[feed.name] = parsed.items.slice(0, 10).map(item => {
+        const articles = parsed.items.slice(0, 10).map(item => {
           let imageUrl = '';
-          
-          if (item.enclosure && item.enclosure.url) {
-            imageUrl = item.enclosure.url;
-          } else if (item.media && item.media.$) {
-            imageUrl = item.media.$.url;
-          } else if (item.thumbnail && item.thumbnail.$) {
-            imageUrl = item.thumbnail.$.url;
-          } else if (item['media:content'] && item['media:content'].$) {
-            imageUrl = item['media:content'].$.url;
-          }
+          if (item.enclosure && item.enclosure.url) imageUrl = item.enclosure.url;
+          else if (item.media && item.media.$) imageUrl = item.media.$.url;
+          else if (item.thumbnail && item.thumbnail.$) imageUrl = item.thumbnail.$.url;
+          else if (item['media:content'] && item['media:content'].$) imageUrl = item['media:content'].$.url;
 
           return {
             title: item.title,
@@ -58,50 +51,25 @@ module.exports = async (req, res) => {
             pubDate: item.pubDate || item.isoDate || ""
           };
         });
+        
+        allArticles.push(...articles);
       } catch (feedError) {
         feedStatus[feed.name] = `Failed: ${feedError.message}`;
         console.error(`Failed to fetch ${feed.name}:`, feedError.message);
-        articlesBySource[feed.name] = [];
       }
     }
 
-    const workingSources = Object.keys(articlesBySource).filter(
-      source => articlesBySource[source].length > 0
-    );
-
-    const articlesWithImages = workingSources
-      .flatMap(source => articlesBySource[source] || [])
-      .filter(article => article.image)
-      .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
-    const sortedBySource = workingSources.map(source => {
-      const articles = (articlesBySource[source] || [])
-        .filter(article => article !== featuredArticle)
-        .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-      return articles;
-    });
-
-    let maxLength = Math.max(...sortedBySource.map(arr => arr.length));
-    
-    for (let i = 0; i < maxLength; i++) {
-      sortedBySource.forEach(sourceArticles => {
-        if (sourceArticles[i]) {
-          headlines.push(sourceArticles[i]);
-        }
-      });
-    }
-
-   // Mix in custom articles for this section
-    const customArticles = getCustomArticles('national'); // change for each API
+    // Mix in custom articles
+    const customArticles = getCustomArticles('national');
     allArticles.push(...customArticles);
 
-    // Sort all articles by date (most recent first)
+    // Sort all by date
     allArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
-    // Featured: most recent article WITH an image
+    // Featured: most recent with image
     const featuredArticle = allArticles.find(article => article.image);
 
-    // Headlines: everything else in date order
+    // Headlines: everything else
     const headlines = allArticles.filter(article => article !== featuredArticle);
 
     const articles = featuredArticle ? [featuredArticle, ...headlines] : headlines;

@@ -17,42 +17,31 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      // Feeds with images (for featured article)
       { name: "France24", url: "https://www.france24.com/en/rss" },
-      { name: "BBC", url: "http://feeds.bbci.co.uk/news/world/rss.xml" },
-      { name: "RTE", url: "https://www.rte.ie/news/rss/news-headlines.xml" },
-      { name: "The Guardian", url: "https://www.theguardian.com/world/rss" },
-      
-      // Additional feeds (for headline diversity)
       { name: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
       { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
+      { name: "BBC", url: "http://feeds.bbci.co.uk/news/world/rss.xml" },
       { name: "NPR", url: "https://feeds.npr.org/1004/rss.xml" },
       { name: "ABC Australia", url: "https://www.abc.net.au/news/feed/51120/rss.xml" },
+      { name: "RTE", url: "https://www.rte.ie/news/rss/news-headlines.xml" },
+      { name: "The Guardian", url: "https://www.theguardian.com/world/rss" },
       { name: "Euronews", url: "https://www.euronews.com/rss" }
     ];
 
-    const articlesBySource = {};
+    const allArticles = [];
     const feedStatus = {};
 
-    // Fetch all feeds
     for (const feed of feeds) {
       try {
         const parsed = await parser.parseURL(feed.url);
         feedStatus[feed.name] = `Success: ${parsed.items.length} items`;
         
-        articlesBySource[feed.name] = parsed.items.slice(0, 10).map(item => {
-          // Try multiple ways to get the image
+        const articles = parsed.items.slice(0, 10).map(item => {
           let imageUrl = '';
-          
-          if (item.enclosure && item.enclosure.url) {
-            imageUrl = item.enclosure.url;
-          } else if (item.media && item.media.$) {
-            imageUrl = item.media.$.url;
-          } else if (item.thumbnail && item.thumbnail.$) {
-            imageUrl = item.thumbnail.$.url;
-          } else if (item['media:content'] && item['media:content'].$) {
-            imageUrl = item['media:content'].$.url;
-          }
+          if (item.enclosure && item.enclosure.url) imageUrl = item.enclosure.url;
+          else if (item.media && item.media.$) imageUrl = item.media.$.url;
+          else if (item.thumbnail && item.thumbnail.$) imageUrl = item.thumbnail.$.url;
+          else if (item['media:content'] && item['media:content'].$) imageUrl = item['media:content'].$.url;
 
           return {
             title: item.title,
@@ -63,57 +52,25 @@ module.exports = async (req, res) => {
             pubDate: item.pubDate || item.isoDate || ""
           };
         });
+        
+        allArticles.push(...articles);
       } catch (feedError) {
         feedStatus[feed.name] = `Failed: ${feedError.message}`;
         console.error(`Failed to fetch ${feed.name}:`, feedError.message);
-        articlesBySource[feed.name] = [];
       }
     }
 
-    // Sources with images (for featured article)
-    const imageSources = ['France24', 'BBC', 'RTE', 'The Guardian'];
-    
-    // FEATURED ARTICLE: Most recent article WITH image from image sources
-    const articlesWithImages = imageSources
-      .flatMap(source => articlesBySource[source] || [])
-      .filter(article => article.image)
-      .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
-    // Get all working sources
-    const workingSources = Object.keys(articlesBySource).filter(
-      source => articlesBySource[source].length > 0
-    );
-
-    // OTHER HEADLINES: Interleave all working sources for diversity
-    const sortedBySource = workingSources.map(source => {
-      const articles = (articlesBySource[source] || [])
-        .filter(article => article !== featuredArticle)
-        .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-      return articles;
-    });
-
-    // Interleave sources for diversity
-    let maxLength = Math.max(...sortedBySource.map(arr => arr.length));
-    
-    for (let i = 0; i < maxLength; i++) {
-      sortedBySource.forEach(sourceArticles => {
-        if (sourceArticles[i]) {
-          headlines.push(sourceArticles[i]);
-        }
-      });
-    }
-
-   // Mix in custom articles for this section
-    const customArticles = getCustomArticles('world'); // change for each API
+    // Mix in custom articles
+    const customArticles = getCustomArticles('world');
     allArticles.push(...customArticles);
 
-    // Sort all articles by date (most recent first)
+    // Sort all by date
     allArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
-    // Featured: most recent article WITH an image
+    // Featured: most recent with image
     const featuredArticle = allArticles.find(article => article.image);
 
-    // Headlines: everything else in date order
+    // Headlines: everything else
     const headlines = allArticles.filter(article => article !== featuredArticle);
 
     const articles = featuredArticle ? [featuredArticle, ...headlines] : headlines;
