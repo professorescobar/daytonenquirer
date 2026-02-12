@@ -75,11 +75,13 @@ async function loadArticle() {
   }
 
   if (categoryEl && articleSection) {
-    const config = sectionConfig[articleSection];
-    if (config) {
-      categoryEl.innerHTML = `<a href="/section.html?s=${articleSection}">${config.title}</a>`;
-    }
+  const config = sectionConfig[articleSection];
+  if (config) {
+    // Make sure we use the correct section key, not the title
+    const sectionKey = articleSection.toLowerCase();
+    categoryEl.innerHTML = `<a href="/section.html?s=${sectionKey}">${config.title}</a>`;
   }
+}
 
   if (imageContainer && articleImage) {
     const decoded = decodeURIComponent(articleImage);
