@@ -801,6 +801,14 @@ nav a:hover {
   color: #333;
 }
 
+.article-description p {
+  margin-bottom: 1rem;
+}
+
+.article-description p:last-child {
+  margin-bottom: 0;
+}
+
 .read-full-btn {
   display: block;
   text-align: center;
