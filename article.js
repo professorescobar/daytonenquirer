@@ -97,7 +97,8 @@ async function loadArticle() {
 
  // Handle custom articles (no external URL)
 const decodedUrl = articleUrl ? decodeURIComponent(articleUrl) : '';
-const isCustom = decodedUrl.startsWith('custom-');
+const params = new URLSearchParams(window.location.search);
+const isCustom = params.get('custom') === 'true';
 
 if (readFullBtn) {
   if (isCustom) {
