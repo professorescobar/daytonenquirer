@@ -822,6 +822,11 @@ nav a:hover {
   margin-bottom: 3rem;
 }
 
+.read-full-btn[hidden] {
+  display: none !important;
+}
+
+
 .read-full-btn:hover {
   background: #333;
 }
