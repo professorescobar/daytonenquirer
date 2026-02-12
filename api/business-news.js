@@ -72,8 +72,6 @@ module.exports = async (req, res) => {
       .flatMap(source => articlesBySource[source] || [])
       .filter(article => article.image)
       .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-    
-    const featuredArticle = articlesWithImages[0];
 
     const sortedBySource = workingSources.map(source => {
       const articles = (articlesBySource[source] || [])
@@ -82,7 +80,6 @@ module.exports = async (req, res) => {
       return articles;
     });
 
-    const headlines = [];
     let maxLength = Math.max(...sortedBySource.map(arr => arr.length));
     
     for (let i = 0; i < maxLength; i++) {
@@ -93,14 +90,20 @@ module.exports = async (req, res) => {
       });
     }
 
-      // Mix in custom articles for this section
-      const customArticles = getCustomArticles('business'); // change section name for each API
-      allArticles.push(...customArticles);
+     // Mix in custom articles for this section
+    const customArticles = getCustomArticles('business'); // change for each API
+    allArticles.push(...customArticles);
 
-      // Sort all articles by date (most recent first)
-      allArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+    // Sort all articles by date (most recent first)
+    allArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
-     const articles = featuredArticle ? [featuredArticle, ...headlines] : headlines;
+    // Featured: most recent article WITH an image
+    const featuredArticle = allArticles.find(article => article.image);
+
+    // Headlines: everything else in date order
+    const headlines = allArticles.filter(article => article !== featuredArticle);
+
+    const articles = featuredArticle ? [featuredArticle, ...headlines] : headlines;
 
     res.status(200).json({ 
       articles, 

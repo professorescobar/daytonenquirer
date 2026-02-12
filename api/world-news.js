@@ -78,8 +78,6 @@ module.exports = async (req, res) => {
       .flatMap(source => articlesBySource[source] || [])
       .filter(article => article.image)
       .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-    
-    const featuredArticle = articlesWithImages[0];
 
     // Get all working sources
     const workingSources = Object.keys(articlesBySource).filter(
@@ -95,7 +93,6 @@ module.exports = async (req, res) => {
     });
 
     // Interleave sources for diversity
-    const headlines = [];
     let maxLength = Math.max(...sortedBySource.map(arr => arr.length));
     
     for (let i = 0; i < maxLength; i++) {
@@ -106,14 +103,19 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Mix in custom articles for this section
-    const customArticles = getCustomArticles('world'); // change section name for each API
+   // Mix in custom articles for this section
+    const customArticles = getCustomArticles('world'); // change for each API
     allArticles.push(...customArticles);
 
     // Sort all articles by date (most recent first)
     allArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
-    // Combine: featured first, then headlines
+    // Featured: most recent article WITH an image
+    const featuredArticle = allArticles.find(article => article.image);
+
+    // Headlines: everything else in date order
+    const headlines = allArticles.filter(article => article !== featuredArticle);
+
     const articles = featuredArticle ? [featuredArticle, ...headlines] : headlines;
 
     res.status(200).json({ 
