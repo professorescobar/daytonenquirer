@@ -31,7 +31,7 @@
     "section": "local",
     "custom": true
   },
-  
+
    {
     "title": "Cash Forecast Signals 2027 Showdown: Oakwood Schools May Ask Voters for New Operating Levy",
     "url": "oakwood-school-levy-2027",
@@ -40,6 +40,17 @@
     "image": "https://i.imgur.com/fmTDE4U.jpeg",
     "pubDate": "2026-02-13T14:58:00Z",
     "section": "local",
+    "custom": true
+  },
+
+   {
+    "title": "Major U.S. Airspace Incident - El Paso Airspace Shutdown",
+    "url": "el-paso-airspace-shutdown",
+    "description": "Laser Confusion Over Texas: Military Anti-Drone Test Triggers FAA Shutdown of El Paso Airspace\n\nAn unexpected airspace shutdown over El Paso, Texas, has ignited national debate over military technology, aviation safety, and federal coordination after a counter-drone laser system was deployed near a major civilian airport.\n\nThe incident began when the Federal Aviation Administration (FAA) abruptly halted flights in and out of El Paso International Airport, citing “special security reasons.” A Notice to Airmen (NOTAM) restricted civilian air traffic, grounding commercial flights and disrupting medical transport operations. Initially described as a security measure that could last up to 10 days, the restriction was lifted within hours after federal officials determined there was no ongoing threat to aviation safety.\n\nAt the center of the controversy is the reported use of a 20-kilowatt directed-energy weapon known as LOCUST, deployed by U.S. Customs and Border Protection (CBP) near Fort Bliss with Pentagon authorization. The laser system was allegedly used to target what authorities believed to be cartel-operated drones flying near the U.S.–Mexico border. However, subsequent reporting suggested the objects may have been harmless party balloons, raising questions about the reliability of threat assessments and the decision-making process that followed.\n\nThe rapid shutdown — and reversal — exposed what lawmakers are calling a serious breakdown in communication between federal agencies. Members of Congress from both parties have criticized the apparent lack of coordination between the FAA, the Department of Defense, and CBP. Senate oversight discussions this week focused on how advanced military systems were deployed in proximity to civilian air corridors without prior notice to aviation authorities or local leaders.\n\nEl Paso officials said they were caught off guard by the FAA order, which sent confusion rippling through airlines, airport staff, and travelers. Emergency medical flights were temporarily disrupted, and commercial carriers scrambled to reroute aircraft. Though operations resumed the same day, the episode has intensified scrutiny of how emerging defense technologies are integrated into domestic airspace.\n\nFederal authorities have long warned about increased drone activity along the southern border, including surveillance operations allegedly linked to Mexican drug cartels. The Department of Homeland Security has invested heavily in counter-drone capabilities in recent years, arguing that unmanned aerial systems pose a growing threat to border security. But aviation experts caution that high-powered directed-energy systems — especially lasers — require strict coordination protocols when used near civilian airports, where even minor miscalculations could have catastrophic consequences.\n\nTransportation officials have stated that the perceived threat was “neutralized,” but have offered limited details about what triggered the initial alert or how interagency communication broke down so dramatically. Lawmakers are now calling for clearer rules governing the domestic use of military-grade counter-drone technology and better safeguards to prevent future airspace disruptions.\n\nAs investigations continue, the El Paso incident is emerging as a pivotal test of how the United States balances national security innovation with the safety of its civilian aviation system. What began as a localized security response has quickly evolved into a broader reckoning over oversight, transparency, and the risks of deploying advanced weapons technology close to home.",
+    "source": "The Dayton Enquirer",
+    "image": "https://i.imgur.com/wGta1AR.jpeg",
+    "pubDate": "2026-02-13T15:11:00Z",
+    "section": "national",
     "custom": true
   }
 ]
