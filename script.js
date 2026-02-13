@@ -560,7 +560,7 @@ async function loadHealthNews() {
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
-          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}">` : '<div class="placeholder-image"></div>'}
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'health')}">${featured.title}</a></h3>
             <div class="article-meta">
@@ -632,7 +632,7 @@ async function loadEntertainmentNews() {
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
-          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}">` : '<div class="placeholder-image"></div>'}
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'entertainment')}">${featured.title}</a></h3>
             <div class="article-meta">
@@ -704,7 +704,7 @@ async function loadTechnologyNews() {
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
-          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}">` : '<div class="placeholder-image"></div>'}
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'technology')}">${featured.title}</a></h3>
             <div class="article-meta">

@@ -22,6 +22,11 @@ const sectionTitle = document.getElementById("section-title");
 if (config) {
   sectionTitle.textContent = config.title;
   document.title = `${config.title} | The Dayton Enquirer`;
+  // Update meta description
+const metaDesc = document.querySelector('meta[name="description"]');
+if (metaDesc) {
+  metaDesc.setAttribute('content', `Latest ${config.title.toLowerCase()} from The Dayton Enquirer. Breaking news and updates.`);
+}
 } else {
   sectionTitle.textContent = "Section Not Found";
 }
@@ -48,7 +53,7 @@ function renderFeatured(article) {
   container.innerHTML = `
     <article class="section-featured-article">
       ${article.image
-        ? `<img src="${article.image}" alt="${article.title}">`
+        ? `<img src="${article.image}" alt="${article.title}" loading="lazy">`
         : '<div class="placeholder-image"></div>'
       }
       <div class="section-featured-overlay">
@@ -71,7 +76,7 @@ function renderArticles(articles) {
     const card = document.createElement("div");
     card.className = "section-article-card";
     card.innerHTML = `
-      ${article.image ? `<img src="${article.image}" alt="${article.title}" class="card-image">` : ''}
+      ${article.image ? `<img src="${article.image}" alt="${article.title}" class="card-image" loading="lazy">` : ''}
       <div class="card-body">
         <h4><a href="/article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}"></h4>
         <p>${article.description ? article.description.slice(0, 120) + '...' : ''}</p>

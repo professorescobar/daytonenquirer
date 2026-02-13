@@ -45,8 +45,15 @@ async function loadArticle() {
 
   // Set page title
   if (articleTitle) {
-    document.title = `${decodeURIComponent(articleTitle)} | The Dayton Enquirer`;
+  document.title = `${decodeURIComponent(articleTitle)} | The Dayton Enquirer`;
+  
+  // Update meta description
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc && articleDescription) {
+    const desc = decodeURIComponent(articleDescription).slice(0, 155);
+    metaDesc.setAttribute('content', desc);
   }
+}
 
   // Fill in article details from URL params
   const titleEl = document.getElementById("article-title");
@@ -86,7 +93,7 @@ async function loadArticle() {
   if (imageContainer && articleImage) {
     const decoded = decodeURIComponent(articleImage);
     if (decoded) {
-      imageContainer.innerHTML = `<img src="${decoded}" alt="${decodeURIComponent(articleTitle || '')}" />`;
+      imageContainer.innerHTML = `<img src="${decoded}" alt="${decodeURIComponent(articleTitle || '')}" loading="lazy" />`;
     }
   }
 
@@ -184,7 +191,7 @@ async function loadRelated() {
       const card = document.createElement("div");
       card.className = "related-card";
       card.innerHTML = `
-        ${article.image ? `<img src="${article.image}" alt="${article.title}" class="related-card-image">` : ''}
+        ${article.image ? `<img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">` : ''}
         <div class="related-card-body">
           <h4>
             <a href="/article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${articleSection}">
