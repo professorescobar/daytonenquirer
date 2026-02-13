@@ -57,7 +57,7 @@ function renderFeatured(article) {
         : '<div class="placeholder-image"></div>'
       }
       <div class="section-featured-overlay">
-        <h3><a href="/article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}"></h3>
+        <h3><a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}"></h3>
         <p class="section-featured-desc">${article.description ? article.description.slice(0, 200) + '...' : ''}</p>
         <div class="article-meta">
           <span class="source">${article.source}</span>
@@ -78,7 +78,7 @@ function renderArticles(articles) {
     card.innerHTML = `
       ${article.image ? `<img src="${article.image}" alt="${article.title}" class="card-image" loading="lazy">` : ''}
       <div class="card-body">
-        <h4><a href="/article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}"></h4>
+        <h4><a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}"></h4>
         <p>${article.description ? article.description.slice(0, 120) + '...' : ''}</p>
         <div class="article-meta">
           <span class="source">${article.source}</span>
