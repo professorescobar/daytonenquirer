@@ -1,6 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://daytonenquirer.com/sitemap.xml
 
-User-agent: *
-Disallow: /api/
+Sitemap: https://daytonenquirer.com/sitemap.xml
