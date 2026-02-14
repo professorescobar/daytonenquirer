@@ -20,8 +20,7 @@ module.exports = async (req, res) => {
       { name: "France24", url: "https://www.france24.com/en/rss" },
       { name: "BBC", url: "http://feeds.bbci.co.uk/news/world/rss.xml" },
       { name: "RTE", url: "https://www.rte.ie/news/rss/news-headlines.xml" },
-      { name: "The Guardian", url: "https://www.theguardian.com/world/rss" },
-      { name: "Euronews", url: "https://www.euronews.com/rss" }
+      { name: "The Guardian", url: "https://www.theguardian.com/world/rss" }
     ];
 
     const allArticles = [];
