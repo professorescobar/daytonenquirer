@@ -18,11 +18,7 @@ module.exports = async (req, res) => {
   try {
     const feeds = [
       { name: "France24", url: "https://www.france24.com/en/rss" },
-      { name: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
-      { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
       { name: "BBC", url: "http://feeds.bbci.co.uk/news/world/rss.xml" },
-      { name: "NPR", url: "https://feeds.npr.org/1004/rss.xml" },
-      { name: "ABC Australia", url: "https://www.abc.net.au/news/feed/51120/rss.xml" },
       { name: "RTE", url: "https://www.rte.ie/news/rss/news-headlines.xml" },
       { name: "The Guardian", url: "https://www.theguardian.com/world/rss" },
       { name: "Euronews", url: "https://www.euronews.com/rss" }
