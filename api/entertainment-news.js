@@ -18,10 +18,8 @@ module.exports = async (req, res) => {
   try {
     const feeds = [
       { name: "Variety", url: "https://variety.com/feed/" },
-      { name: "Hollywood Reporter", url: "https://www.hollywoodreporter.com/feed/" },
       { name: "Deadline", url: "https://deadline.com/feed/" },
       { name: "Entertainment Weekly", url: "https://ew.com/feed/" },
-      { name: "Rolling Stone", url: "https://www.rollingstone.com/feed/" },
       { name: "Pitchfork", url: "https://pitchfork.com/rss/news/feed.xml" },
       { name: "TV Line", url: "https://tvline.com/feed/" },
       { name: "IGN", url: "https://feeds.feedburner.com/ign/all" },
