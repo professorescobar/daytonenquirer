@@ -17,13 +17,11 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      { name: "CNBC", url: "https://www.cnbc.com/id/100003114/device/rss/rss.html" },
       { name: "MarketWatch", url: "https://www.marketwatch.com/rss/topstories" },
       { name: "Bloomberg", url: "https://www.bloomberg.com/feed/podcast/etf-report.xml" },
       { name: "Forbes", url: "https://www.forbes.com/business/feed/" },
       { name: "Financial Times", url: "https://www.ft.com/?format=rss" },
-      { name: "Barron's", url: "https://www.barrons.com/rss" },
-      { name: "Investor's Business Daily", url: "https://www.investors.com/feed/" }
+      { name: "Barron's", url: "https://www.barrons.com/rss" }
     ];
 
     const allArticles = [];
