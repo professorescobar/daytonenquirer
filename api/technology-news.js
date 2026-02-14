@@ -44,11 +44,7 @@ module.exports = async (req, res) => {
     const feeds = [
       { name: "Wired", url: "https://www.wired.com/feed/rss" },
       { name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index" },
-      { name: "TechCrunch", url: "https://techcrunch.com/feed/" },
-      { name: "The Verge", url: "https://www.theverge.com/rss/index.xml" },
       { name: "Engadget", url: "https://www.engadget.com/rss.xml" },
-      { name: "ScienceDaily", url: "https://www.sciencedaily.com/rss/top/science.xml" },
-      { name: "NASA", url: "https://www.nasa.gov/rss/dyn/breaking_news.rss" },
       { name: "MIT News", url: "https://news.mit.edu/rss/feed" }
     ];
 
