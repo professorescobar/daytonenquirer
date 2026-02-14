@@ -17,13 +17,9 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      { name: "NPR", url: "https://feeds.npr.org/1001/rss.xml" },
       { name: "PBS NewsHour", url: "https://www.pbs.org/newshour/feeds/rss/headlines" },
-      { name: "Politico", url: "https://www.politico.com/rss/politics08.xml" },
       { name: "The Hill", url: "https://thehill.com/feed/" },
       { name: "USA Today", url: "http://rssfeeds.usatoday.com/usatoday-NewsTopStories" },
-      { name: "CBS News", url: "https://www.cbsnews.com/latest/rss/main" },
-      { name: "NBC News", url: "https://feeds.nbcnews.com/nbcnews/public/news" },
       { name: "ABC News", url: "https://abcnews.go.com/abcnews/topstories" }
     ];
 
