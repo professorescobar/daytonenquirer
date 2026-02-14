@@ -272,5 +272,27 @@
     "pubDate": "2026-02-14T07:21:00Z",
     "section": "world",
     "custom": true
+  },
+
+    {
+    "title": "U.S. and Taiwan Announce New Trade Deal",
+    "url": "us-and-taiwan-new-reciprocal-trade-deal-",
+    "description": "The United States and Taiwan have announced a new reciprocal trade agreement aimed at strengthening economic ties and reinforcing supply chain resilience, particularly in the semiconductor industry.\n\nOfficials in Washington say the deal is designed to secure access to advanced chip manufacturing, reduce vulnerabilities exposed during recent global shortages, and deepen cooperation in high-tech sectors. Taiwan remains a central player in global semiconductor production, and U.S. policymakers view closer coordination as critical to economic and national security interests.\n\nAnalysts note that while the agreement signals strategic alignment, key details surrounding enforcement, tariff adjustments, and dispute resolution remain under review. The move is also likely to draw scrutiny from China, which has historically opposed expanded U.S.–Taiwan economic and political engagement. Economists will be watching closely to see whether the pact meaningfully shifts trade balances or primarily serves as a geopolitical statement.",
+    "source": "The Dayton Enquirer",
+    "image": "https://i.imgur.com/XGMhB3y.jpeg",
+    "pubDate": "2026-02-14T08:58:00Z",
+    "section": "business",
+    "custom": true
+  },
+
+    {
+    "title": "Treasury Tightens Clean Energy Tax Credit Rules to Boost Domestic Manufacturing",
+    "url": "us-treasury-realeses-new-interim-rules-governing-federal-clean-energy-tax-credits",
+    "description": "The United States Department of the Treasury has released interim rules governing federal clean energy tax credits, tightening eligibility requirements for companies that rely heavily on foreign-sourced components.\n\nThe guidance is part of a broader effort to align climate incentives with domestic industrial policy. Under the updated framework, companies seeking federal subsidies for electric vehicles, battery production, and renewable energy infrastructure must meet stricter sourcing thresholds. Officials say the goal is to strengthen domestic manufacturing and reduce supply chain dependence on overseas suppliers.\n\nIndustry leaders have responded cautiously, warning that stricter standards could delay projects or increase short-term costs as companies reconfigure supply chains. Supporters argue the rules will encourage long-term investment in U.S. production capacity and reinforce economic security alongside environmental goals.",
+    "source": "The Dayton Enquirer",
+    "image": "https://i.imgur.com/a39Hqec.jpeg",
+    "pubDate": "2026-02-14T08:57:00Z",
+    "section": "business",
+    "custom": true
   }
 ]
