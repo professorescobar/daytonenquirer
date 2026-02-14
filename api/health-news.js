@@ -42,16 +42,8 @@ async function fetchFeed(feed) {
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      // These sources are known to include images in RSS
-      { name: "CBS News Health", url: "https://www.cbsnews.com/latest/rss/health" },
-      { name: "NBC News Health", url: "https://feeds.nbcnews.com/nbcnews/public/health" },
       { name: "ABC News Health", url: "https://abcnews.go.com/abcnews/healthheadlines" },
-      { name: "NPR Health", url: "https://feeds.npr.org/1128/rss.xml" },
-      { name: "STAT News", url: "https://www.statnews.com/feed/" },
-      // These are good for headlines even without images
-      { name: "ScienceDaily Health", url: "https://www.sciencedaily.com/rss/health_medicine.xml" },
-      { name: "CDC", url: "https://tools.cdc.gov/api/v2/resources/media/404952.rss" },
-      { name: "Healthline", url: "https://www.healthline.com/rss/health-news" }
+      { name: "STAT News", url: "https://www.statnews.com/feed/" }
     ];
 
     // Fetch all feeds in parallel
