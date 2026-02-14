@@ -17,11 +17,9 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      { name: "ESPN", url: "https://www.espn.com/espn/rss/news" },
       { name: "CBS Sports", url: "https://www.cbssports.com/rss/headlines" },
       { name: "Sports Illustrated", url: "https://www.si.com/rss/si_topstories.rss" },
       { name: "The Athletic", url: "https://theathletic.com/feed/" },
-      { name: "Yahoo Sports", url: "https://sports.yahoo.com/rss/" },
       { name: "Sporting News", url: "https://www.sportingnews.com/us/rss" }
     ];
 
