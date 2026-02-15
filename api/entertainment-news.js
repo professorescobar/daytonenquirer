@@ -19,15 +19,12 @@ module.exports = async (req, res) => {
     const feeds = [
       { name: "Variety", url: "https://variety.com/feed/" },
       { name: "Deadline", url: "https://deadline.com/feed/" },
-      { name: "Entertainment Weekly", url: "https://ew.com/feed/" },
-      { name: "Pitchfork", url: "https://pitchfork.com/rss/news/feed.xml" },
       { name: "TV Line", url: "https://tvline.com/feed/" },
       { name: "IGN", url: "https://feeds.feedburner.com/ign/all" },
       { name: "Polygon", url: "https://www.polygon.com/rss/index.xml" },
       { name: "Kotaku", url: "https://kotaku.com/rss" },
       { name: "Billboard", url: "https://www.billboard.com/feed/" },
       { name: "IndieWire", url: "https://www.indiewire.com/feed/" },
-      { name: "ComicBook.com", url: "https://comicbook.com/rss.xml" },
       { name: "GameSpot", url: "https://www.gamespot.com/feeds/news/" }
     ];
 

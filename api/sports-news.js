@@ -17,14 +17,33 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      { name: "CBS Sports", url: "https://www.cbssports.com/rss/headlines" },
-      { name: "Sports Illustrated", url: "https://www.si.com/rss/si_topstories.rss" },
-      { name: "The Athletic", url: "https://theathletic.com/feed/" },
-      { name: "Sporting News", url: "https://www.sportingnews.com/us/rss" },
-      { name: "USA Today Sports", url: "http://rssfeeds.usatoday.com/UsatodaycomSports-TopStories" },
-      { name: "AP Sports", url: "https://apnews.com/apf-sports" },
-      { name: "NFL.com", url: "https://www.nfl.com/feeds/rss/news" },
-      { name: "NBA.com", url: "https://www.nba.com/news/rss.xml" }
+      // Dayton Area Sports
+      { name: "WHIO Sports Dayton", url: "https://www.whio.com/sports/feed/" },
+      { name: "UD Flyers Athletics", url: "https://daytonflyers.com/rss.aspx?path=general" },
+      { name: "Dayton 24/7 Sports", url: "https://www.dayton247now.com/sports/feed/" },
+
+      // Cincinnati Teams
+      { name: "Cincinnati Bengals", url: "https://www.bengals.com/news/rss.xml" },
+      { name: "Cincinnati Reds", url: "https://www.mlb.com/reds/feeds/news/rss.xml" },
+      { name: "FC Cincinnati", url: "https://www.fccincinnati.com/feed" },
+
+      // Cleveland Teams
+      { name: "Cleveland Browns", url: "https://www.clevelandbrowns.com/news/rss.xml" },
+      { name: "Cleveland Cavaliers", url: "https://www.nba.com/cavaliers/rss.xml" },
+      { name: "Cleveland Guardians", url: "https://www.mlb.com/guardians/feeds/news/rss.xml" },
+
+      // Columbus Teams
+      { name: "Columbus Blue Jackets", url: "https://www.nhl.com/bluejackets/news" },
+      { name: "Columbus Crew", url: "https://www.columbuscrew.com/feed" },
+
+      // Ohio State
+      { name: "Ohio State Buckeyes", url: "https://ohiostatebuckeyes.com/rss.aspx?path=football" },
+      { name: "Buckeye Sports Bulletin", url: "https://buckeyesports.com/feed/" },
+
+      // Regional Sports News
+      { name: "WKYC Cleveland Sports", url: "https://rssfeeds.wkyc.com/wkyc/sports" },
+      { name: "NBC4 Columbus Sports", url: "https://www.nbc4i.com/sports/feed/" },
+      { name: "Columbus Dispatch Sports", url: "https://www.dispatch.com/sports/feed/" }
     ];
 
     const allArticles = [];

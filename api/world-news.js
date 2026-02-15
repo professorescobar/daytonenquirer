@@ -21,7 +21,6 @@ module.exports = async (req, res) => {
       { name: "BBC", url: "http://feeds.bbci.co.uk/news/world/rss.xml" },
       { name: "RTE", url: "https://www.rte.ie/news/rss/news-headlines.xml" },
       { name: "The Guardian", url: "https://www.theguardian.com/world/rss" },
-      { name: "Associated Press World", url: "https://apnews.com/apf-international" },
       { name: "CNN World", url: "http://rss.cnn.com/rss/cnn_world.rss" },
       { name: "Sky News", url: "https://feeds.skynews.com/feeds/rss/world.xml" }
     ];

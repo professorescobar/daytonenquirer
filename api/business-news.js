@@ -21,8 +21,6 @@ module.exports = async (req, res) => {
       { name: "Bloomberg", url: "https://www.bloomberg.com/feed/podcast/etf-report.xml" },
       { name: "Forbes", url: "https://www.forbes.com/business/feed/" },
       { name: "Financial Times", url: "https://www.ft.com/?format=rss" },
-      { name: "Barron's", url: "https://www.barrons.com/rss" },
-      { name: "Reuters Business", url: "https://www.reutersagency.com/feed/?best-topics=business-finance" },
       { name: "Yahoo Finance", url: "https://finance.yahoo.com/news/rssindex" },
       { name: "CNN Business", url: "http://rss.cnn.com/rss/money_latest.rss" },
       { name: "Business Insider", url: "https://www.businessinsider.com/rss" },

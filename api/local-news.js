@@ -29,11 +29,12 @@ module.exports = async (req, res) => {
     ];
 
     const feeds = [
-      { name: "WHIO", url: "https://www.whio.com/arc/outboundfeeds/rss/" },
       { name: "WDTN", url: "https://www.wdtn.com/feed/" },
-      { name: "Dayton Daily News", url: "https://www.daytondailynews.com/news/rss/" },
-      { name: "Springfield News-Sun", url: "https://www.springfieldnewssun.com/rss/" },
-      { name: "WYSO", url: "https://www.wyso.org/rss.xml" }
+      { name: "Spectrum News 1 Dayton", url: "https://spectrumnews1.com/oh/dayton/rss" },
+      { name: "Dayton 24/7 Now", url: "https://www.dayton247now.com/feed/" },
+      { name: "Dayton Weekly News", url: "https://www.daytonweeklyonline.com/feed/" },
+      { name: "Flyer News (UD)", url: "https://flyernews.wpengine.com/feed/" },
+      { name: "City of Dayton", url: "https://www.daytonohio.gov/RSSFeed.ashx?Type=1" }
 
       // Add more local feeds here as you find them
     ];
