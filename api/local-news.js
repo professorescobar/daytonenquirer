@@ -31,24 +31,19 @@ module.exports = async (req, res) => {
     const feeds = [
       { name: "WDTN", url: "https://www.wdtn.com/feed/" },
       { name: "Flyer News (UD)", url: "https://flyernews.wpengine.com/feed/" },
-      { name: "City of Dayton News Flash", url: "https://www.daytonohio.gov/CivicAlerts.aspx?feed=General" },
-      { name: "Miami County Alerts", url: "https://www.miamicountyohio.gov/CivicAlerts.aspx?feed=alerts" },
-      { name: "Huber Heights News", url: "https://hhoh.org/CivicAlerts.aspx?feed=General" },
-      { name: "University of Dayton Athletics", url: "https://daytonflyers.com/rss.aspx?path=general" },
-      { name: "Dayton Business Journal", url: "https://www.bizjournals.com/dayton/rss.xml" },
-      { name: "The Wright State Guardian (student news)", url: "https://wsuguardian.com/rss" },
-      { name: "The Miami Student (student newspaper)", url: "https://miamistudent.net/feed" },
-      { name: "Oxford-Miami University Patch (local community news)", url: "https://patch.com/ohio/miamiuniversity-oxford/rss" },
-      { name: "Journal-News (Butler & Warren Counties)", url: "https://www.journal-news.com/rss/" },
-      { name: "Middletown Journal RSS", url: "https://www.journal-news.com/local/middletown/rss/" },
-      { name: "City of Middletown News Flash", url: "https://www.cityofmiddletown.org/CivicAlerts.aspx?feed=General" },
-      { name: "Montgomery County OH News Releases", url: "https://www.mcohio.org/CivicAlerts.aspx?feed=General" },
-      { name: "Greene County OH News Flash", url: "https://www.greenecountyohio.gov/CivicAlerts.aspx?feed=General" },
-      { name: "Warren County OH News Flash", url: "https://www.co.warren.oh.us/CivicAlerts.aspx?feed=General" },
-      { name: "Miami County OH News Flash", url: "https://www.miamicountyohio.gov/CivicAlerts.aspx?feed=General" },
-      { name: "Butler County OH News & Announcements", url: "https://www.bcohio.gov/CivicAlerts.aspx?feed=General" }
-
-
+      { name: "WLWT Cincinnati – Sports", url: "https://www.wlwt.com/sports/rss" },
+      { name: "Cincinnati.com – Sports", url: "https://www.cincinnati.com/sports/rss/" },
+      { name: "WCPO 9 – Sports", url: "https://www.wcpo.com/sports/rss.xml" },
+      { name: "10TV Columbus – Sports", url: "https://www.10tv.com/sports/rss" },
+      { name: "NBC4 Columbus – Sports", url: "https://www.nbc4i.com/sports/feed/" },
+      { name: "Columbus Dispatch – Sports", url: "https://www.dispatch.com/sports/rss/" },
+      { name: "Beavercreek, OH – News", url: "https://beavercreekohio.gov/rss.aspx?Feed=News Updates" },
+      { name: "Troy, OH – News Flash", url: "https://troyohio.gov/rss.aspx?Feed=News Flash" },
+      { name: "Huber Heights, OH – News Flash", url: "https://www.hhoh.org/rss.aspx?Feed=News Flash" },
+      { name: "Springfield Township, OH – RSS", url: "https://www.springfieldtwp.org/rss.aspx" },
+      { name: "Centerville, OH – News Flash", url: "https://www.centervilleohio.gov/rss.aspx?Feed=News Flash" },
+      { name: "Englewood, OH – News Flash", url: "https://www.englewood.oh.us/rss.aspx?Feed=News Flash" },
+      { name: "Vandalia, OH – Alerts & News", url: "https://www.vandaliaohio.org/CivicAlerts.aspx?format=rss" }
 
       // Add more local feeds here as you find them
     ];
