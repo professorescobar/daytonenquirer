@@ -163,30 +163,33 @@ async function loadSection() {
     allArticles = data.articles;
 
     // Render featured article
-renderFeatured(allArticles[0]);
+    renderFeatured(allArticles[0]);
 
-// Render sidebar headlines (next 5 articles)
-const sidebarContainer = document.getElementById("section-sidebar-headlines");
-if (sidebarContainer) {
-  const sidebarList = document.createElement("ul");
-  allArticles.slice(1, 6).forEach(article => {
-    const li = document.createElement("li");
-    li.innerHTML = `
-      <a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}">
-        ${article.title}
-      </a>
-      <div class="article-meta">
-        <span class="source">${article.source}</span>
-        ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-      </div>
-    `;
-    sidebarList.appendChild(li);
-  });
-  sidebarContainer.appendChild(sidebarList);
-}
+    // Render sidebar headlines (next 5 articles)
+    const sidebarContainer = document.getElementById("section-sidebar-headlines");
+    if (sidebarContainer) {
+      const sidebarList = document.createElement("ul");
+      allArticles.slice(1, 6).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}">
+            ${article.title}
+          </a>
+          <div class="article-meta">
+            <span class="source">${article.source}</span>
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
+        `;
+        sidebarList.appendChild(li);
+      });
+      sidebarContainer.appendChild(sidebarList);
+    }
 
-// Render ALL remaining articles (no pagination)
-renderArticles(allArticles.slice(6));
+    // Render ALL remaining articles (no pagination)
+    renderArticles(allArticles.slice(6));
+    
+    // Render featured custom articles if any exist
+    renderFeaturedCustoms(allArticles);
 
   } catch (err) {
     console.error("Section load error:", err);
