@@ -108,12 +108,6 @@ function renderArticles(articles) {
   }
 }
 
-// Render ALL remaining articles (no pagination)
-renderArticles(allArticles.slice(6));
-
-// Render featured custom articles if any exist
-renderFeaturedCustoms(allArticles);
-
 function renderFeaturedCustoms(articles) {
   const section = document.getElementById("featured-customs-section");
   const grid = document.getElementById("featured-customs-grid");
