@@ -1,3 +1,5 @@
+// Section page script - updated
+
 // ============================
 // SECTION PAGE
 // ============================
