@@ -141,95 +141,69 @@ async function loadWorldNews() {
   try {
     const res = await fetch("/api/world-news");
     if (!res.ok) throw new Error("World news fetch failed");
-
     const data = await res.json();
     if (!Array.isArray(data.articles) || !data.articles.length) return;
-
     const articles = data.articles;
 
-    // Helper function to format date
     function formatDate(dateString) {
       if (!dateString) return '';
       const date = new Date(dateString);
       const now = new Date();
-      const diff = now - date;
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      
+      const hours = Math.floor((now - date) / (1000 * 60 * 60));
       if (hours < 1) return 'Just now';
       if (hours < 24) return `${hours}h ago`;
       if (hours < 48) return 'Yesterday';
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    // ----------------
-    // FEATURED STORY (first article with image overlay)
-    // ----------------
     const featured = articles[0];
     const featuredContainer = document.getElementById("featured-story");
     if (featuredContainer) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
-          ${featured.image 
-            ? `<img src="${featured.image}" alt="${featured.title}">`
-            : '<div class="placeholder-image"></div>'
-          }
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
-            <h3>
-              <a href="${articleLink(featured, 'world')}">
-                ${featured.title}
-              </a>
-            </h3>
+            <h3><a href="${articleLink(featured, 'world')}">${featured.title}</a></h3>
             <div class="article-meta">
               <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
-        </article>
-      `;
+        </article>`;
     }
 
-    // ----------------
-    // VISIBLE HEADLINES (next 5 articles)
-    // ----------------
     const headlinesList = document.getElementById("headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article, 'world')}">
-            ${article.title}
-          </a>
+          <a href="${articleLink(article, 'world')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-          </div>
-        `;
+          </div>`;
         headlinesList.appendChild(li);
       });
     }
 
-    // ----------------
-    // MORE HEADLINES (remaining articles, hidden by default)
-    // ----------------
     const moreList = document.getElementById("more-headlines-list");
     if (moreList && articles.length > 6) {
       moreList.innerHTML = "";
-      articles.slice(6, 24).forEach(article => {
+      const isMobile = window.innerWidth <= 768;
+      const maxArticles = isMobile ? 12 : 24;
+      
+      articles.slice(6, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article, 'world')}">
-            ${article.title}
-          </a>
+          <a href="${articleLink(article, 'world')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-          </div>
-        `;
+          </div>`;
         moreList.appendChild(li);
       });
     }
-
   } catch (err) {
     console.error("World news error:", err);
   }
@@ -267,19 +241,15 @@ async function loadNationalNews() {
   try {
     const res = await fetch("/api/national-news");
     if (!res.ok) throw new Error("National news fetch failed");
-
     const data = await res.json();
     if (!Array.isArray(data.articles) || !data.articles.length) return;
-
     const articles = data.articles;
 
     function formatDate(dateString) {
       if (!dateString) return '';
       const date = new Date(dateString);
       const now = new Date();
-      const diff = now - date;
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      
+      const hours = Math.floor((now - date) / (1000 * 60 * 60));
       if (hours < 1) return 'Just now';
       if (hours < 24) return `${hours}h ago`;
       if (hours < 48) return 'Yesterday';
@@ -291,23 +261,15 @@ async function loadNationalNews() {
     if (featuredContainer) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
-          ${featured.image 
-            ? `<img src="${featured.image}" alt="${featured.title}">`
-            : '<div class="placeholder-image"></div>'
-          }
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
-            <h3>
-              <a href="${articleLink(featured, 'national')}">
-                ${featured.title}
-              </a>
-            </h3>
+            <h3><a href="${articleLink(featured, 'national')}">${featured.title}</a></h3>
             <div class="article-meta">
               <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
-        </article>
-      `;
+        </article>`;
     }
 
     const headlinesList = document.getElementById("national-headlines-list");
@@ -316,14 +278,11 @@ async function loadNationalNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article, 'national')}">
-            ${article.title}
-          </a>
+          <a href="${articleLink(article, 'national')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-          </div>
-        `;
+          </div>`;
         headlinesList.appendChild(li);
       });
     }
@@ -331,21 +290,20 @@ async function loadNationalNews() {
     const moreList = document.getElementById("national-more-headlines-list");
     if (moreList && articles.length > 6) {
       moreList.innerHTML = "";
-      articles.slice(6, 24).forEach(article => {
+      const isMobile = window.innerWidth <= 768;
+      const maxArticles = isMobile ? 12 : 24;
+      
+      articles.slice(6, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article, 'national')}">
-            ${article.title}
-          </a>
+          <a href="${articleLink(article, 'national')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-          </div>
-        `;
+          </div>`;
         moreList.appendChild(li);
       });
     }
-
   } catch (err) {
     console.error("National news error:", err);
   }
@@ -358,19 +316,15 @@ async function loadBusinessNews() {
   try {
     const res = await fetch("/api/business-news");
     if (!res.ok) throw new Error("Business news fetch failed");
-
     const data = await res.json();
     if (!Array.isArray(data.articles) || !data.articles.length) return;
-
     const articles = data.articles;
 
     function formatDate(dateString) {
       if (!dateString) return '';
       const date = new Date(dateString);
       const now = new Date();
-      const diff = now - date;
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      
+      const hours = Math.floor((now - date) / (1000 * 60 * 60));
       if (hours < 1) return 'Just now';
       if (hours < 24) return `${hours}h ago`;
       if (hours < 48) return 'Yesterday';
@@ -382,23 +336,15 @@ async function loadBusinessNews() {
     if (featuredContainer) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
-          ${featured.image 
-            ? `<img src="${featured.image}" alt="${featured.title}">`
-            : '<div class="placeholder-image"></div>'
-          }
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
-            <h3>
-              <a href="${articleLink(featured, 'business')}">
-                ${featured.title}
-              </a>
-            </h3>
+            <h3><a href="${articleLink(featured, 'business')}">${featured.title}</a></h3>
             <div class="article-meta">
               <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
-        </article>
-      `;
+        </article>`;
     }
 
     const headlinesList = document.getElementById("business-headlines-list");
@@ -407,14 +353,11 @@ async function loadBusinessNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article, 'business')}">
-            ${article.title}
-          </a>
+          <a href="${articleLink(article, 'business')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-          </div>
-        `;
+          </div>`;
         headlinesList.appendChild(li);
       });
     }
@@ -422,21 +365,20 @@ async function loadBusinessNews() {
     const moreList = document.getElementById("business-more-headlines-list");
     if (moreList && articles.length > 6) {
       moreList.innerHTML = "";
-      articles.slice(6, 24).forEach(article => {
+      const isMobile = window.innerWidth <= 768;
+      const maxArticles = isMobile ? 12 : 24;
+      
+      articles.slice(6, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article, 'business')}">
-            ${article.title}
-          </a>
+          <a href="${articleLink(article, 'business')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-          </div>
-        `;
+          </div>`;
         moreList.appendChild(li);
       });
     }
-
   } catch (err) {
     console.error("Business news error:", err);
   }
@@ -449,19 +391,15 @@ async function loadSportsNews() {
   try {
     const res = await fetch("/api/sports-news");
     if (!res.ok) throw new Error("Sports news fetch failed");
-
     const data = await res.json();
     if (!Array.isArray(data.articles) || !data.articles.length) return;
-
     const articles = data.articles;
 
     function formatDate(dateString) {
       if (!dateString) return '';
       const date = new Date(dateString);
       const now = new Date();
-      const diff = now - date;
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      
+      const hours = Math.floor((now - date) / (1000 * 60 * 60));
       if (hours < 1) return 'Just now';
       if (hours < 24) return `${hours}h ago`;
       if (hours < 48) return 'Yesterday';
@@ -473,23 +411,15 @@ async function loadSportsNews() {
     if (featuredContainer) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
-          ${featured.image 
-            ? `<img src="${featured.image}" alt="${featured.title}">`
-            : '<div class="placeholder-image"></div>'
-          }
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
-            <h3>
-              <a href="${articleLink(featured, 'sports')}">
-                ${featured.title}
-              </a>
-            </h3>
+            <h3><a href="${articleLink(featured, 'sports')}">${featured.title}</a></h3>
             <div class="article-meta">
               <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
-        </article>
-      `;
+        </article>`;
     }
 
     const headlinesList = document.getElementById("sports-headlines-list");
@@ -498,14 +428,11 @@ async function loadSportsNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article, 'sports')}">
-            ${article.title}
-          </a>
+          <a href="${articleLink(article, 'sports')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-          </div>
-        `;
+          </div>`;
         headlinesList.appendChild(li);
       });
     }
@@ -513,21 +440,20 @@ async function loadSportsNews() {
     const moreList = document.getElementById("sports-more-headlines-list");
     if (moreList && articles.length > 6) {
       moreList.innerHTML = "";
-      articles.slice(6, 24).forEach(article => {
+      const isMobile = window.innerWidth <= 768;
+      const maxArticles = isMobile ? 12 : 24;
+      
+      articles.slice(6, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article, 'sports')}">
-            ${article.title}
-          </a>
+          <a href="${articleLink(article, 'sports')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-          </div>
-        `;
+          </div>`;
         moreList.appendChild(li);
       });
     }
-
   } catch (err) {
     console.error("Sports news error:", err);
   }
@@ -589,7 +515,10 @@ async function loadHealthNews() {
     const moreList = document.getElementById("health-more-headlines-list");
     if (moreList && articles.length > 6) {
       moreList.innerHTML = "";
-      articles.slice(6, 24).forEach(article => {
+      const isMobile = window.innerWidth <= 768;
+      const maxArticles = isMobile ? 12 : 24;
+      
+      articles.slice(6, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'health')}">${article.title}</a>
@@ -661,7 +590,10 @@ async function loadEntertainmentNews() {
     const moreList = document.getElementById("entertainment-more-headlines-list");
     if (moreList && articles.length > 6) {
       moreList.innerHTML = "";
-      articles.slice(6, 24).forEach(article => {
+      const isMobile = window.innerWidth <= 768;
+      const maxArticles = isMobile ? 12 : 24;
+      
+      articles.slice(6, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'entertainment')}">${article.title}</a>
@@ -733,7 +665,10 @@ async function loadTechnologyNews() {
     const moreList = document.getElementById("technology-more-headlines-list");
     if (moreList && articles.length > 6) {
       moreList.innerHTML = "";
-      articles.slice(6, 24).forEach(article => {
+      const isMobile = window.innerWidth <= 768;
+      const maxArticles = isMobile ? 12 : 24;
+      
+      articles.slice(6, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'technology')}">${article.title}</a>
@@ -853,19 +788,15 @@ async function loadLocalNews() {
   try {
     const res = await fetch("/api/local-news");
     if (!res.ok) throw new Error("Local news fetch failed");
-
     const data = await res.json();
     if (!Array.isArray(data.articles) || !data.articles.length) return;
-
     const articles = data.articles;
 
     function formatDate(dateString) {
       if (!dateString) return '';
       const date = new Date(dateString);
       const now = new Date();
-      const diff = now - date;
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      
+      const hours = Math.floor((now - date) / (1000 * 60 * 60));
       if (hours < 1) return 'Just now';
       if (hours < 24) return `${hours}h ago`;
       if (hours < 48) return 'Yesterday';
@@ -877,23 +808,15 @@ async function loadLocalNews() {
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
-          ${featured.image 
-            ? `<img src="${featured.image}" alt="${featured.title}">`
-            : '<div class="placeholder-image"></div>'
-          }
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
-            <h3>
-              <a href="${articleLink(featured, 'local')}">
-                ${featured.title}
-              </a>
-            </h3>
+            <h3><a href="${articleLink(featured, 'local')}">${featured.title}</a></h3>
             <div class="article-meta">
               <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
-        </article>
-      `;
+        </article>`;
     }
 
     const headlinesList = document.getElementById("local-headlines-list");
@@ -902,14 +825,11 @@ async function loadLocalNews() {
       articles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article, 'local')}">
-            ${article.title}
-          </a>
+          <a href="${articleLink(article, 'local')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-          </div>
-        `;
+          </div>`;
         headlinesList.appendChild(li);
       });
     }
@@ -917,21 +837,20 @@ async function loadLocalNews() {
     const moreList = document.getElementById("local-more-headlines-list");
     if (moreList && articles.length > 6) {
       moreList.innerHTML = "";
-      articles.slice(6, 24).forEach(article => {
+      const isMobile = window.innerWidth <= 768;
+      const maxArticles = isMobile ? 12 : 24;
+      
+      articles.slice(6, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article, 'local')}">
-            ${article.title}
-          </a>
+          <a href="${articleLink(article, 'local')}">${article.title}</a>
           <div class="article-meta">
             <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-          </div>
-        `;
+          </div>`;
         moreList.appendChild(li);
       });
     }
-
   } catch (err) {
     console.error("Local news error:", err);
   }
