@@ -108,6 +108,45 @@ function renderArticles(articles) {
   }
 }
 
+// Render ALL remaining articles (no pagination)
+renderArticles(allArticles.slice(6));
+
+// Render featured custom articles if any exist
+renderFeaturedCustoms(allArticles);
+
+function renderFeaturedCustoms(articles) {
+  const section = document.getElementById("featured-customs-section");
+  const grid = document.getElementById("featured-customs-grid");
+  
+  if (!section || !grid) return;
+  
+  // Get custom articles with images, sorted by date
+  const customs = articles
+    .filter(a => a.custom && a.image)
+    .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
+    .slice(0, 3);
+  
+  if (customs.length === 0) return;
+  
+  customs.forEach(article => {
+    const card = document.createElement("div");
+    card.className = "featured-custom-card";
+    card.innerHTML = `
+      <a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}&custom=true">
+        <img src="${article.image}" alt="${article.title}" loading="lazy">
+        <h4>${article.title}</h4>
+        <div class="article-meta">
+          <span class="source">${article.source}</span>
+          ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+        </div>
+      </a>
+    `;
+    grid.appendChild(card);
+  });
+  
+  section.removeAttribute("hidden");
+}
+
 async function loadSection() {
   if (!config) return;
 
@@ -146,19 +185,13 @@ if (sidebarContainer) {
   sidebarContainer.appendChild(sidebarList);
 }
 
-// Render first page of grid articles (start from article 6 now)
-renderArticles(allArticles.slice(6, PAGE_SIZE + 6));
-displayed = PAGE_SIZE;
+// Render ALL remaining articles (no pagination)
+renderArticles(allArticles.slice(6));
 
   } catch (err) {
     console.error("Section load error:", err);
   }
 }
-
-// Load more button
-document.getElementById("load-more-btn").addEventListener("click", () => {
-  renderArticles(allArticles.slice(displayed + 1, displayed + PAGE_SIZE + 1));
-});
 
 loadSection();
 
