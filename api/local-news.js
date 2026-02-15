@@ -29,21 +29,7 @@ module.exports = async (req, res) => {
     ];
 
     const feeds = [
-      { name: "WDTN", url: "https://www.wdtn.com/feed/" },
-      { name: "Flyer News (UD)", url: "https://flyernews.wpengine.com/feed/" },
-      { name: "WLWT Cincinnati – Sports", url: "https://www.wlwt.com/sports/rss" },
-      { name: "Cincinnati.com – Sports", url: "https://www.cincinnati.com/sports/rss/" },
-      { name: "WCPO 9 – Sports", url: "https://www.wcpo.com/sports/rss.xml" },
-      { name: "10TV Columbus – Sports", url: "https://www.10tv.com/sports/rss" },
-      { name: "NBC4 Columbus – Sports", url: "https://www.nbc4i.com/sports/feed/" },
-      { name: "Columbus Dispatch – Sports", url: "https://www.dispatch.com/sports/rss/" },
-      { name: "Beavercreek, OH – News", url: "https://beavercreekohio.gov/rss.aspx?Feed=News Updates" },
-      { name: "Troy, OH – News Flash", url: "https://troyohio.gov/rss.aspx?Feed=News Flash" },
-      { name: "Huber Heights, OH – News Flash", url: "https://www.hhoh.org/rss.aspx?Feed=News Flash" },
-      { name: "Springfield Township, OH – RSS", url: "https://www.springfieldtwp.org/rss.aspx" },
-      { name: "Centerville, OH – News Flash", url: "https://www.centervilleohio.gov/rss.aspx?Feed=News Flash" },
-      { name: "Englewood, OH – News Flash", url: "https://www.englewood.oh.us/rss.aspx?Feed=News Flash" },
-      { name: "Vandalia, OH – Alerts & News", url: "https://www.vandaliaohio.org/CivicAlerts.aspx?format=rss" }
+      { name: "WDTN", url: "https://www.wdtn.com/feed/" }
 
       // Add more local feeds here as you find them
     ];
