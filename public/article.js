@@ -214,3 +214,39 @@ async function loadRelated() {
 }
 
 loadArticle();
+
+// ============================
+// MARKET TICKER (TradingView)
+// ============================
+(function () {
+  const container = document.querySelector(".tradingview-widget-container");
+  if (!container) return;
+
+  const script = document.createElement("script");
+  script.src = "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
+  script.async = true;
+
+  script.innerHTML = JSON.stringify({
+    symbols: [
+      { proName: "DJI", title: "Dow Jones" },
+      { proName: "OANDA:SPX500USD", title: "S&P 500" },
+      { proName: "OANDA:NAS100USD", title: "NASDAQ 100" },
+      { proName: "NYSE:NYA", title: "NYSE Composite" },
+      { proName: "OANDA:US2000USD", title: "Russell 2000" },
+      { proName: "OANDA:EURUSD", title: "EUR/USD" },
+      { proName: "OANDA:USDJPY", title: "USD/JPY" },
+      { proName: "TVC:GOLD", title: "Gold" },
+      { proName: "TVC:SILVER", title: "Silver" },
+      { proName: "TVC:USOIL", title: "Crude Oil" }
+    ],
+    showSymbolLogo: false,
+    showChange: true,
+    showPercentageChange: true,
+    colorTheme: "light",
+    isTransparent: false,
+    displayMode: "regular",
+    locale: "en"
+  });
+
+  container.appendChild(script);
+})();
