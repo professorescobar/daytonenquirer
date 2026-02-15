@@ -17,33 +17,24 @@ const parser = new Parser({
 module.exports = async (req, res) => {
   try {
     const feeds = [
-      // Dayton Area Sports
-      { name: "WHIO Sports Dayton", url: "https://www.whio.com/sports/feed/" },
       { name: "UD Flyers Athletics", url: "https://daytonflyers.com/rss.aspx?path=general" },
-      { name: "Dayton 24/7 Sports", url: "https://www.dayton247now.com/sports/feed/" },
-
-      // Cincinnati Teams
-      { name: "Cincinnati Bengals", url: "https://www.bengals.com/news/rss.xml" },
+      { name: "UD Flyers Athletics – Men’s Basketball", url: "https://daytonflyers.com/rss.aspx?path=mbball" },
       { name: "Cincinnati Reds", url: "https://www.mlb.com/reds/feeds/news/rss.xml" },
-      { name: "FC Cincinnati", url: "https://www.fccincinnati.com/feed" },
-
-      // Cleveland Teams
-      { name: "Cleveland Browns", url: "https://www.clevelandbrowns.com/news/rss.xml" },
-      { name: "Cleveland Cavaliers", url: "https://www.nba.com/cavaliers/rss.xml" },
       { name: "Cleveland Guardians", url: "https://www.mlb.com/guardians/feeds/news/rss.xml" },
-
-      // Columbus Teams
-      { name: "Columbus Blue Jackets", url: "https://www.nhl.com/bluejackets/news" },
-      { name: "Columbus Crew", url: "https://www.columbuscrew.com/feed" },
-
-      // Ohio State
-      { name: "Ohio State Buckeyes", url: "https://ohiostatebuckeyes.com/rss.aspx?path=football" },
       { name: "Buckeye Sports Bulletin", url: "https://buckeyesports.com/feed/" },
-
-      // Regional Sports News
-      { name: "WKYC Cleveland Sports", url: "https://rssfeeds.wkyc.com/wkyc/sports" },
       { name: "NBC4 Columbus Sports", url: "https://www.nbc4i.com/sports/feed/" },
-      { name: "Columbus Dispatch Sports", url: "https://www.dispatch.com/sports/feed/" }
+      { name: "PFF – Cincinnati Bengals", url: "https://www.pff.com/pff-rss?team=cincinnati-bengals" },
+      { name: "WCPO 9 Cincinnati – Sports", url: "https://www.wcpo.com/about-us/rss?category=Sports" },
+      { name: "Eleven Warriors – Ohio State", url: "https://elevenwarriors.com/rss.xml" },
+      { name: "NBC4 Columbus – Sports", url: "https://www.nbc4i.com/sports/feed/" },
+      { name: "Greater Columbus Sports Commission Blog", url: "https://columbussports.org/blog/feed/" },
+      { name: "Sports Desk Magazine – Ohio Sports", url: "https://sportsdeskmagazine.com/feed/" },
+      { name: "Wright State Athletics – General", url: "https://wsuraiders.com/rss?path=general" },
+      { name: "Wright State Athletics – Men’s Basketball", url: "https://wsuraiders.com/rss?path=mbball" },
+      { name: "Wright State Athletics – Baseball", url: "https://wsuraiders.com/rss?path=baseball" },
+      { name: "Miami (OH) RedHawks Team News – Yahoo Sports", url: "https://sports.yahoo.com/ncaab/teams/miami-(oh)/news/rss" },
+      { name: "Cincinnati Bearcats Team News – Yahoo Sports", url: "https://sports.yahoo.com/ncaab/teams/cin/news/rss" },
+      { name: "Ohio Bobcats Team News – Yahoo Sports", url: "https://sports.yahoo.com/ncaab/teams/ohio/news/rss" }
     ];
 
     const allArticles = [];

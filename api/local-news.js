@@ -30,11 +30,25 @@ module.exports = async (req, res) => {
 
     const feeds = [
       { name: "WDTN", url: "https://www.wdtn.com/feed/" },
-      { name: "Spectrum News 1 Dayton", url: "https://spectrumnews1.com/oh/dayton/rss" },
-      { name: "Dayton 24/7 Now", url: "https://www.dayton247now.com/feed/" },
-      { name: "Dayton Weekly News", url: "https://www.daytonweeklyonline.com/feed/" },
       { name: "Flyer News (UD)", url: "https://flyernews.wpengine.com/feed/" },
-      { name: "City of Dayton", url: "https://www.daytonohio.gov/RSSFeed.ashx?Type=1" }
+      { name: "City of Dayton News Flash", url: "https://www.daytonohio.gov/CivicAlerts.aspx?feed=General" },
+      { name: "Miami County Alerts", url: "https://www.miamicountyohio.gov/CivicAlerts.aspx?feed=alerts" },
+      { name: "Huber Heights News", url: "https://hhoh.org/CivicAlerts.aspx?feed=General" },
+      { name: "University of Dayton Athletics", url: "https://daytonflyers.com/rss.aspx?path=general" },
+      { name: "Dayton Business Journal", url: "https://www.bizjournals.com/dayton/rss.xml" },
+      { name: "The Wright State Guardian (student news)", url: "https://wsuguardian.com/rss" },
+      { name: "The Miami Student (student newspaper)", url: "https://miamistudent.net/feed" },
+      { name: "Oxford-Miami University Patch (local community news)", url: "https://patch.com/ohio/miamiuniversity-oxford/rss" },
+      { name: "Journal-News (Butler & Warren Counties)", url: "https://www.journal-news.com/rss/" },
+      { name: "Middletown Journal RSS", url: "https://www.journal-news.com/local/middletown/rss/" },
+      { name: "City of Middletown News Flash", url: "https://www.cityofmiddletown.org/CivicAlerts.aspx?feed=General" },
+      { name: "Montgomery County OH News Releases", url: "https://www.mcohio.org/CivicAlerts.aspx?feed=General" },
+      { name: "Greene County OH News Flash", url: "https://www.greenecountyohio.gov/CivicAlerts.aspx?feed=General" },
+      { name: "Warren County OH News Flash", url: "https://www.co.warren.oh.us/CivicAlerts.aspx?feed=General" },
+      { name: "Miami County OH News Flash", url: "https://www.miamicountyohio.gov/CivicAlerts.aspx?feed=General" },
+      { name: "Butler County OH News & Announcements", url: "https://www.bcohio.gov/CivicAlerts.aspx?feed=General" }
+
+
 
       // Add more local feeds here as you find them
     ];
