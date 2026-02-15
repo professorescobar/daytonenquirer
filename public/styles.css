@@ -85,6 +85,13 @@ nav a:hover {
   }
 }
 
+nav a:not(:last-child)::after {
+  content: " | ";
+  margin-left: 0.75rem;
+  color: #999;
+  font-weight: normal;
+}
+
 /* ===============================
    MARKET TICKER
 ================================ */
