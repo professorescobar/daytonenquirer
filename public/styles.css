@@ -297,6 +297,20 @@ nav a:not(:last-child)::after {
   column-gap: 2rem;
 }
 
+/* Mobile: single column for more headlines */
+@media (max-width: 768px) {
+  #more-headlines-list,
+  #local-more-headlines-list,
+  #national-more-headlines-list,
+  #business-more-headlines-list,
+  #sports-more-headlines-list,
+  #health-more-headlines-list,
+  #entertainment-more-headlines-list,
+  #technology-more-headlines-list {
+    column-count: 1;
+  }
+}
+
 #more-headlines-list li,
 #local-more-headlines-list li,
 #national-more-headlines-list li,
