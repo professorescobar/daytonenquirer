@@ -24,7 +24,11 @@ module.exports = async (req, res) => {
       { name: "TV Line", url: "https://tvline.com/feed/" },
       { name: "IGN", url: "https://feeds.feedburner.com/ign/all" },
       { name: "Polygon", url: "https://www.polygon.com/rss/index.xml" },
-      { name: "Kotaku", url: "https://kotaku.com/rss" }
+      { name: "Kotaku", url: "https://kotaku.com/rss" },
+      { name: "Billboard", url: "https://www.billboard.com/feed/" },
+      { name: "IndieWire", url: "https://www.indiewire.com/feed/" },
+      { name: "ComicBook.com", url: "https://comicbook.com/rss.xml" },
+      { name: "GameSpot", url: "https://www.gamespot.com/feeds/news/" }
     ];
 
     const allArticles = [];

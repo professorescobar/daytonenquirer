@@ -20,7 +20,15 @@ module.exports = async (req, res) => {
       { name: "PBS NewsHour", url: "https://www.pbs.org/newshour/feeds/rss/headlines" },
       { name: "The Hill", url: "https://thehill.com/feed/" },
       { name: "USA Today", url: "http://rssfeeds.usatoday.com/usatoday-NewsTopStories" },
-      { name: "ABC News", url: "https://abcnews.go.com/abcnews/topstories" }
+      { name: "ABC News", url: "https://abcnews.go.com/abcnews/topstories" },
+      { name: "Associated Press", url: "https://apnews.com/apf-topnews" },
+      { name: "Reuters US", url: "https://www.reutersagency.com/feed/?taxonomy=best-topics&post_type=best" },
+      { name: "CNN", url: "http://rss.cnn.com/rss/cnn_topstories.rss" },
+      { name: "Axios", url: "https://api.axios.com/feed/" },
+      { name: "Fox News", url: "https://moxie.foxnews.com/google-publisher/latest.xml" },
+      { name: "Washington Examiner", url: "https://www.washingtonexaminer.com/feed" },
+      { name: "The Daily Caller", url: "https://dailycaller.com/feed/" },
+      { name: "Newsmax", url: "https://www.newsmax.com/rss/Newsfront/16/" }
     ];
 
     const allArticles = [];

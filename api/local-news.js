@@ -30,7 +30,11 @@ module.exports = async (req, res) => {
 
     const feeds = [
       { name: "WHIO", url: "https://www.whio.com/arc/outboundfeeds/rss/" },
-      { name: "WDTN", url: "https://www.wdtn.com/feed/" }
+      { name: "WDTN", url: "https://www.wdtn.com/feed/" },
+      { name: "Dayton Daily News", url: "https://www.daytondailynews.com/news/rss/" },
+      { name: "Springfield News-Sun", url: "https://www.springfieldnewssun.com/rss/" },
+      { name: "WYSO", url: "https://www.wyso.org/rss.xml" }
+
       // Add more local feeds here as you find them
     ];
 

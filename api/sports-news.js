@@ -20,7 +20,11 @@ module.exports = async (req, res) => {
       { name: "CBS Sports", url: "https://www.cbssports.com/rss/headlines" },
       { name: "Sports Illustrated", url: "https://www.si.com/rss/si_topstories.rss" },
       { name: "The Athletic", url: "https://theathletic.com/feed/" },
-      { name: "Sporting News", url: "https://www.sportingnews.com/us/rss" }
+      { name: "Sporting News", url: "https://www.sportingnews.com/us/rss" },
+      { name: "USA Today Sports", url: "http://rssfeeds.usatoday.com/UsatodaycomSports-TopStories" },
+      { name: "AP Sports", url: "https://apnews.com/apf-sports" },
+      { name: "NFL.com", url: "https://www.nfl.com/feeds/rss/news" },
+      { name: "NBA.com", url: "https://www.nba.com/news/rss.xml" }
     ];
 
     const allArticles = [];

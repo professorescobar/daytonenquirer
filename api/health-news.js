@@ -43,7 +43,13 @@ module.exports = async (req, res) => {
   try {
     const feeds = [
       { name: "ABC News Health", url: "https://abcnews.go.com/abcnews/healthheadlines" },
-      { name: "STAT News", url: "https://www.statnews.com/feed/" }
+      { name: "STAT News", url: "https://www.statnews.com/feed/" },
+      { name: "CNN Health", url: "http://rss.cnn.com/rss/cnn_health.rss" },
+      { name: "Reuters Health", url: "https://www.reutersagency.com/feed/?best-topics=health" },
+      { name: "Science Daily Health", url: "https://www.sciencedaily.com/rss/health_medicine.xml" },
+      { name: "Medical News Today", url: "https://www.medicalnewstoday.com/rss" },
+      { name: "CBS News Health", url: "https://www.cbsnews.com/latest/rss/health" },
+      { name: "NBC News Health", url: "https://feeds.nbcnews.com/nbcnews/public/health" }
     ];
 
     // Fetch all feeds in parallel

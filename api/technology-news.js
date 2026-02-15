@@ -45,7 +45,11 @@ module.exports = async (req, res) => {
       { name: "Wired", url: "https://www.wired.com/feed/rss" },
       { name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index" },
       { name: "Engadget", url: "https://www.engadget.com/rss.xml" },
-      { name: "MIT News", url: "https://news.mit.edu/rss/feed" }
+      { name: "MIT News", url: "https://news.mit.edu/rss/feed" },
+      { name: "CNET", url: "https://www.cnet.com/rss/news/" },
+      { name: "Mashable", url: "https://mashable.com/feeds/rss/all" },
+      { name: "Hacker News", url: "https://news.ycombinator.com/rss" },
+      { name: "VentureBeat", url: "https://venturebeat.com/feed/" }
     ];
 
     // Fetch all feeds in PARALLEL (much faster, avoids timeout)
