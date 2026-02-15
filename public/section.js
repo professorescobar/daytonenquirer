@@ -51,20 +51,30 @@ function renderFeatured(article) {
   if (!container || !article) return;
 
   container.innerHTML = `
-    <article class="section-featured-article">
-      ${article.image
-        ? `<img src="${article.image}" alt="${article.title}" loading="lazy">`
-        : '<div class="placeholder-image"></div>'
-      }
-      <div class="section-featured-overlay">
-        <h3><a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}"></h3>
-        <p class="section-featured-desc">${article.description ? article.description.slice(0, 200) + '...' : ''}</p>
-        <div class="article-meta">
-          <span class="source">${article.source}</span>
-          ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-        </div>
+    <div class="world-news-content">
+      <div class="featured-story-container">
+        <article class="featured-article">
+          ${article.image
+            ? `<img src="${article.image}" alt="${article.title}" loading="lazy">`
+            : '<div class="placeholder-image"></div>'
+          }
+          <div class="featured-overlay">
+            <h3>
+              <a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}">
+                ${article.title}
+              </a>
+            </h3>
+            <div class="article-meta">
+              <span class="source">${article.source}</span>
+              ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+            </div>
+          </div>
+        </article>
       </div>
-    </article>
+      <div class="headlines-sidebar" id="section-sidebar-headlines">
+        <!-- Top 5 headlines will be inserted here -->
+      </div>
+    </div>
   `;
 }
 
@@ -118,11 +128,31 @@ async function loadSection() {
     allArticles = data.articles;
 
     // Render featured article
-    renderFeatured(allArticles[0]);
+renderFeatured(allArticles[0]);
 
-    // Render first page of articles (skip featured)
-    renderArticles(allArticles.slice(1, PAGE_SIZE + 1));
-    displayed = PAGE_SIZE;
+// Render sidebar headlines (next 5 articles)
+const sidebarContainer = document.getElementById("section-sidebar-headlines");
+if (sidebarContainer) {
+  const sidebarList = document.createElement("ul");
+  allArticles.slice(1, 6).forEach(article => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}">
+        ${article.title}
+      </a>
+      <div class="article-meta">
+        <span class="source">${article.source}</span>
+        ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+      </div>
+    `;
+    sidebarList.appendChild(li);
+  });
+  sidebarContainer.appendChild(sidebarList);
+}
+
+// Render first page of grid articles (start from article 6 now)
+renderArticles(allArticles.slice(6, PAGE_SIZE + 6));
+displayed = PAGE_SIZE;
 
   } catch (err) {
     console.error("Section load error:", err);

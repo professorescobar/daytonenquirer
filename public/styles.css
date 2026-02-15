@@ -599,7 +599,7 @@ nav a:not(:last-child)::after {
 /* ============================
    SECTION PAGE
    ============================ */
-.section-page {
+   .section-page {
   padding: 2rem 1rem;
 }
 
@@ -660,6 +660,45 @@ nav a:not(:last-child)::after {
   color: #444;
   line-height: 1.6;
   margin-bottom: 1rem;
+}
+
+/* Section page - match main page layout */
+.section-page .world-news-content {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.section-page .featured-story-container {
+  position: relative;
+}
+
+.section-page .headlines-sidebar ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0;
+}
+
+.section-page .headlines-sidebar li {
+  margin-bottom: 1rem;
+}
+
+.section-page .headlines-sidebar a {
+  text-decoration: none;
+  color: #000;
+  font-weight: bold;
+  font-size: 0.95rem;
+}
+
+.section-page .headlines-sidebar a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .section-page .world-news-content {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Articles grid */
