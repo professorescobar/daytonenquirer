@@ -83,25 +83,21 @@ function renderArticles(articles) {
   if (!grid) return;
 
   articles.forEach(article => {
-    const card = document.createElement("div");
-    card.className = "section-article-card";
-    card.innerHTML = `
-      ${article.image ? `<img src="${article.image}" alt="${article.title}" class="card-image" loading="lazy">` : ''}
-      <div class="card-body">
-        <h4><a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}"></h4>
-        <p>${article.description ? article.description.slice(0, 120) + '...' : ''}</p>
-        <div class="article-meta">
-          <span class="source">${article.source}</span>
-          ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-        </div>
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}">
+        ${article.title}
+      </a>
+      <div class="article-meta">
+        <span class="source">${article.source}</span>
+        ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
       </div>
     `;
-    grid.appendChild(card);
+    grid.appendChild(li);
   });
 
   displayed += articles.length;
 
-  // Show/hide load more button
   const loadMoreBtn = document.getElementById("load-more-btn");
   if (loadMoreBtn) {
     if (displayed < allArticles.length) {
