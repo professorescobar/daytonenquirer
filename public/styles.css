@@ -615,13 +615,7 @@ nav a:not(:last-child)::after {
 }
 
 .back-link {
-  text-decoration: none;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.back-link:hover {
-  color: #000;
+  display: none;
 }
 
 /* Featured article on section page */
