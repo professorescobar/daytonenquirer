@@ -52,14 +52,22 @@ module.exports = async (req, res) => {
   <meta name="twitter:description" content="${article.description.slice(0, 160).replace(/"/g, '&quot;')}">
   <meta name="twitter:image" content="${article.image || ''}">
   
-  <!-- Redirect to actual article page -->
-  <meta http-equiv="refresh" content="0; url=/article.html?slug=${slug}">
-  <script>window.location.href = '/article.html?slug=${slug}';</script>
-  
   <link rel="stylesheet" href="/styles.css" />
+  
+  <!-- Redirect after a delay to let scrapers read the tags -->
+  <script>
+    // Only redirect for real users, not bots
+    if (!/bot|crawler|spider|crawling/i.test(navigator.userAgent)) {
+      setTimeout(function() {
+        window.location.href = '/article.html?slug=${slug}';
+      }, 100);
+    }
+  </script>
 </head>
 <body>
-  <p>Redirecting to article...</p>
+  <main class="container">
+    <p>Loading article...</p>
+  </main>
 </body>
 </html>
     `;
