@@ -31,7 +31,7 @@ async function loadArticle() {
         source: decodeURIComponent(oldSource),
         pubDate: oldDate ? decodeURIComponent(oldDate) : null,
         image: oldImage ? decodeURIComponent(oldImage) : null,
-        description: oldDesc ? decodeURIComponent(oldDesc) : null,
+        description: oldDesc ? decodeURIComponent(oldDesc) : '',
         section: oldSection,
         custom: isCustom
       };
@@ -43,20 +43,29 @@ async function loadArticle() {
     document.title = `${article.title} | The Dayton Enquirer`;
     
     const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc) {
+    if (metaDesc && article.description) {
       metaDesc.setAttribute('content', article.description.slice(0, 160));
     }
 
     // Update Open Graph tags
-    document.querySelector('meta[property="og:title"]').setAttribute('content', article.title);
-    document.querySelector('meta[property="og:description"]').setAttribute('content', article.description.slice(0, 160));
-    document.querySelector('meta[property="og:image"]').setAttribute('content', article.image || '');
-    document.querySelector('meta[property="og:url"]').setAttribute('content', window.location.href);
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    const ogDesc = document.querySelector('meta[property="og:description"]');
+    const ogImage = document.querySelector('meta[property="og:image"]');
+    const ogUrl = document.querySelector('meta[property="og:url"]');
+    
+    if (ogTitle) ogTitle.setAttribute('content', article.title);
+    if (ogDesc && article.description) ogDesc.setAttribute('content', article.description.slice(0, 160));
+    if (ogImage) ogImage.setAttribute('content', article.image || '');
+    if (ogUrl) ogUrl.setAttribute('content', window.location.href);
 
     // Update Twitter Card tags
-    document.querySelector('meta[name="twitter:title"]').setAttribute('content', article.title);
-    document.querySelector('meta[name="twitter:description"]').setAttribute('content', article.description.slice(0, 160));
-    document.querySelector('meta[name="twitter:image"]').setAttribute('content', article.image || '');
+    const twTitle = document.querySelector('meta[name="twitter:title"]');
+    const twDesc = document.querySelector('meta[name="twitter:description"]');
+    const twImage = document.querySelector('meta[name="twitter:image"]');
+    
+    if (twTitle) twTitle.setAttribute('content', article.title);
+    if (twDesc && article.description) twDesc.setAttribute('content', article.description.slice(0, 160));
+    if (twImage) twImage.setAttribute('content', article.image || '');
 
     // Render category badge
     const categoryEl = document.querySelector('.article-category');
@@ -123,54 +132,12 @@ async function loadArticle() {
 
   } catch (err) {
     console.error('Article load error:', err);
-    document.querySelector('.article-content').innerHTML = '<p>Article not found.</p>';
+    const contentEl = document.querySelector('.article-content');
+    if (contentEl) {
+      contentEl.innerHTML = '<p>Article not found.</p>';
+    }
   }
 }
-
-async function loadRelatedArticles(section) {
-  try {
-    const sectionConfig = {
-      local: '/api/local-news',
-      national: '/api/national-news',
-      world: '/api/world-news',
-      business: '/api/business-news',
-      sports: '/api/sports-news',
-      health: '/api/health-news',
-      entertainment: '/api/entertainment-news',
-      technology: '/api/technology-news'
-    };
-
-    const apiUrl = sectionConfig[section];
-    if (!apiUrl) return;
-
-    const res = await fetch(apiUrl);
-    if (!res.ok) return;
-
-    const data = await res.json();
-    const articles = data.articles.filter(a => a.url !== slug).slice(0, 6);
-
-    const grid = document.querySelector('.related-grid');
-    if (!grid || !articles.length) return;
-
-    grid.innerHTML = '';
-    articles.forEach(article => {
-      const card = document.createElement('div');
-      card.className = 'related-card';
-      card.innerHTML = `
-        <a href="/article/${article.url}">
-          ${article.image ? `<img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">` : ''}
-          <h4>${article.title}</h4>
-          <p class="related-source">${article.source}</p>
-        </a>
-      `;
-      grid.appendChild(card);
-    });
-  } catch (err) {
-    console.error('Related articles error:', err);
-  }
-}
-
-loadArticle();
 
 // Market ticker
 (function () {
