@@ -18,7 +18,6 @@ module.exports = async (req, res) => {
   try {
     const feeds = [
       { name: "MarketWatch", url: "https://www.marketwatch.com/rss/topstories" },
-      { name: "Bloomberg", url: "https://www.bloomberg.com/feed/podcast/etf-report.xml" },
       { name: "Forbes", url: "https://www.forbes.com/business/feed/" },
       { name: "Financial Times", url: "https://www.ft.com/?format=rss" },
       { name: "Yahoo Finance", url: "https://finance.yahoo.com/news/rssindex" },
