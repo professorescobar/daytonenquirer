@@ -1,6 +1,6 @@
 function articleLink(article) {
   if (article.custom) {
-    return `/story/${article.url}`;  // Changed from /article/ to /story/
+    return `/article.html?slug=${article.url}`;
   }
   return `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}`;
 }
