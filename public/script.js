@@ -91,11 +91,9 @@ slide.innerHTML = `
 // ARTICLE LINK HELPER
 // ============================
 function articleLink(article, section) {
-  // Custom articles use clean URLs
   if (article.custom) {
-    return `/article/${article.url}`;
+    return `/story/${article.url}`;  // Changed from /article/ to /story/
   }
-  // RSS articles use query params
   return `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${section}`;
 }
 

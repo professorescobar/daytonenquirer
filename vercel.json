@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/article/(.*)",
+      "source": "/story/(.*)",
       "destination": "/article.html?slug=$1"
     }
   ]
