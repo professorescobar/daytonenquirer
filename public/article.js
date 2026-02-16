@@ -1,3 +1,6 @@
+// Article API with Open Graph support - v2
+const getCustomArticles = require('./custom-articles');
+
 // Get parameters from URL
 const params = new URLSearchParams(window.location.search);
 const slug = params.get('slug');
