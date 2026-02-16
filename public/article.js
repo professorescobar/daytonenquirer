@@ -1,19 +1,43 @@
-// Get slug from URL
+// Get parameters from URL
 const params = new URLSearchParams(window.location.search);
 const slug = params.get('slug');
+const oldUrl = params.get('url');
+const oldTitle = params.get('title');
+const oldSource = params.get('source');
+const oldDate = params.get('date');
+const oldImage = params.get('image');
+const oldDesc = params.get('desc');
+const oldSection = params.get('section');
+const isCustom = params.get('custom') === 'true';
 
-if (!slug) {
-  document.body.innerHTML = '<main class="container"><p>Article not found.</p></main>';
-}
+// Determine if this is old format (RSS) or new format (custom article)
+const isOldFormat = oldUrl && oldTitle;
 
 async function loadArticle() {
   try {
-    // Fetch article data from API
-    const res = await fetch(`/api/article?slug=${slug}`);
-    if (!res.ok) throw new Error('Article not found');
-    
-    const data = await res.json();
-    const article = data.article;
+    let article;
+
+    if (slug && !isOldFormat) {
+      // NEW FORMAT: Fetch from API using slug
+      const res = await fetch(`/api/article?slug=${slug}`);
+      if (!res.ok) throw new Error('Article not found');
+      const data = await res.json();
+      article = data.article;
+    } else if (isOldFormat) {
+      // OLD FORMAT: Build article object from URL params
+      article = {
+        url: decodeURIComponent(oldUrl),
+        title: decodeURIComponent(oldTitle),
+        source: decodeURIComponent(oldSource),
+        pubDate: oldDate ? decodeURIComponent(oldDate) : null,
+        image: oldImage ? decodeURIComponent(oldImage) : null,
+        description: oldDesc ? decodeURIComponent(oldDesc) : null,
+        section: oldSection,
+        custom: isCustom
+      };
+    } else {
+      throw new Error('Invalid article URL');
+    }
 
     // Update page title and meta tags
     document.title = `${article.title} | The Dayton Enquirer`;
