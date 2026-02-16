@@ -23,7 +23,6 @@ module.exports = async (req, res) => {
       { name: "Cleveland Guardians", url: "https://www.mlb.com/guardians/feeds/news/rss.xml" },
       { name: "Buckeye Sports Bulletin", url: "https://buckeyesports.com/feed/" },
       { name: "NBC4 Columbus Sports", url: "https://www.nbc4i.com/sports/feed/" },
-      { name: "Eleven Warriors – Ohio State", url: "https://elevenwarriors.com/rss.xml" },
       { name: "NBC4 Columbus – Sports", url: "https://www.nbc4i.com/sports/feed/" },
       { name: "Sports Desk Magazine – Ohio Sports", url: "https://sportsdeskmagazine.com/feed/" },
       { name: "Wright State Athletics – General", url: "https://wsuraiders.com/rss?path=general" },
