@@ -11,25 +11,31 @@ const oldSection = params.get('section');
 const isCustom = params.get('custom') === 'true';
 
 // Determine if this is old format (RSS) or new format (custom article)
-const isOldFormat = oldUrl && oldTitle;
+const isOldFormat = !!(oldUrl && oldTitle);
+
+console.log('Article.js loaded');
+console.log('slug:', slug);
+console.log('isOldFormat:', isOldFormat);
 
 async function loadArticle() {
-  console.log('loadArticle started');
-  console.log('slug:', slug);
-  console.log('isOldFormat:', isOldFormat);
-  console.log('oldUrl:', oldUrl);
-  console.log('oldTitle:', oldTitle);
+  console.log('loadArticle called');
+  
+  const loadingEl = document.getElementById('article-loading');
+  const contentEl = document.getElementById('article-content');
+  
   try {
     let article;
 
     if (slug && !isOldFormat) {
       // NEW FORMAT: Fetch from API using slug
+      console.log('Fetching custom article from API');
       const res = await fetch(`/api/article?slug=${slug}`);
       if (!res.ok) throw new Error('Article not found');
       const data = await res.json();
       article = data.article;
     } else if (isOldFormat) {
       // OLD FORMAT: Build article object from URL params
+      console.log('Using old format from URL params');
       article = {
         url: decodeURIComponent(oldUrl),
         title: decodeURIComponent(oldTitle),
@@ -44,36 +50,17 @@ async function loadArticle() {
       throw new Error('Invalid article URL');
     }
 
-    // Update page title and meta tags
+    console.log('Article loaded:', article);
+
+    // Hide loading, show content
+    if (loadingEl) loadingEl.setAttribute('hidden', '');
+    if (contentEl) contentEl.removeAttribute('hidden');
+
+    // Update page title
     document.title = `${article.title} | The Dayton Enquirer`;
     
-    const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc && article.description) {
-      metaDesc.setAttribute('content', article.description.slice(0, 160));
-    }
-
-    // Update Open Graph tags
-    const ogTitle = document.querySelector('meta[property="og:title"]');
-    const ogDesc = document.querySelector('meta[property="og:description"]');
-    const ogImage = document.querySelector('meta[property="og:image"]');
-    const ogUrl = document.querySelector('meta[property="og:url"]');
-    
-    if (ogTitle) ogTitle.setAttribute('content', article.title);
-    if (ogDesc && article.description) ogDesc.setAttribute('content', article.description.slice(0, 160));
-    if (ogImage) ogImage.setAttribute('content', article.image || '');
-    if (ogUrl) ogUrl.setAttribute('content', window.location.href);
-
-    // Update Twitter Card tags
-    const twTitle = document.querySelector('meta[name="twitter:title"]');
-    const twDesc = document.querySelector('meta[name="twitter:description"]');
-    const twImage = document.querySelector('meta[name="twitter:image"]');
-    
-    if (twTitle) twTitle.setAttribute('content', article.title);
-    if (twDesc && article.description) twDesc.setAttribute('content', article.description.slice(0, 160));
-    if (twImage) twImage.setAttribute('content', article.image || '');
-
     // Render category badge
-    const categoryEl = document.querySelector('.article-category');
+    const categoryEl = document.getElementById('article-category');
     if (categoryEl && article.section) {
       const sectionConfig = {
         local: { title: "Local News" },
@@ -92,44 +79,53 @@ async function loadArticle() {
     }
 
     // Render headline
-    const headlineEl = document.querySelector('.article-content h1');
-    if (headlineEl) {
-      headlineEl.textContent = article.title;
+    const titleEl = document.getElementById('article-title');
+    if (titleEl) {
+      titleEl.textContent = article.title;
     }
 
     // Render byline
-    const bylineEl = document.querySelector('.article-byline');
-    if (bylineEl && article.source) {
-      let bylineHTML = `<strong>${article.source}</strong>`;
-      if (article.pubDate) {
-        const date = new Date(article.pubDate);
-        bylineHTML += ` | ${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
-      }
-      bylineEl.innerHTML = bylineHTML;
+    const sourceEl = document.getElementById('article-source');
+    const dateEl = document.getElementById('article-date');
+    
+    if (sourceEl && article.source) {
+      sourceEl.innerHTML = `<strong>${article.source}</strong>`;
+    }
+    
+    if (dateEl && article.pubDate) {
+      const date = new Date(article.pubDate);
+      dateEl.textContent = ` | ${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
     }
 
     // Render image
-    const imageContainer = document.querySelector('.article-image-container');
+    const imageContainer = document.getElementById('article-image-container');
     if (imageContainer && article.image) {
       imageContainer.innerHTML = `<img src="${article.image}" alt="${article.title}" loading="lazy" />`;
-    } else if (imageContainer) {
-      imageContainer.remove();
     }
 
-    // Render description (convert \n\n to paragraphs)
-    const descriptionEl = document.querySelector('.article-description');
+    // Render description
+    const descriptionEl = document.getElementById('article-description');
     if (descriptionEl && article.description) {
       descriptionEl.innerHTML = `<p>${article.description.replace(/\n\n/g, '</p><p>')}</p>`;
     }
 
-    // Hide "Read Full Article" button for custom articles
+    // Handle "Read Full Article" button
     const readFullBtn = document.getElementById('article-read-full');
-    if (readFullBtn) {
+    const sourceNameEl = document.getElementById('article-source-name');
+    
+    if (readFullBtn && sourceNameEl) {
       if (article.custom) {
-        readFullBtn.setAttribute("hidden", "");
+        readFullBtn.setAttribute('hidden', '');
       } else {
         readFullBtn.href = article.url;
+        sourceNameEl.textContent = article.source;
       }
+    }
+
+    // Show related articles section
+    const relatedSection = document.getElementById('related-section');
+    if (relatedSection) {
+      relatedSection.removeAttribute('hidden');
     }
 
     // Load related articles
@@ -137,12 +133,73 @@ async function loadArticle() {
 
   } catch (err) {
     console.error('Article load error:', err);
-    const contentEl = document.querySelector('.article-content');
-    if (contentEl) {
-      contentEl.innerHTML = '<p>Article not found.</p>';
-    }
+    if (loadingEl) loadingEl.innerHTML = '<p>Article not found.</p>';
   }
 }
+
+async function loadRelatedArticles(section) {
+  try {
+    const sectionConfig = {
+      local: '/api/local-news',
+      national: '/api/national-news',
+      world: '/api/world-news',
+      business: '/api/business-news',
+      sports: '/api/sports-news',
+      health: '/api/health-news',
+      entertainment: '/api/entertainment-news',
+      technology: '/api/technology-news'
+    };
+
+    const apiUrl = sectionConfig[section];
+    if (!apiUrl) return;
+
+    const res = await fetch(apiUrl);
+    if (!res.ok) return;
+
+    const data = await res.json();
+    
+    // Filter out current article
+    let articles = data.articles;
+    if (slug) {
+      articles = articles.filter(a => a.url !== slug);
+    } else if (oldUrl) {
+      articles = articles.filter(a => a.url !== decodeURIComponent(oldUrl));
+    }
+    
+    articles = articles.slice(0, 6);
+
+    const grid = document.getElementById('related-grid');
+    if (!grid || !articles.length) return;
+
+    grid.innerHTML = '';
+    articles.forEach(article => {
+      const card = document.createElement('div');
+      card.className = 'related-card';
+      
+      // Determine article link
+      let articleLink;
+      if (article.custom) {
+        articleLink = `/article/${article.url}`;
+      } else {
+        articleLink = `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${section}`;
+      }
+      
+      card.innerHTML = `
+        <a href="${articleLink}">
+          ${article.image ? `<img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">` : ''}
+          <h4>${article.title}</h4>
+          <p class="related-source">${article.source}</p>
+        </a>
+      `;
+      grid.appendChild(card);
+    });
+  } catch (err) {
+    console.error('Related articles error:', err);
+  }
+}
+
+// Start loading
+loadArticle();
 
 // Market ticker
 (function () {
