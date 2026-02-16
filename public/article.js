@@ -14,6 +14,11 @@ const isCustom = params.get('custom') === 'true';
 const isOldFormat = oldUrl && oldTitle;
 
 async function loadArticle() {
+  console.log('loadArticle started');
+  console.log('slug:', slug);
+  console.log('isOldFormat:', isOldFormat);
+  console.log('oldUrl:', oldUrl);
+  console.log('oldTitle:', oldTitle);
   try {
     let article;
 
