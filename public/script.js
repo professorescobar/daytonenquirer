@@ -95,7 +95,7 @@ function articleLink(article, section) {
   if (article.custom) {
     return `/article/${article.url}`;
   }
-  // RSS articles still use the old query param format for now
+  // RSS articles use query params
   return `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${section}`;
 }
 
