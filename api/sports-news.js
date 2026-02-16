@@ -20,7 +20,6 @@ module.exports = async (req, res) => {
       { name: "UD Flyers Athletics", url: "https://daytonflyers.com/rss.aspx?path=general" },
       { name: "UD Flyers Athletics – Men’s Basketball", url: "https://daytonflyers.com/rss.aspx?path=mbball" },
       { name: "Cincinnati Reds", url: "https://www.mlb.com/reds/feeds/news/rss.xml" },
-      { name: "Cleveland Guardians", url: "https://www.mlb.com/guardians/feeds/news/rss.xml" },
       { name: "Buckeye Sports Bulletin", url: "https://buckeyesports.com/feed/" },
       { name: "NBC4 Columbus Sports", url: "https://www.nbc4i.com/sports/feed/" },
       { name: "NBC4 Columbus – Sports", url: "https://www.nbc4i.com/sports/feed/" },
