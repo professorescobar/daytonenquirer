@@ -1,8 +1,9 @@
 {
-  "rewrites": [
+  "redirects": [
     {
-      "source": "/story/(.*)",
-      "destination": "/article.html?slug=$1"
+      "source": "/story/:slug",
+      "destination": "/article.html?slug=:slug",
+      "statusCode": 200
     }
   ]
 }
