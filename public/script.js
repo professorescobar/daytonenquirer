@@ -92,7 +92,7 @@ slide.innerHTML = `
 // ============================
 function articleLink(article, section) {
   if (article.custom) {
-    return `/api/og-article?slug=${article.url}`;
+    return `/api/article?slug=${article.url}&og=true`;
   }
   return `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${section}`;
 }
