@@ -1,4 +1,9 @@
-// Section page script - updated
+function articleLink(article) {
+  if (article.custom) {
+    return `/article/${article.url}`;
+  }
+  return `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}`;
+}
 
 // ============================
 // SECTION PAGE
@@ -62,7 +67,7 @@ function renderFeatured(article) {
           }
           <div class="featured-overlay">
             <h3>
-              <a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}">
+              <a href="${articleLink(article)}">
                 ${article.title}
               </a>
             </h3>
@@ -87,7 +92,7 @@ function renderArticles(articles) {
   articles.forEach(article => {
     const li = document.createElement("li");
     li.innerHTML = `
-      <a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}">
+      <a href="${articleLink(article)}">
         ${article.title}
       </a>
       <div class="article-meta">
@@ -128,7 +133,7 @@ function renderFeaturedCustoms(articles) {
     const card = document.createElement("div");
     card.className = "featured-custom-card";
     card.innerHTML = `
-      <a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}&custom=true">
+      <a href="${articleLink(article)}">
         <img src="${article.image}" alt="${article.title}" loading="lazy">
         <h4>${article.title}</h4>
         <div class="article-meta">
@@ -168,7 +173,7 @@ async function loadSection() {
       allArticles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}${article.custom ? '&custom=true' : ''}">
+          <a href="${articleLink(article)}">
             ${article.title}
           </a>
           <div class="article-meta">

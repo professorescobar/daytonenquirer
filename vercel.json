@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/section/:section", "destination": "/section.html" }
+    { "source": "/article/:slug", "destination": "/article.html?slug=:slug" }
   ]
 }

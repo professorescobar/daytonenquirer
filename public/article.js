@@ -1,223 +1,154 @@
-// ============================
-// ARTICLE PAGE
-// ============================
-
-const sectionConfig = {
-  local:         { title: "Local News",      api: "/api/local-news" },
-  national:      { title: "National News",   api: "/api/national-news" },
-  world:         { title: "World News",      api: "/api/world-news" },
-  business:      { title: "Business",        api: "/api/business-news" },
-  sports:        { title: "Sports",          api: "/api/sports-news" },
-  health:        { title: "Health",          api: "/api/health-news" },
-  entertainment: { title: "Entertainment",   api: "/api/entertainment-news" },
-  technology:    { title: "Technology",      api: "/api/technology-news" }
-};
-
-// Get params from URL
+// Get slug from URL
 const params = new URLSearchParams(window.location.search);
-const articleUrl = params.get('url');
-const articleTitle = params.get('title');
-const articleSource = params.get('source');
-const articleDate = params.get('date');
-const articleImage = params.get('image');
-const articleDescription = params.get('desc');
-const articleSection = params.get('section');
+const slug = params.get('slug');
 
-function formatDate(dateString) {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  const now = new Date();
-  const hours = Math.floor((now - date) / (1000 * 60 * 60));
-  if (hours < 1) return 'Just now';
-  if (hours < 24) return `${hours}h ago`;
-  if (hours < 48) return 'Yesterday';
-  return date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric'
-  });
+if (!slug) {
+  document.body.innerHTML = '<main class="container"><p>Article not found.</p></main>';
 }
 
 async function loadArticle() {
-  const loading = document.getElementById("article-loading");
-  const content = document.getElementById("article-content");
-
-  // Set page title
-  if (articleTitle) {
-  document.title = `${decodeURIComponent(articleTitle)} | The Dayton Enquirer`;
-  
-  // Update meta description
-  const metaDesc = document.querySelector('meta[name="description"]');
-  if (metaDesc && articleDescription) {
-    const desc = decodeURIComponent(articleDescription).slice(0, 155);
-    metaDesc.setAttribute('content', desc);
-  }
-}
-
-  // Fill in article details from URL params
-  const titleEl = document.getElementById("article-title");
-  const sourceEl = document.getElementById("article-source");
-  const sourceNameEl = document.getElementById("article-source-name");
-  const dateEl = document.getElementById("article-date");
-  const imageContainer = document.getElementById("article-image-container");
-  const descriptionEl = document.getElementById("article-description");
-  const readFullBtn = document.getElementById("article-read-full");
-  const categoryEl = document.getElementById("article-category");
-
-  if (titleEl && articleTitle) {
-    titleEl.textContent = decodeURIComponent(articleTitle);
-  }
-
-  if (sourceEl && articleSource) {
-    sourceEl.textContent = decodeURIComponent(articleSource);
-  }
-
-  if (sourceNameEl && articleSource) {
-    sourceNameEl.textContent = decodeURIComponent(articleSource);
-  }
-
-  if (dateEl && articleDate) {
-    dateEl.textContent = formatDate(decodeURIComponent(articleDate));
-  }
-
-  if (categoryEl && articleSection) {
-  const config = sectionConfig[articleSection];
-  if (config) {
-    // Make sure we use the correct section key, not the title
-    const sectionKey = articleSection.toLowerCase();
-    categoryEl.innerHTML = `<a href="/section.html?s=${sectionKey}">${config.title}</a>`;
-  }
-}
-
-  if (imageContainer && articleImage) {
-    const decoded = decodeURIComponent(articleImage);
-    if (decoded) {
-      imageContainer.innerHTML = `<img src="${decoded}" alt="${decodeURIComponent(articleTitle || '')}" loading="lazy" />`;
-    }
-  }
-
-  if (descriptionEl && articleDescription) {
-    const decoded = decodeURIComponent(articleDescription);
-    if (decoded) {
-      descriptionEl.innerHTML = `<p>${decoded.replace(/\n\n/g, '</p><p>')}</p>`;
-    }
-  }
-
-// Handle custom articles (no external URL)
-const decodedUrl = articleUrl ? decodeURIComponent(articleUrl) : '';
-const params = new URLSearchParams(window.location.search);
-const isCustom = params.get('custom') === 'true';
-
-console.log('Debug - articleUrl:', articleUrl);
-console.log('Debug - decodedUrl:', decodedUrl);
-console.log('Debug - custom param:', params.get('custom'));
-console.log('Debug - isCustom:', isCustom);
-console.log('Debug - readFullBtn:', readFullBtn);
-
-if (readFullBtn) {
-  if (isCustom) {
-    console.log('Hiding read full button for custom article');
-    readFullBtn.setAttribute("hidden", "");
-  } else {
-    console.log('Setting href for regular article');
-    readFullBtn.href = decodedUrl;
-  }
-}
-
-  // Show content, hide loading
-  if (loading) loading.setAttribute("hidden", "");
-  if (content) content.removeAttribute("hidden");
-
-  // Try to get extended summary from summarize API
-  if (articleUrl && articleTitle && articleSource && !isCustom) {
-    try {
-      const summaryRes = await fetch("/api/summarize-article", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: decodeURIComponent(articleUrl),
-          title: decodeURIComponent(articleTitle),
-          source: decodeURIComponent(articleSource),
-          description: decodeURIComponent(articleDescription || '')
-        })
-      });
-
-      if (summaryRes.ok) {
-        const summaryData = await summaryRes.json();
-        if (summaryData.summary && summaryData.summary.length > 50) {
-          const summarySection = document.getElementById("article-summary");
-          const summaryText = document.getElementById("article-summary-text");
-          if (summarySection && summaryText) {
-            summaryText.innerHTML = `<p>${summaryData.summary}</p>`;
-            summarySection.removeAttribute("hidden");
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Summary fetch error:", err);
-      // Fail silently - description is already showing
-    }
-  }
-
-  // Load related articles
-  loadRelated();
-}
-
-async function loadRelated() {
-  if (!articleSection || !sectionConfig[articleSection]) return;
-
   try {
-    const config = sectionConfig[articleSection];
-    const res = await fetch(config.api);
+    // Fetch article data from API
+    const res = await fetch(`/api/article?slug=${slug}`);
+    if (!res.ok) throw new Error('Article not found');
+    
+    const data = await res.json();
+    const article = data.article;
+
+    // Update page title and meta tags
+    document.title = `${article.title} | The Dayton Enquirer`;
+    
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute('content', article.description.slice(0, 160));
+    }
+
+    // Update Open Graph tags
+    document.querySelector('meta[property="og:title"]').setAttribute('content', article.title);
+    document.querySelector('meta[property="og:description"]').setAttribute('content', article.description.slice(0, 160));
+    document.querySelector('meta[property="og:image"]').setAttribute('content', article.image || '');
+    document.querySelector('meta[property="og:url"]').setAttribute('content', window.location.href);
+
+    // Update Twitter Card tags
+    document.querySelector('meta[name="twitter:title"]').setAttribute('content', article.title);
+    document.querySelector('meta[name="twitter:description"]').setAttribute('content', article.description.slice(0, 160));
+    document.querySelector('meta[name="twitter:image"]').setAttribute('content', article.image || '');
+
+    // Render category badge
+    const categoryEl = document.querySelector('.article-category');
+    if (categoryEl && article.section) {
+      const sectionConfig = {
+        local: { title: "Local News" },
+        national: { title: "National News" },
+        world: { title: "World News" },
+        business: { title: "Business" },
+        sports: { title: "Sports" },
+        health: { title: "Health" },
+        entertainment: { title: "Entertainment" },
+        technology: { title: "Technology" }
+      };
+      const config = sectionConfig[article.section];
+      if (config) {
+        categoryEl.innerHTML = `<a href="/section.html?s=${article.section}">${config.title}</a>`;
+      }
+    }
+
+    // Render headline
+    const headlineEl = document.querySelector('.article-content h1');
+    if (headlineEl) {
+      headlineEl.textContent = article.title;
+    }
+
+    // Render byline
+    const bylineEl = document.querySelector('.article-byline');
+    if (bylineEl && article.source) {
+      let bylineHTML = `<strong>${article.source}</strong>`;
+      if (article.pubDate) {
+        const date = new Date(article.pubDate);
+        bylineHTML += ` | ${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+      }
+      bylineEl.innerHTML = bylineHTML;
+    }
+
+    // Render image
+    const imageContainer = document.querySelector('.article-image-container');
+    if (imageContainer && article.image) {
+      imageContainer.innerHTML = `<img src="${article.image}" alt="${article.title}" loading="lazy" />`;
+    } else if (imageContainer) {
+      imageContainer.remove();
+    }
+
+    // Render description (convert \n\n to paragraphs)
+    const descriptionEl = document.querySelector('.article-description');
+    if (descriptionEl && article.description) {
+      descriptionEl.innerHTML = `<p>${article.description.replace(/\n\n/g, '</p><p>')}</p>`;
+    }
+
+    // Hide "Read Full Article" button for custom articles
+    const readFullBtn = document.getElementById('article-read-full');
+    if (readFullBtn) {
+      if (article.custom) {
+        readFullBtn.setAttribute("hidden", "");
+      } else {
+        readFullBtn.href = article.url;
+      }
+    }
+
+    // Load related articles
+    loadRelatedArticles(article.section);
+
+  } catch (err) {
+    console.error('Article load error:', err);
+    document.querySelector('.article-content').innerHTML = '<p>Article not found.</p>';
+  }
+}
+
+async function loadRelatedArticles(section) {
+  try {
+    const sectionConfig = {
+      local: '/api/local-news',
+      national: '/api/national-news',
+      world: '/api/world-news',
+      business: '/api/business-news',
+      sports: '/api/sports-news',
+      health: '/api/health-news',
+      entertainment: '/api/entertainment-news',
+      technology: '/api/technology-news'
+    };
+
+    const apiUrl = sectionConfig[section];
+    if (!apiUrl) return;
+
+    const res = await fetch(apiUrl);
     if (!res.ok) return;
 
     const data = await res.json();
-    if (!Array.isArray(data.articles) || !data.articles.length) return;
+    const articles = data.articles.filter(a => a.url !== slug).slice(0, 6);
 
-    // Filter out current article
-    const related = data.articles
-      .filter(a => a.url !== decodeURIComponent(articleUrl || ''))
-      .slice(0, 6);
+    const grid = document.querySelector('.related-grid');
+    if (!grid || !articles.length) return;
 
-    if (!related.length) return;
-
-    const relatedSection = document.getElementById("related-section");
-    const relatedGrid = document.getElementById("related-grid");
-
-    if (!relatedSection || !relatedGrid) return;
-
-    related.forEach(article => {
-      const card = document.createElement("div");
-      card.className = "related-card";
+    grid.innerHTML = '';
+    articles.forEach(article => {
+      const card = document.createElement('div');
+      card.className = 'related-card';
       card.innerHTML = `
-        ${article.image ? `<img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">` : ''}
-        <div class="related-card-body">
-          <h4>
-            <a href="/article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${articleSection}">
-              ${article.title}
-            </a>
-          </h4>
-          <div class="article-meta">
-            <span class="source">${article.source}</span>
-          </div>
-        </div>
+        <a href="/article/${article.url}">
+          ${article.image ? `<img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">` : ''}
+          <h4>${article.title}</h4>
+          <p class="related-source">${article.source}</p>
+        </a>
       `;
-      relatedGrid.appendChild(card);
+      grid.appendChild(card);
     });
-
-    relatedSection.removeAttribute("hidden");
-
   } catch (err) {
-    console.error("Related articles error:", err);
+    console.error('Related articles error:', err);
   }
 }
 
 loadArticle();
 
-// ============================
-// MARKET TICKER (TradingView)
-// ============================
+// Market ticker
 (function () {
   const container = document.querySelector(".tradingview-widget-container");
   if (!container) return;
@@ -225,7 +156,6 @@ loadArticle();
   const script = document.createElement("script");
   script.src = "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
   script.async = true;
-
   script.innerHTML = JSON.stringify({
     symbols: [
       { proName: "DJI", title: "Dow Jones" },
@@ -247,6 +177,5 @@ loadArticle();
     displayMode: "regular",
     locale: "en"
   });
-
   container.appendChild(script);
 })();
