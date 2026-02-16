@@ -73,6 +73,9 @@ module.exports = async (req, res) => {
     `;
 
     res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     return res.status(200).send(html);
   }
 
