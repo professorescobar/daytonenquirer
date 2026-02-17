@@ -193,7 +193,7 @@ nav a:not(:last-child)::after {
 .world-news-content {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  gap: 1.5rem;
+  gap: .5rem;
   margin-bottom: 1rem;
 }
 
