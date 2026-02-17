@@ -155,14 +155,14 @@ async function loadRelatedArticles(section) {
     const sectionTitle = document.querySelector('.bottom-articles-title');
     if (sectionTitle && section) {
       const sectionNames = {
-        local: 'Local News',
-        national: 'National News',
-        world: 'World News',
-        business: 'Business',
-        sports: 'Sports',
-        health: 'Health',
-        entertainment: 'Entertainment',
-        technology: 'Technology'
+        local: 'the Local news section',
+        national: 'the National news section',
+        world: 'the World news section',
+        business: 'the Business news section',
+        sports: 'the Sports news section',
+        health: 'the Health news section',
+        entertainment: 'the Entertainment news section',
+        technology: 'the Technology news section'
       };
       sectionTitle.innerHTML = `<a href="/section.html?s=${section}">More from ${sectionNames[section] || 'this section'}</a>`;
     }
