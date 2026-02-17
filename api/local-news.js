@@ -16,22 +16,8 @@ const parser = new Parser({
 
 module.exports = async (req, res) => {
   try {
-    // Manual articles - you can edit these directly in this file
-    const manualArticles = [
-      // {
-      //   title: "Your custom headline here",
-      //   url: "https://example.com/article",
-      //   description: "Brief description of the article",
-      //   source: "Dayton Enquirer Staff",
-      //   image: "https://example.com/image.jpg", // optional
-      //   pubDate: new Date().toISOString()
-      // }
-    ];
-
     const feeds = [
       { name: "WDTN", url: "https://www.wdtn.com/feed/" }
-
-      // Add more local feeds here as you find them
     ];
 
     const articlesBySource = {};
@@ -72,26 +58,29 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Combine RSS feeds with manual articles
-    const allArticles = [
-      ...manualArticles,
-      ...Object.values(articlesBySource).flat()
-    ];
-
-    // Mix in custom articles for this section
-    const customArticles = getCustomArticles('local'); // change section name for each API
-    allArticles.push(...customArticles);
-
-    // Sort all articles by date (most recent first)
-    allArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
-    // Find featured article (first one with image)
-    const featuredArticle = allArticles.find(article => article.image);
+    // Get custom articles for this section
+    const customArticles = getCustomArticles('local');
     
-    // Remove featured from headlines
-    const headlines = allArticles.filter(article => article !== featuredArticle);
+    // Sort custom articles by date
+    customArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
-    const articles = featuredArticle ? [featuredArticle, ...headlines] : allArticles;
+    // Featured article = most recent custom article with image
+    const featuredArticle = customArticles.find(a => a.image);
+
+    // All RSS articles (no images used for featured)
+    const rssArticles = Object.values(articlesBySource).flat();
+
+    // Remaining custom articles (exclude featured)
+    const remainingCustoms = customArticles.filter(a => a !== featuredArticle);
+
+    // Mix remaining customs + RSS, sort by date
+    const headlines = [...remainingCustoms, ...rssArticles]
+      .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+
+    // Final articles array: featured first, then mixed headlines
+    const articles = featuredArticle 
+      ? [featuredArticle, ...headlines] 
+      : headlines;
 
     res.status(200).json({ 
       articles, 
