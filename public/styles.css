@@ -389,6 +389,53 @@ nav a:not(:last-child)::after {
   transform: scaleX(2.5) rotate(180deg); /* Keep width when rotated */
 }
 
+/* Article Navigation */
+.article-navigation {
+  display: flex;
+  justify-content: space-between;
+  margin: 2rem 0;
+  padding: 1rem 0;
+  border-top: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+}
+
+.nav-arrow {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #000;
+  transition: color 0.2s;
+}
+
+.nav-arrow:hover {
+  color: #0066cc;
+}
+
+.nav-arrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.nav-arrow:disabled:hover {
+  color: #000;
+}
+
+.nav-label {
+  font-size: 0.9rem;
+}
+
+@media (max-width: 600px) {
+  .nav-label {
+    display: none;
+  }
+}
+
 /* Article metadata (source and time) */
 .article-meta {
   font-size: 0.75rem;

@@ -132,6 +132,11 @@ async function loadArticle() {
     // Load related articles
     loadRelatedArticles(article.section);
 
+     // Setup prev/next navigation
+    if (article.custom) {
+      setupArticleNavigation(article.section);
+    }
+
   } catch (err) {
     console.error('Article load error:', err);
     if (loadingEl) loadingEl.innerHTML = '<p>Article not found.</p>';
@@ -155,14 +160,14 @@ async function loadRelatedArticles(section) {
     const sectionTitle = document.querySelector('.bottom-articles-title');
     if (sectionTitle && section) {
       const sectionNames = {
-        local: 'the Local News section',
-        national: 'the National News section',
-        world: 'the World News section',
-        business: 'the Business news section',
-        sports: 'the Sports news section',
-        health: 'the Health news section',
-        entertainment: 'the Entertainment news section',
-        technology: 'the Technology news section'
+        local: 'the Local News section...',
+        national: 'the National News section...',
+        world: 'the World News section...',
+        business: 'the Business section...',
+        sports: 'the Sports section...',
+        health: 'the Health section...',
+        entertainment: 'the Entertainment section...',
+        technology: 'the Technology section...'
       };
       sectionTitle.innerHTML = `<a href="/section.html?s=${section}">More from ${sectionNames[section] || 'this section'}</a>`;
     }
@@ -210,6 +215,71 @@ async function loadRelatedArticles(section) {
     });
   } catch (err) {
     console.error('Related articles error:', err);
+  }
+}
+
+async function setupArticleNavigation(currentSection) {
+  try {
+    const sectionConfig = {
+      local: '/api/local-news',
+      national: '/api/national-news',
+      world: '/api/world-news',
+      business: '/api/business-news',
+      sports: '/api/sports-news',
+      health: '/api/health-news',
+      entertainment: '/api/entertainment-news',
+      technology: '/api/technology-news'
+    };
+
+    const apiUrl = sectionConfig[currentSection];
+    if (!apiUrl) return;
+
+    const res = await fetch(apiUrl);
+    if (!res.ok) return;
+
+    const data = await res.json();
+    
+    // Get all custom articles
+    const customArticles = data.articles.filter(a => a.custom);
+    
+    // Find current article index
+    let currentIndex = -1;
+    if (slug) {
+      currentIndex = customArticles.findIndex(a => a.url === slug);
+    }
+    
+    if (currentIndex === -1 || customArticles.length < 2) return;
+
+    // Show navigation
+    const navSection = document.getElementById('article-navigation');
+    if (navSection) navSection.removeAttribute('hidden');
+
+    // Setup buttons
+    const prevBtn = document.getElementById('prev-article');
+    const nextBtn = document.getElementById('next-article');
+
+    // Previous article (newer)
+    if (currentIndex > 0) {
+      const prevArticle = customArticles[currentIndex - 1];
+      prevBtn.onclick = () => {
+        window.location.href = `/api/article?slug=${prevArticle.url}&og=true`;
+      };
+    } else {
+      prevBtn.disabled = true;
+    }
+
+    // Next article (older)
+    if (currentIndex < customArticles.length - 1) {
+      const nextArticle = customArticles[currentIndex + 1];
+      nextBtn.onclick = () => {
+        window.location.href = `/api/article?slug=${nextArticle.url}&og=true`;
+      };
+    } else {
+      nextBtn.disabled = true;
+    }
+
+  } catch (err) {
+    console.error('Navigation setup error:', err);
   }
 }
 
