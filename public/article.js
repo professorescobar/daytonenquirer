@@ -155,9 +155,9 @@ async function loadRelatedArticles(section) {
     const sectionTitle = document.querySelector('.bottom-articles-title');
     if (sectionTitle && section) {
       const sectionNames = {
-        local: 'the Local news section',
-        national: 'the National news section',
-        world: 'the World news section',
+        local: 'the Local News section',
+        national: 'the National News section',
+        world: 'the World News section',
         business: 'the Business news section',
         sports: 'the Sports news section',
         health: 'the Health news section',
