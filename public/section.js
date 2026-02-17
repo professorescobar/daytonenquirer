@@ -125,21 +125,18 @@ function renderFeaturedCustoms(articles) {
   const customs = articles
     .filter(a => a.custom && a.image)
     .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
-    .slice(0, 3);
+    .slice(0, 6);
   
   if (customs.length === 0) return;
   
   customs.forEach(article => {
     const card = document.createElement("div");
-    card.className = "featured-custom-card";
+    card.className = "bottom-article-card";
     card.innerHTML = `
-      <a href="${articleLink(article)}">
+      <a href="/api/article?slug=${article.url}&og=true">
         <img src="${article.image}" alt="${article.title}" loading="lazy">
         <h4>${article.title}</h4>
-        <div class="article-meta">
-          <span class="source">${article.source}</span>
-          ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-        </div>
+        <span class="bottom-article-source">${article.source}</span>
       </a>
     `;
     grid.appendChild(card);

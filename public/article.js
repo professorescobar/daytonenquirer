@@ -158,8 +158,10 @@ async function loadRelatedArticles(section) {
 
     const data = await res.json();
     
+    // Filter to ONLY custom articles with images
+    let articles = data.articles.filter(a => a.custom && a.image);
+    
     // Filter out current article
-    let articles = data.articles;
     if (slug) {
       articles = articles.filter(a => a.url !== slug);
     } else if (oldUrl) {
@@ -169,26 +171,22 @@ async function loadRelatedArticles(section) {
     articles = articles.slice(0, 6);
 
     const grid = document.getElementById('related-grid');
+    const relatedSection = document.getElementById('related-section');
+    
     if (!grid || !articles.length) return;
+
+    // Show the section
+    if (relatedSection) relatedSection.removeAttribute('hidden');
 
     grid.innerHTML = '';
     articles.forEach(article => {
       const card = document.createElement('div');
-      card.className = 'related-card';
-      
-      // Determine article link
-      let articleLink;
-      if (article.custom) {
-        articleLink = `/article/${article.url}`;
-      } else {
-        articleLink = `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${section}`;
-      }
-      
+      card.className = 'bottom-article-card';
       card.innerHTML = `
-        <a href="${articleLink}">
-          ${article.image ? `<img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">` : ''}
+        <a href="/api/article?slug=${article.url}&og=true">
+          <img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">
           <h4>${article.title}</h4>
-          <p class="related-source">${article.source}</p>
+          <span class="bottom-article-source">${article.source}</span>
         </a>
       `;
       grid.appendChild(card);
