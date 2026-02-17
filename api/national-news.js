@@ -20,7 +20,6 @@ module.exports = async (req, res) => {
       { name: "PBS NewsHour", url: "https://www.pbs.org/newshour/feeds/rss/headlines" },
       { name: "The Hill", url: "https://thehill.com/feed/" },
       { name: "ABC News", url: "https://abcnews.go.com/abcnews/topstories" },
-      { name: "CNN", url: "http://rss.cnn.com/rss/cnn_topstories.rss" },
       { name: "Axios", url: "https://api.axios.com/feed/" },
       { name: "Fox News", url: "https://moxie.foxnews.com/google-publisher/latest.xml" },
       { name: "Washington Examiner", url: "https://www.washingtonexaminer.com/feed" },
