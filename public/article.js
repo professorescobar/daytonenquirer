@@ -164,7 +164,7 @@ async function loadRelatedArticles(section) {
         entertainment: 'Entertainment',
         technology: 'Technology'
       };
-      sectionTitle.innerHTML = `<a href="/section.html?s=${section}" style="text-decoration: none; color: #000;">More from ${sectionNames[section] || 'this section'}</a>`;
+      sectionTitle.innerHTML = `<a href="/section.html?s=${section}">More from ${sectionNames[section] || 'this section'}</a>`;
     }
 
     const apiUrl = sectionConfig[section];
