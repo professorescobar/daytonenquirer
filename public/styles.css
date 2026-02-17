@@ -245,6 +245,20 @@ nav a:not(:last-child)::after {
 .headlines-sidebar {
   display: flex;
   flex-direction: column;
+  margin-bottom: 0 !important;
+}
+
+.section-articles-grid {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+@media (max-width: 900px) {
+  .world-news-content {
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-bottom: 0;
+  }
 }
 
 .headlines-sidebar ul {
