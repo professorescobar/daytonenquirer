@@ -206,11 +206,8 @@ async function loadRelatedArticles(section) {
       card.className = 'bottom-article-card';
       card.innerHTML = `
         <a href="/api/article?slug=${article.url}&og=true">
-         <img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">
-         <h4>${article.title}</h4>
-         <div class="article-meta">
-          ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-         </div>
+          <img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">
+          <h4>${article.title}</h4>
         </a>
       `;
       grid.appendChild(card);
