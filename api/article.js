@@ -54,14 +54,9 @@ module.exports = async (req, res) => {
   
   <link rel="stylesheet" href="/styles.css" />
   
-  <!-- Redirect after a delay to let scrapers read the tags -->
+<!-- Immediate redirect -->
   <script>
-    // Only redirect for real users, not bots
-    if (!/bot|crawler|spider|crawling/i.test(navigator.userAgent)) {
-      setTimeout(function() {
-        window.location.href = '/article.html?slug=${slug}';
-      }, 100);
-    }
+    window.location.href = '/article.html?slug=${slug}';
   </script>
 </head>
 <body>
