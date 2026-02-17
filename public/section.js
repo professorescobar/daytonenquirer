@@ -121,11 +121,11 @@ function renderFeaturedCustoms(articles) {
   
   if (!section || !grid) return;
   
-  // Get custom articles with images, sorted by date
+  // Get custom articles with images, sorted by date, excluding the featured article (first one)
   const customs = articles
-    .filter(a => a.custom && a.image)
-    .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
-    .slice(0, 6);
+  .filter(a => a.custom && a.image)
+  .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
+  .slice(1, 7);  // Skip first (featured), take next 6
   
   if (customs.length === 0) return;
   
