@@ -2,7 +2,6 @@ const getCustomArticles = require('./custom-articles');
 
 module.exports = async (req, res) => {
   try {
-    // Get custom articles from all sections
     const sections = ['local', 'national', 'world', 'business', 'sports', 'health', 'entertainment', 'technology'];
     const categoryMap = {
       local: 'Local',
@@ -17,24 +16,26 @@ module.exports = async (req, res) => {
 
     const carouselStories = [];
 
-    // Get the most recent custom article with an image from each section
     for (const section of sections) {
       const customArticles = getCustomArticles(section);
       
-      // Find most recent with image
+      // Get second most recent custom article with image
       const withImages = customArticles
         .filter(article => article.image)
         .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
       
-      if (withImages.length > 0) {
+      // Use index [1] for second most recent, fall back to [0] if only one exists
+      const carouselArticle = withImages[1] || withImages[0];
+      
+      if (carouselArticle) {
         carouselStories.push({
-          ...withImages[0],
+          ...carouselArticle,
           category: categoryMap[section]
         });
       }
     }
 
-    // Also get any "all" section articles
+    // Also get any "all" section articles (second most recent)
     const allArticles = getCustomArticles('all')
       .filter(article => article.image)
       .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
