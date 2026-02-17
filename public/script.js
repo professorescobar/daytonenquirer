@@ -165,7 +165,6 @@ async function loadWorldNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'world')}">${featured.title}</a></h3>
             <div class="article-meta">
-              <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
@@ -180,7 +179,6 @@ async function loadWorldNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'world')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         headlinesList.appendChild(li);
@@ -198,7 +196,6 @@ async function loadWorldNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'world')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         moreList.appendChild(li);
@@ -265,7 +262,6 @@ async function loadNationalNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'national')}">${featured.title}</a></h3>
             <div class="article-meta">
-              <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
@@ -280,7 +276,6 @@ async function loadNationalNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'national')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         headlinesList.appendChild(li);
@@ -298,7 +293,6 @@ async function loadNationalNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'national')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         moreList.appendChild(li);
@@ -340,7 +334,6 @@ async function loadBusinessNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'business')}">${featured.title}</a></h3>
             <div class="article-meta">
-              <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
@@ -355,7 +348,6 @@ async function loadBusinessNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'business')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         headlinesList.appendChild(li);
@@ -373,7 +365,6 @@ async function loadBusinessNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'business')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         moreList.appendChild(li);
@@ -415,7 +406,6 @@ async function loadSportsNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'sports')}">${featured.title}</a></h3>
             <div class="article-meta">
-              <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
@@ -430,7 +420,6 @@ async function loadSportsNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'sports')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         headlinesList.appendChild(li);
@@ -448,7 +437,6 @@ async function loadSportsNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'sports')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         moreList.appendChild(li);
@@ -490,7 +478,6 @@ async function loadHealthNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'health')}">${featured.title}</a></h3>
             <div class="article-meta">
-              <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
@@ -505,7 +492,6 @@ async function loadHealthNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'health')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         headlinesList.appendChild(li);
@@ -523,7 +509,6 @@ async function loadHealthNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'health')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         moreList.appendChild(li);
@@ -565,7 +550,6 @@ async function loadEntertainmentNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'entertainment')}">${featured.title}</a></h3>
             <div class="article-meta">
-              <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
@@ -580,7 +564,6 @@ async function loadEntertainmentNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'entertainment')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         headlinesList.appendChild(li);
@@ -598,7 +581,6 @@ async function loadEntertainmentNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'entertainment')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         moreList.appendChild(li);
@@ -640,7 +622,6 @@ async function loadTechnologyNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'technology')}">${featured.title}</a></h3>
             <div class="article-meta">
-              <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
@@ -655,7 +636,6 @@ async function loadTechnologyNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'technology')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         headlinesList.appendChild(li);
@@ -673,7 +653,6 @@ async function loadTechnologyNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'technology')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         moreList.appendChild(li);
@@ -812,7 +791,6 @@ async function loadLocalNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'local')}">${featured.title}</a></h3>
             <div class="article-meta">
-              <span class="source">${featured.source}</span>
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
           </div>
@@ -827,7 +805,6 @@ async function loadLocalNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'local')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         headlinesList.appendChild(li);
@@ -845,7 +822,6 @@ async function loadLocalNews() {
         li.innerHTML = `
           <a href="${articleLink(article, 'local')}">${article.title}</a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>`;
         moreList.appendChild(li);
