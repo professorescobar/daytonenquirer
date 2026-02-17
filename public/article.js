@@ -151,6 +151,22 @@ async function loadRelatedArticles(section) {
       technology: '/api/technology-news'
     };
 
+     // Update section title to be a link
+    const sectionTitle = document.querySelector('.bottom-articles-title');
+    if (sectionTitle && section) {
+      const sectionNames = {
+        local: 'Local News',
+        national: 'National News',
+        world: 'World News',
+        business: 'Business',
+        sports: 'Sports',
+        health: 'Health',
+        entertainment: 'Entertainment',
+        technology: 'Technology'
+      };
+      sectionTitle.innerHTML = `<a href="/section.html?s=${section}" style="text-decoration: none; color: #000;">More from ${sectionNames[section] || 'this section'}</a>`;
+    }
+
     const apiUrl = sectionConfig[section];
     if (!apiUrl) return;
 
