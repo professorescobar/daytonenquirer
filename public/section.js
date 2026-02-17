@@ -136,7 +136,6 @@ function renderFeaturedCustoms(articles) {
       <a href="/api/article?slug=${article.url}&og=true">
         <img src="${article.image}" alt="${article.title}" loading="lazy">
         <h4>${article.title}</h4>
-        <span class="bottom-article-source">${article.source}</span>
       </a>
     `;
     grid.appendChild(card);
@@ -170,12 +169,11 @@ async function loadSection() {
       allArticles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="${articleLink(article)}">
-            ${article.title}
+          <a href="...">
+           ${article.title}
           </a>
           <div class="article-meta">
-            <span class="source">${article.source}</span>
-            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+           ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>
         `;
         sidebarList.appendChild(li);

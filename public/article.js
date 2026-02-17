@@ -208,7 +208,6 @@ async function loadRelatedArticles(section) {
         <a href="/api/article?slug=${article.url}&og=true">
           <img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">
           <h4>${article.title}</h4>
-          <span class="bottom-article-source">${article.source}</span>
         </a>
       `;
       grid.appendChild(card);

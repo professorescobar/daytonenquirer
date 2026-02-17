@@ -541,6 +541,8 @@ nav a:not(:last-child)::after {
 @media (max-width: 900px) {
   .world-news-content {
     grid-template-columns: 1fr;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
   }
 
   .featured-article {
