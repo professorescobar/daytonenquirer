@@ -455,7 +455,7 @@ nav a:not(:last-child)::after {
 }
 
 .article-meta .time::before {
-  content: "• ";
+  content: "";
   margin-right: 0.25rem;
 }
 
