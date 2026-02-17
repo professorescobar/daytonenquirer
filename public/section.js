@@ -1,9 +1,4 @@
-function articleLink(article) {
-  if (article.custom) {
-    return `/api/article?slug=${article.url}&og=true`;
-  }
-  return `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}`;
-}
+// Section page script - updated
 
 // ============================
 // SECTION PAGE
@@ -24,16 +19,16 @@ const sectionConfig = {
 const params = new URLSearchParams(window.location.search);
 const sectionKey = (params.get('s') || '').toLowerCase();
 const config = sectionConfig[sectionKey];
+
 // Update page title
 const sectionTitle = document.getElementById("section-title");
 if (config) {
   sectionTitle.textContent = config.title;
   document.title = `${config.title} | The Dayton Enquirer`;
-  // Update meta description
-const metaDesc = document.querySelector('meta[name="description"]');
-if (metaDesc) {
-  metaDesc.setAttribute('content', `Latest ${config.title.toLowerCase()} from The Dayton Enquirer. Breaking news and updates.`);
-}
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc) {
+    metaDesc.setAttribute('content', `Latest ${config.title.toLowerCase()} from The Dayton Enquirer. Breaking news and updates.`);
+  }
 } else {
   sectionTitle.textContent = "Section Not Found";
 }
@@ -49,9 +44,14 @@ function formatDate(dateString) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function articleLink(article) {
+  if (article.custom) {
+    return `/api/article?slug=${article.url}&og=true`;
+  }
+  return `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}`;
+}
+
 let allArticles = [];
-let displayed = 0;
-const PAGE_SIZE = 18;
 
 function renderFeatured(article) {
   const container = document.getElementById("section-featured");
@@ -72,7 +72,6 @@ function renderFeatured(article) {
               </a>
             </h3>
             <div class="article-meta">
-              <span class="source">${article.source}</span>
               ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
             </div>
           </div>
@@ -89,6 +88,7 @@ function renderArticles(articles) {
   const grid = document.getElementById("section-articles-grid");
   if (!grid) return;
 
+  grid.innerHTML = '';
   articles.forEach(article => {
     const li = document.createElement("li");
     li.innerHTML = `
@@ -101,17 +101,6 @@ function renderArticles(articles) {
     `;
     grid.appendChild(li);
   });
-
-  displayed += articles.length;
-
-  const loadMoreBtn = document.getElementById("load-more-btn");
-  if (loadMoreBtn) {
-    if (displayed < allArticles.length) {
-      loadMoreBtn.removeAttribute("hidden");
-    } else {
-      loadMoreBtn.setAttribute("hidden", "");
-    }
-  }
 }
 
 function renderFeaturedCustoms(articles) {
@@ -122,19 +111,23 @@ function renderFeaturedCustoms(articles) {
   
   // Get custom articles with images, sorted by date, excluding the featured article (first one)
   const customs = articles
-  .filter(a => a.custom && a.image)
-  .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
-  .slice(1, 7);  // Skip first (featured), take next 6
+    .filter(a => a.custom && a.image)
+    .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
+    .slice(1, 7);  // Skip first (featured), take next 6
   
   if (customs.length === 0) return;
   
+  grid.innerHTML = '';
   customs.forEach(article => {
     const card = document.createElement("div");
     card.className = "bottom-article-card";
     card.innerHTML = `
-      <a href="/api/article?slug=${article.url}&og=true">
+      <a href="${articleLink(article)}">
         <img src="${article.image}" alt="${article.title}" loading="lazy">
         <h4>${article.title}</h4>
+        <div class="article-meta">
+          ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+        </div>
       </a>
     `;
     grid.appendChild(card);
@@ -168,11 +161,11 @@ async function loadSection() {
       allArticles.slice(1, 6).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
-          <a href="...">
-           ${article.title}
+          <a href="${articleLink(article)}">
+            ${article.title}
           </a>
           <div class="article-meta">
-           ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
           </div>
         `;
         sidebarList.appendChild(li);

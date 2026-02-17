@@ -144,6 +144,18 @@ async function loadArticle() {
 }
 
 async function loadRelatedArticles(section) {
+  // Helper function for formatting dates
+  function formatDate(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const hours = Math.floor((now - date) / (1000 * 60 * 60));
+    if (hours < 1) return 'Just now';
+    if (hours < 24) return `${hours}h ago`;
+    if (hours < 48) return 'Yesterday';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
   try {
     const sectionConfig = {
       local: '/api/local-news',
@@ -156,7 +168,7 @@ async function loadRelatedArticles(section) {
       technology: '/api/technology-news'
     };
 
-     // Update section title to be a link
+    // Update section title to be a link
     const sectionTitle = document.querySelector('.bottom-articles-title');
     if (sectionTitle && section) {
       const sectionNames = {
@@ -208,6 +220,9 @@ async function loadRelatedArticles(section) {
         <a href="/api/article?slug=${article.url}&og=true">
           <img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">
           <h4>${article.title}</h4>
+          <div class="article-meta">
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
         </a>
       `;
       grid.appendChild(card);
