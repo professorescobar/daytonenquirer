@@ -1064,5 +1064,16 @@
     "pubDate": "2026-02-17T23:56:00Z",
     "section": "sports",
     "custom": true
+  },
+
+  {
+    "title": "Measles at the Doorstep: Why Dayton Must Stay Alert",
+    "url": "measles-at-the-doorstep-why-dayton-must-stay-alert",
+    "description": "By mid-February 2026, the United States has already recorded over 910 confirmed cases of measles—nearly 40% of last year's total in just six weeks. While the epicenter of this surge is currently South Carolina, which accounts for nearly 70% of national cases, the virus has officially crossed state lines into Ohio. Three confirmed cases have been reported in Cuyahoga County, linked to interstate travel.\n\nFor residents of the Miami Valley, the most critical number right now is zero: there are currently zero active cases or exposure sites in Dayton or Montgomery County. However, local health officials warn that this statistic is fragile. Public Health – Dayton & Montgomery County has issued alerts to local physicians to heighten vigilance, mindful of the 2024 outbreak at Dayton Children’s that exposed hundreds. The virus is exceptionally contagious, capable of lingering in the air for two hours after an infected person leaves a room, making 'exposure' a silent and often invisible event.\n\nThe drivers of this 'perfect storm' are threefold: declining vaccination rates, increased international travel, and widespread misinformation. Herd immunity requires a 95% vaccination rate; national kindergarten coverage has slipped to roughly 92.5%. This gap allows the virus to find pockets of vulnerability, causing outbreaks that spread like wildfire. Beyond the immediate fever and rash, the virus poses a sinister long-term threat known as 'immune amnesia,' where the infection effectively erases the immune system's memory of other diseases, leaving victims susceptible to common infections for months or years.\n\nWhile panic is unnecessary, preparation is non-negotiable. If you were born after 1957, confirm you have received two doses of the MMR vaccine, which is 97% effective for life. If records are unavailable, a simple blood titer test can confirm immunity. For those needing vaccination, the Public Health clinic at the Reibold Building on Main Street remains our best frontline defense. We are not in a crisis yet, but the fire is burning just a few counties away.",
+    "source": "The Dayton Enquirer",
+    "image": "https://i.imgur.com/YTHTZxG.jpeg",
+    "pubDate": "2026-02-18T00:51:00Z",
+    "section": "health",
+    "custom": true
   }
 ]
