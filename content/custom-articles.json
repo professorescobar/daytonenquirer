@@ -1119,6 +1119,16 @@
   "pubDate": "2026-02-18T02:53:00Z",
   "section": "business",
   "custom": true
-  }
+  },
 
+  {
+  "title": "YouTube Goes Dark in Global Glitch",
+  "url": "youtube-goes-dark-in-global-glitch",
+  "description": "For several hours Tuesday evening, the world’s largest video platform flickered offline.\n\nUsers across the United States and internationally reported widespread problems accessing YouTube, with outage tracking services logging a dramatic spike in complaints beginning shortly before 8 p.m. Eastern Time. At its peak, hundreds of thousands of users reported issues ranging from blank homepages to the now-familiar “Something went wrong” error message.\n\nThe disruption appeared to affect both desktop and mobile users. Core features such as subscription feeds, recommendations, and Shorts failed to load for many. Some users were able to access videos through direct links, suggesting the outage did not fully cripple YouTube’s video hosting infrastructure but instead impacted front-end systems, account services, or content delivery layers.\n\nReports quickly spread across social media platforms, where frustrated viewers and creators alike compared notes. For digital creators who rely on YouTube as a primary source of income, even a short-lived outage can translate into lost ad impressions and diminished real-time engagement. For viewers, the interruption underscored just how deeply embedded the platform has become in daily routines — from entertainment and education to live news consumption.\n\nYouTube acknowledged the disruption publicly, confirming it was investigating elevated error rates and service failures. While the company did not provide a detailed technical explanation, service gradually began stabilizing later in the evening, and complaint volumes declined significantly within a few hours.\n\nThough major global outages remain relatively rare for a platform of YouTube’s scale, they are not unprecedented. Modern content platforms depend on vast, distributed cloud infrastructure, complex routing systems, authentication services, and content delivery networks. A misconfiguration, software deployment error, or infrastructure failure in any one of those layers can cascade outward, creating symptoms that appear widespread even if the underlying fault is isolated.\n\nThe episode also serves as a reminder of the centralization of the modern internet. When a single platform experiences disruption, the ripple effects extend far beyond inconvenience. News organizations, independent creators, advertisers, educators, and livestreamers all depend on uninterrupted uptime.\n\nBy late evening, service appeared largely restored for most users. YouTube has not yet disclosed the precise cause of the outage, and it remains unclear whether a full post-incident report will be released.\n\nFor a few hours, however, the digital world was reminded that even the most dominant platforms are not immune to failure — and that when YouTube goes dark, the silence is felt everywhere.",
+  "source": "The Dayton Enquirer",
+  "image": "https://i.imgur.com/h1Av53F.jpeg",
+  "pubDate": "2026-02-18T03:07:00Z",
+  "section": "technology",
+  "custom": true
+  }
 ]
