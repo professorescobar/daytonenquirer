@@ -1262,5 +1262,16 @@
     "pubDate": "2026-02-18T12:50:00Z",
     "section": "business",
     "custom": true
+  },
+
+  {
+  "title": "The 'ChatGPT of Surgery': Hopkins Robot Learns by Watching",
+  "url": "chatgpt-of-surgery-hopkins-robot-learns-by-watching",
+  "description": "A significant breakthrough in robotic surgery has emerged from Johns Hopkins University, where researchers are successfully training robots to perform complex procedures by having AI 'watch' archival videos of human surgeons at work. This move away from tedious, manual programming marks a fundamental shift in medical robotics.\n\nThe system, dubbed the Surgical Robot Transformer (SRT), utilizes the same architecture powering large language models like ChatGPT. However, instead of processing text, SRT interprets kinematics—the mathematical language of motion. The AI is trained via \"imitation learning\" using a massive archive of footage recorded by wrist-mounted cameras on da Vinci Surgical Systems, the primary robotic platform used globally. By analyzing thousands of hours of these expert recordings, the model translates visual inputs into precise robotic movements.\n\nThe results extend far beyond basic motor skills. In recent demonstrations, advanced iterations of the model mastered fundamental tasks such as suturing and tissue manipulation. Furthermore, it successfully completed multi-step procedures, including gallbladder removal on porcine tissue, with high accuracy. Critically, the system demonstrates significant adaptability: if the robot drops a needle, it recognizes the error, retrieves the instrument, and resumes the task autonomously.\n\nThis technology addresses a major bottleneck in medical automation. Where programming a robot for a single procedure once took years of hand-coding, training can now potentially occur in days using existing video data. By democratizing the skills of top-tier surgeons, these systems aim to eventually standardize surgical outcomes and reduce human error. The trajectory points toward human clinical trials and increased surgical autonomy within the coming decade.",
+  "source": "The Dayton Enquirer",
+  "image": "https://i.imgur.com/63B8Y0q.jpeg",
+  "pubDate": "2026-02-18T13:01:00Z",
+  "section": "health",
+  "custom": true
   }
 ]
