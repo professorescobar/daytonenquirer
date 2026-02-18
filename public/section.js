@@ -84,94 +84,12 @@ function renderFeatured(article) {
   `;
 }
 
-let currentPage = 1;
-const ARTICLES_PER_PAGE_DESKTOP = 18; // 3 columns × 6 rows
-const ARTICLES_PER_PAGE_MOBILE_INITIAL = 5;
-const ARTICLES_PER_PAGE_MOBILE_LOAD = 7;
-let mobileArticlesShown = 0;
-
 function renderArticles(articles) {
   const grid = document.getElementById("section-articles-grid");
   if (!grid) return;
 
-  const isMobile = window.innerWidth <= 768;
-
-  if (isMobile) {
-    // Mobile: Show initial articles
-    grid.innerHTML = '';
-    mobileArticlesShown = ARTICLES_PER_PAGE_MOBILE_INITIAL;
-    
-    articles.slice(0, mobileArticlesShown).forEach(article => {
-      const li = document.createElement("li");
-      li.innerHTML = `
-        <a href="${articleLink(article)}">
-          ${article.title}
-        </a>
-        <div class="article-meta">
-          ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-        </div>
-      `;
-      grid.appendChild(li);
-    });
-
-    // Show/hide Load More button
-    const loadMoreBtn = document.getElementById("load-more-btn");
-    const loadMoreContainer = document.getElementById("load-more-container");
-    
-    if (mobileArticlesShown < articles.length) {
-      if (!loadMoreContainer) {
-        const container = document.createElement("div");
-        container.id = "load-more-container";
-        container.style.textAlign = "center";
-        container.style.margin = "2rem 0";
-        container.innerHTML = `<button id="load-more-btn" class="load-more-btn">Load More</button>`;
-        grid.parentElement.appendChild(container);
-        
-        document.getElementById("load-more-btn").addEventListener("click", () => {
-          loadMoreArticles(articles);
-        });
-      } else {
-        loadMoreContainer.removeAttribute("hidden");
-      }
-    } else if (loadMoreContainer) {
-      loadMoreContainer.setAttribute("hidden", "");
-    }
-
-  } else {
-    // Desktop: Show paginated articles
-    const start = (currentPage - 1) * ARTICLES_PER_PAGE_DESKTOP;
-    const end = start + ARTICLES_PER_PAGE_DESKTOP;
-    const pageArticles = articles.slice(start, end);
-
-    grid.innerHTML = '';
-    pageArticles.forEach(article => {
-      const li = document.createElement("li");
-      li.innerHTML = `
-        <a href="${articleLink(article)}">
-          ${article.title}
-        </a>
-        <div class="article-meta">
-          ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
-        </div>
-      `;
-      grid.appendChild(li);
-    });
-
-    // Render pagination controls
-    renderPagination(articles.length);
-  }
-}
-
-function loadMoreArticles(articles) {
-  const grid = document.getElementById("section-articles-grid");
-  const loadMoreBtn = document.getElementById("load-more-btn");
-  
-  const nextBatch = articles.slice(
-    mobileArticlesShown, 
-    mobileArticlesShown + ARTICLES_PER_PAGE_MOBILE_LOAD
-  );
-
-  nextBatch.forEach(article => {
+  grid.innerHTML = '';
+  articles.forEach(article => {
     const li = document.createElement("li");
     li.innerHTML = `
       <a href="${articleLink(article)}">
@@ -183,64 +101,86 @@ function loadMoreArticles(articles) {
     `;
     grid.appendChild(li);
   });
-
-  mobileArticlesShown += nextBatch.length;
-
-  // Hide button if no more articles
-  if (mobileArticlesShown >= articles.length) {
-    const loadMoreContainer = document.getElementById("load-more-container");
-    if (loadMoreContainer) loadMoreContainer.setAttribute("hidden", "");
-  }
 }
 
-function renderPagination(totalArticles) {
-  const totalPages = Math.ceil(totalArticles / ARTICLES_PER_PAGE_DESKTOP);
+function renderFeaturedCustoms(articles) {
+  const section = document.getElementById("featured-customs-section");
+  const grid = document.getElementById("featured-customs-grid");
   
-  let paginationContainer = document.getElementById("pagination-container");
+  if (!section || !grid) return;
   
-  if (!paginationContainer) {
-    paginationContainer = document.createElement("div");
-    paginationContainer.id = "pagination-container";
-    paginationContainer.className = "pagination-container";
-    document.getElementById("section-articles-grid").parentElement.appendChild(paginationContainer);
-  }
+  // Get custom articles with images, sorted by date, excluding the featured article (first one)
+  const customs = articles
+    .filter(a => a.custom && a.image)
+    .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
+    .slice(1, 7);  // Skip first (featured), take next 6
+  
+  if (customs.length === 0) return;
+  
+  grid.innerHTML = '';
+  customs.forEach(article => {
+    const card = document.createElement("div");
+    card.className = "bottom-article-card";
+    card.innerHTML = `
+      <a href="${articleLink(article)}">
+        <img src="${article.image}" alt="${article.title}" loading="lazy">
+        <h4>${article.title}</h4>
+        <div class="article-meta">
+          ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+        </div>
+      </a>
+    `;
+    grid.appendChild(card);
+  });
+  
+  section.removeAttribute("hidden");
+}
 
-  if (totalPages <= 1) {
-    paginationContainer.innerHTML = '';
-    return;
-  }
+async function loadSection() {
+  if (!config) return;
 
-  paginationContainer.innerHTML = `
-    <button id="prev-page" class="pagination-btn" ${currentPage === 1 ? 'disabled' : ''}>
-      ← Previous
-    </button>
-    <span class="page-info">Page ${currentPage} of ${totalPages}</span>
-    <button id="next-page" class="pagination-btn" ${currentPage === totalPages ? 'disabled' : ''}>
-      Next →
-    </button>
-  `;
+  try {
+    const res = await fetch(config.api);
+    if (!res.ok) throw new Error("Failed to fetch section");
 
-  const prevBtn = document.getElementById("prev-page");
-  const nextBtn = document.getElementById("next-page");
+    const data = await res.json();
+    if (!Array.isArray(data.articles) || !data.articles.length) {
+      document.getElementById("section-featured").innerHTML = "<p>No articles found.</p>";
+      return;
+    }
 
-  if (prevBtn) {
-    prevBtn.addEventListener("click", () => {
-      if (currentPage > 1) {
-        currentPage--;
-        renderArticles(allArticles.slice(6));
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    });
-  }
+    allArticles = data.articles;
 
-  if (nextBtn) {
-    nextBtn.addEventListener("click", () => {
-      if (currentPage < totalPages) {
-        currentPage++;
-        renderArticles(allArticles.slice(6));
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    });
+    // Render featured article
+    renderFeatured(allArticles[0]);
+
+    // Render sidebar headlines (next 5 articles)
+    const sidebarContainer = document.getElementById("section-sidebar-headlines");
+    if (sidebarContainer) {
+      const sidebarList = document.createElement("ul");
+      allArticles.slice(1, 6).forEach(article => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <a href="${articleLink(article)}">
+            ${article.title}
+          </a>
+          <div class="article-meta">
+            ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+          </div>
+        `;
+        sidebarList.appendChild(li);
+      });
+      sidebarContainer.appendChild(sidebarList);
+    }
+
+    // Render ALL remaining articles (no pagination)
+    renderArticles(allArticles.slice(6));
+    
+    // Render featured custom articles if any exist
+    renderFeaturedCustoms(allArticles);
+
+  } catch (err) {
+    console.error("Section load error:", err);
   }
 }
 
