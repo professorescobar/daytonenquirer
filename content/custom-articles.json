@@ -1350,5 +1350,16 @@
     "pubDate": "2026-02-18T18:04:00Z",
     "section": "national",
     "custom": true
+  },
+
+  {
+  "title": "Bond Market Tremors: 20-Year Treasury Auction 'Broken' as Demand Evaporates",
+  "url": "bond-market-tremors-20-year-treasury-auction-broken-demand-evaporates",
+  "description": "Wall Street received a stark wake-up call Wednesday afternoon as the US Treasury’s latest auction of 20-year bonds ended in what traders are describing as a “disaster.” The results underscore a growing fragility in the market for US government debt, particularly for less popular durations, and signal potential turbulence ahead for borrowing costs.\n\n<b>The Anatomy of a Failure</b>\n\nThe Treasury offered $16 billion in 20-year bonds, a seemingly routine operation that quickly turned ugly. The auction “tailed” significantly—a term used when the final yield is higher than the market price at the bidding deadline. The high yield settled at <b>4.664%</b>, nearly 3 basis points above the “When-Issued” level. In the world of fixed income, a gap of this magnitude is considered a serious rejection of the Treasury's initial pricing.\n\nEven more concerning were the demand metrics. The bid-to-cover ratio, a primary gauge of investor appetite, plummeted to <b>2.36</b>, well below the six-auction average of 2.58. This indicates that for every dollar of debt offered, there were significantly fewer buyers than usual. Consequently, Primary Dealers—the banks obligated to buy any unsold debt—were forced to absorb a larger-than-normal share, leaving them holding bags of depreciating bonds.\n\n<b>The 'Orphan' Maturity Problem</b>\n\nWhile today’s volatility is partly due to broader macro anxiety, the 20-year bond itself is a structural culprit. Reintroduced in 2020, this maturity has struggled to find a natural buyer base. Pension funds prefer the long duration of the 30-year bond to match liabilities, while traders prefer the liquidity of the 10-year note. The 20-year sits in an uncomfortable “no man’s land,” suffering from illiquidity that exacerbates sell-offs during moments of market stress.\n\n<b>Fed Anxiety Looms Large</b>\n\nTiming played a cruel role in today's poor showing. The auction concluded just hours before the release of the Federal Reserve’s January meeting minutes. With inflation data remaining sticky and headlines circulating regarding governance probes into Fed leadership, investors are paralyzed by uncertainty. The reluctance to lock up capital for two decades, just before potentially hawkish news from the central bank, was palpable on the trading desks.\n\n<b>Why It Matters to You</b>\n\nThis isn't just inside baseball for bond traders. When Treasury auctions fail, yields spike. Since US Treasuries serve as the benchmark for global borrowing, a spike here ripples outward immediately. Mortgage rates, auto loans, and corporate debt are all priced off these curves. Today’s auction suggests that the cost of financing the US deficit is rising, and the market is demanding a higher premium to hold America’s long-term debt.",
+  "source": "The Dayton Enquirer",
+  "image": "https://i.imgur.com/gT2EJrA.png",
+  "pubDate": "2026-02-18T18:46:00Z",
+  "section": "business",
+  "custom": true
   }
 ]
