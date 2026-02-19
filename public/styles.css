@@ -243,13 +243,15 @@ nav a:not(:last-child)::after {
 
 /* Limit featured preview to 2 lines on mobile */
 @media (max-width: 768px) {
-  .featured-preview {
+  .featured-preview,
+  .featured-overlay .featured-preview {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-height: 2.8em; /* Fallback: 2 lines × 1.4 line-height */
   }
   
   .slide-text p {
