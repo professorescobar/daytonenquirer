@@ -862,6 +862,65 @@ nav a:not(:last-child)::after {
   text-decoration: underline;
 }
 
+/* Pagination */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.pagination-btn {
+  background: #000;
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #333;
+}
+
+.pagination-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #333;
+}
+
+/* Load More Button (Mobile) */
+.load-more-btn {
+  background: #000;
+  color: #fff;
+  border: none;
+  padding: 0.75rem 2rem;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.load-more-btn:hover {
+  background: #333;
+}
+
+@media (max-width: 768px) {
+  .pagination-container {
+    display: none;
+  }
+}
+
 /* ============================
    ARTICLE PAGE
    ============================ */
