@@ -138,10 +138,12 @@ nav a:not(:last-child)::after {
 @media (max-width: 768px) {
   .slide-text {
     bottom: 4rem;
-    padding: 1rem;
+    padding: 0.75rem 1rem;
+    left: 0;
+    right: 0;
     background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 50%, transparent 100%);
     height: auto;
-    max-height: 30%;
+    max-height: 25%;
   }
   
   .slide-text p {
