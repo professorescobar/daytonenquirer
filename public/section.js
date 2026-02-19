@@ -215,7 +215,8 @@ function renderLoadMoreButton(totalArticles) {
     loadMoreContainer.id = "load-more-container";
     loadMoreContainer.style.textAlign = "center";
     loadMoreContainer.style.margin = "2rem 0";
-    document.getElementById("section-articles-grid").parentElement.appendChild(loadMoreContainer);
+    const grid = document.getElementById("section-articles-grid");
+    grid.parentNode.insertBefore(loadMoreContainer, grid.nextSibling);
   }
 
   loadMoreContainer.removeAttribute("hidden");
