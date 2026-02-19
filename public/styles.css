@@ -139,10 +139,19 @@ nav a:not(:last-child)::after {
   .slide-text {
     bottom: 4rem;
     padding: 1rem;
+    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 50%, transparent 100%);
+    height: auto;
+    max-height: 30%;
   }
   
   .slide-text p {
     display: none !important;
+  }
+  
+  .slide-text h2 {
+    font-size: 1.2rem;
+    line-height: 1.3;
+    margin-bottom: 0.5rem;
   }
 }
 
