@@ -3,7 +3,7 @@ const getCustomArticles = require('./custom-articles');
 // Cache variables
 let cachedCarousel = null;
 let cacheTimestamp = 0;
-const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
 
 module.exports = async (req, res) => {
   try {
