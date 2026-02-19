@@ -143,15 +143,16 @@ nav a:not(:last-child)::after {
   }
   
   .slide-text {
-    bottom: 0rem;
-    padding: 0.75rem 1rem;
+    bottom: 0;
+    padding: 0.75rem 1rem 1rem 1rem;  /* Extra bottom padding */
     left: 0 !important;
     right: 0 !important;
     margin: 0 !important;
     max-width: 100% !important;
-    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 50%, transparent 100%);
+    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 60%, transparent 100%);
     height: auto;
-    max-height: 25%;
+    max-height: 35%;  /* Increased from 25% */
+    min-height: 100px;  /* Ensure minimum space */
   }
   
   .slide-text p {
@@ -162,6 +163,10 @@ nav a:not(:last-child)::after {
     font-size: 1.2rem;
     line-height: 1.3;
     margin-bottom: 0.5rem;
+  }
+  
+  .slide-category {
+    padding-bottom: 0.25rem;
   }
 }
 
