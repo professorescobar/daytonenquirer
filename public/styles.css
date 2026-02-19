@@ -135,6 +135,13 @@ nav a:not(:last-child)::after {
   max-width: 60%;
 }
 
+@media (max-width: 768px) {
+  .slide-text {
+    bottom: 4rem;  /* Moves it UP to clear the nav buttons */
+    padding: 1rem;  /* Also reduce padding to save space */
+  }
+}
+
 #prev,
 #next {
   position: absolute;
