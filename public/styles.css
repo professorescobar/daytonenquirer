@@ -405,7 +405,7 @@ nav a:not(:last-child)::after {
 
 /* See more button */
 .see-more-container {
-  text-align: right;
+  text-align: center;
   margin-top: 1rem;
   margin-bottom: 1rem;
 }
