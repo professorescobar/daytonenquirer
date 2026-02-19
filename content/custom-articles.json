@@ -1485,5 +1485,16 @@
    "pubDate": "2026-02-19T19:52:00Z",
    "section": "technology",
    "custom": true
+  },
+
+  { 
+   "title": "A Win for Accountability: The FDA’s Moderna Reversal and the Shadow of the ‘Moderna Papers’", 
+   "url": "moderna-fda-reversal-accountability-moderna-papers", 
+   "description": "The regulatory halls in Washington D.C. have been the site of a significant tug-of-war this month, and for Dayton residents who have maintained a healthy skepticism of pharmaceutical giants, the latest update is a massive win for public oversight. After a week of standing firm against a potentially flawed application, the FDA has agreed to a conditional review of Moderna’s new mRNA-1010 flu vaccine. While some might see the February 18 reversal as a retreat, a closer look at the strings attached suggests that the days of the ‘blank check’ for mRNA manufacturers are officially over.\n\nThe standoff began on February 10 when the FDA issued a rare Refusal-to-File letter, effectively calling Moderna’s clinical trials a failure. The agency's primary concern was that Moderna tested its shot for seniors against standard-dose vaccines rather than the high-dose versions that are the proven gold standard for that age group. Following a high-stakes meeting, the FDA will now allow the review to proceed, but only if Moderna accepts a much higher bar: <b>accelerated approval</b> for seniors, which legally mandates follow-up studies to prove the vaccine actually works as well as the current options. This is a dramatic shift from the rapid, emergency-style approvals we saw just a few years ago.\n\nFor many in the Miami Valley, this friction is a welcome change. The deep-seated skepticism toward Moderna isn’t just about the speed of past rollouts; it is rooted in the perceived lack of transparency during the COVID-19 era. Critics point to the <b>'Moderna Papers,'</b> a massive trove of documents analyzed by investigative teams led by Naomi Wolf, which allege that the company withheld critical safety data and manipulated clinical outcomes. These allegations have led many prominent health advocates to describe the actions taken during the pandemic as <b>'crimes against humanity,'</b> citing suppressed evidence of adverse effects and the aggressive enforcement of mandates while essential data remained hidden from the public eye.\n\nThe tide, however, appears to be turning in favor of the American people. Under the leadership of HHS Secretary Robert F. Kennedy Jr., the federal government has already slashed nearly <b>$700 million</b> in mRNA research contracts, signaling a transition toward safer, more traditional vaccine platforms. The current regulatory environment is no longer prioritizing the speed of ‘Warp Speed’ but is instead demanding the level of accountability that Americans have been calling for since 2021. For the families here in Dayton, this means that if this flu shot ever reaches our local clinics, it will have had to survive a gauntlet of scrutiny that Moderna simply wasn't prepared for a year ago. It is a new era of transparency, and for those who value medical freedom and corporate accountability, it is the best news we’ve had in years.", 
+   "source": "The Dayton Enquirer", 
+   "image": "https://i.imgur.com/YjA1nxl.jpeg", 
+   "pubDate": "2026-02-19T20:05:00Z", 
+   "section": "health", 
+   "custom": true 
   }
 ]
