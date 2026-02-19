@@ -127,8 +127,8 @@ nav a:not(:last-child)::after {
 
 .slide-text {
   position: absolute;
-  bottom: 1.5rem;
-  left: 1.5rem;
+  bottom: 0rem;
+  left: 2.5rem;
   background: rgba(0, 0, 0, 0.6);
   color: #fff;
   padding: 0.5rem;
