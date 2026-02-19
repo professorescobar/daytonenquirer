@@ -142,7 +142,7 @@ nav a:not(:last-child)::after {
   }
   
   .slide-text p {
-    display: none;
+    display: none !important;
   }
 }
 
