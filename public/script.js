@@ -176,7 +176,7 @@ async function loadWorldNews() {
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
            <h3><a href="${articleLink(featured, 'world')}">${featured.title}</a></h3>
-           ${featured.description ? `<p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
+           ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
            <div class="article-meta">
             ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
            </div>
@@ -274,7 +274,7 @@ async function loadNationalNews() {
         ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
         <div class="featured-overlay">
          <h3><a href="${articleLink(featured, 'national')}">${featured.title}</a></h3>
-         ${featured.description ? `<p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
+         ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
          <div class="article-meta">
           ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
          </div>
@@ -347,7 +347,7 @@ async function loadBusinessNews() {
         ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
         <div class="featured-overlay">
          <h3><a href="${articleLink(featured, 'business')}">${featured.title}</a></h3>
-         ${featured.description ? `<p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
+         ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
          <div class="article-meta">
           ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
          </div>
@@ -420,7 +420,7 @@ async function loadSportsNews() {
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'sports')}">${featured.title}</a></h3>
-            ${featured.description ? `<p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
+            ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
             <div class="article-meta">
              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
@@ -493,7 +493,7 @@ async function loadHealthNews() {
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'health')}">${featured.title}</a></h3>
-            ${featured.description ? `<p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
+            ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
             <div class="article-meta">
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
@@ -566,7 +566,7 @@ async function loadEntertainmentNews() {
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'entertainment')}">${featured.title}</a></h3>
-            ${featured.description ? `<p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
+            ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
             <div class="article-meta">
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
@@ -639,7 +639,7 @@ async function loadTechnologyNews() {
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'technology')}">${featured.title}</a></h3>
-            ${featured.description ? `<p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
+            ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
             <div class="article-meta">
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>
@@ -809,7 +809,7 @@ async function loadLocalNews() {
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'local')}">${featured.title}</a></h3>
-            ${featured.description ? `<p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
+            ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
             <div class="article-meta">
               ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
             </div>

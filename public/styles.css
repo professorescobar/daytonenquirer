@@ -245,9 +245,9 @@ nav a:not(:last-child)::after {
 .featured-preview {
   font-size: 0.9rem;
   line-height: 1.4;
-  margin: 0.5rem 0;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  display: inline;
 }
 
 /* Headlines Sidebar */
