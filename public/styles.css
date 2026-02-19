@@ -581,12 +581,6 @@ nav a:not(:last-child)::after {
   font-size: 0.9rem;
 }
 
-@media (max-width: 600px) {
-  .nav-label {
-    display: none;
-  }
-}
-
 /* Article metadata (source and time) */
 .article-meta {
   font-size: 0.75rem;
