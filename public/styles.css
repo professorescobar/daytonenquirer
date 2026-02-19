@@ -1087,7 +1087,7 @@ nav a:not(:last-child)::after {
 .image-caption {
   display: block;
   margin-bottom: 0.25rem;
-  margin-top: -0.75rem;
+  margin-top: -1.5rem;
   font-style: italic;
 }
 
