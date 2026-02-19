@@ -241,6 +241,16 @@ nav a:not(:last-child)::after {
   text-decoration: underline;
 }
 
+.featured-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.featured-link:hover h3 {
+  text-decoration: underline;
+}
+
 /* Limit featured preview to 2 lines on mobile */
 @media (max-width: 768px) {
   .featured-preview,
