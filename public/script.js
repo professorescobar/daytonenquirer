@@ -12,6 +12,18 @@ async function loadCarousel() {
     const carouselContainer = document.querySelector(".carousel");
     if (!carouselContainer) return;
 
+    // Format date helper function
+    function formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const now = new Date();
+      const hours = Math.floor((now - date) / (1000 * 60 * 60));
+      if (hours < 1) return 'Just now';
+      if (hours < 24) return `${hours}h ago`;
+      if (hours < 48) return 'Yesterday';
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
     // Clear existing slides
     carouselContainer.innerHTML = '';
 
@@ -20,16 +32,16 @@ async function loadCarousel() {
       const slide = document.createElement('div');
       slide.className = index === 0 ? 'slide active' : 'slide';
       const sectionKey = story.category.toLowerCase().replace(' ', '-');
-const slideLink = articleLink(story, sectionKey === 'world-news' ? 'world' : sectionKey);
+      const slideLink = articleLink(story, sectionKey === 'world-news' ? 'world' : sectionKey);
 
-slide.innerHTML = `
-  <img src="${story.image}" alt="${story.title}" />
-  <div class="slide-text">
-    <h2><a href="${slideLink}">${story.title}</a></h2>
-    <p>${story.description ? story.description.slice(0, 150) + '...' : ''}</p>
-    <span class="slide-category">${story.category} | ${story.source}</span>
-  </div>
-`;
+      slide.innerHTML = `
+        <img src="${story.image}" alt="${story.title}" />
+        <div class="slide-text">
+          <h2><a href="${slideLink}">${story.title}</a></h2>
+          <p>${story.description ? story.description.slice(0, 150) + '...' : ''}</p>
+          <span class="slide-category">${story.category} | ${formatDate(story.pubDate)}</span>
+        </div>
+      `;
       carouselContainer.appendChild(slide);
     });
 
