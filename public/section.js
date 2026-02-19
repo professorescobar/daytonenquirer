@@ -52,6 +52,10 @@ function articleLink(article) {
 }
 
 let allArticles = [];
+let paginationState = {
+  currentPage: 1,
+  mobileShown: 0
+};
 
 function renderFeatured(article) {
   const container = document.getElementById("section-featured");
@@ -88,8 +92,23 @@ function renderArticles(articles) {
   const grid = document.getElementById("section-articles-grid");
   if (!grid) return;
 
+  const isMobile = window.innerWidth <= 768;
+
+  if (isMobile) {
+    renderArticlesMobile(articles, grid);
+  } else {
+    renderArticlesDesktop(articles, grid);
+  }
+}
+
+function renderArticlesDesktop(articles, grid) {
+  const ARTICLES_PER_PAGE = 18; // 3 columns × 6 rows
+  const start = (paginationState.currentPage - 1) * ARTICLES_PER_PAGE;
+  const end = start + ARTICLES_PER_PAGE;
+  const pageArticles = articles.slice(start, end);
+
   grid.innerHTML = '';
-  articles.forEach(article => {
+  pageArticles.forEach(article => {
     const li = document.createElement("li");
     li.innerHTML = `
       <a href="${articleLink(article)}">
@@ -101,6 +120,111 @@ function renderArticles(articles) {
     `;
     grid.appendChild(li);
   });
+
+  renderPagination(articles.length, ARTICLES_PER_PAGE);
+}
+
+function renderArticlesMobile(articles, grid) {
+  const INITIAL_MOBILE = 5;
+  
+  if (paginationState.mobileShown === 0) {
+    // First render
+    paginationState.mobileShown = INITIAL_MOBILE;
+    grid.innerHTML = '';
+  }
+
+  // Clear and re-render all shown articles
+  grid.innerHTML = '';
+  articles.slice(0, paginationState.mobileShown).forEach(article => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <a href="${articleLink(article)}">
+        ${article.title}
+      </a>
+      <div class="article-meta">
+        ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+      </div>
+    `;
+    grid.appendChild(li);
+  });
+
+  renderLoadMoreButton(articles.length);
+}
+
+function renderPagination(totalArticles, articlesPerPage) {
+  const totalPages = Math.ceil(totalArticles / articlesPerPage);
+  
+  let paginationContainer = document.getElementById("pagination-container");
+  
+  if (!paginationContainer) {
+    paginationContainer = document.createElement("div");
+    paginationContainer.id = "pagination-container";
+    paginationContainer.className = "pagination-container";
+    document.getElementById("section-articles-grid").parentElement.appendChild(paginationContainer);
+  }
+
+  if (totalPages <= 1) {
+    paginationContainer.innerHTML = '';
+    return;
+  }
+
+  paginationContainer.innerHTML = `
+    <button id="prev-page-btn" class="pagination-btn" ${paginationState.currentPage === 1 ? 'disabled' : ''}>
+      ← Previous
+    </button>
+    <span class="page-info">Page ${paginationState.currentPage} of ${totalPages}</span>
+    <button id="next-page-btn" class="pagination-btn" ${paginationState.currentPage === totalPages ? 'disabled' : ''}>
+      Next →
+    </button>
+  `;
+
+  const prevBtn = document.getElementById("prev-page-btn");
+  const nextBtn = document.getElementById("next-page-btn");
+
+  if (prevBtn && !prevBtn.disabled) {
+    prevBtn.onclick = () => {
+      paginationState.currentPage--;
+      renderArticles(allArticles.slice(6));
+      window.scrollTo({ top: document.getElementById("section-articles-grid").offsetTop - 100, behavior: 'smooth' });
+    };
+  }
+
+  if (nextBtn && !nextBtn.disabled) {
+    nextBtn.onclick = () => {
+      paginationState.currentPage++;
+      renderArticles(allArticles.slice(6));
+      window.scrollTo({ top: document.getElementById("section-articles-grid").offsetTop - 100, behavior: 'smooth' });
+    };
+  }
+}
+
+function renderLoadMoreButton(totalArticles) {
+  let loadMoreContainer = document.getElementById("load-more-container");
+  
+  if (paginationState.mobileShown >= totalArticles) {
+    // All articles shown, hide button
+    if (loadMoreContainer) {
+      loadMoreContainer.setAttribute("hidden", "");
+    }
+    return;
+  }
+
+  if (!loadMoreContainer) {
+    loadMoreContainer = document.createElement("div");
+    loadMoreContainer.id = "load-more-container";
+    loadMoreContainer.style.textAlign = "center";
+    loadMoreContainer.style.margin = "2rem 0";
+    document.getElementById("section-articles-grid").parentElement.appendChild(loadMoreContainer);
+  }
+
+  loadMoreContainer.removeAttribute("hidden");
+  loadMoreContainer.innerHTML = `<button id="load-more-btn" class="load-more-btn">Load More</button>`;
+  
+  document.getElementById("load-more-btn").onclick = () => {
+    const LOAD_MORE_AMOUNT = 7;
+    paginationState.mobileShown += LOAD_MORE_AMOUNT;
+    renderArticles(allArticles.slice(6));
+  };
 }
 
 function renderFeaturedCustoms(articles) {
@@ -173,7 +297,7 @@ async function loadSection() {
       sidebarContainer.appendChild(sidebarList);
     }
 
-    // Render ALL remaining articles (no pagination)
+    // Render remaining articles with pagination
     renderArticles(allArticles.slice(6));
     
     // Render featured custom articles if any exist
