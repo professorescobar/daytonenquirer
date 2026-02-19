@@ -1082,18 +1082,20 @@ nav a:not(:last-child)::after {
   padding: 0.5rem 0;
   font-size: 0.85rem;
   color: #666;
-  font-style: italic;
 }
 
 .image-caption {
   display: block;
   margin-bottom: 0.25rem;
+  font-style: italic;
 }
 
 .image-credit {
   display: block;
+  text-align: right;
   font-size: 0.8rem;
   color: #999;
+  margin-bottom: 0.5rem;
 }
 
 /* ===============================

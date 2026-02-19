@@ -105,13 +105,13 @@ async function loadArticle() {
      // Add caption/credit if they exist
      if (article.imageCaption || article.imageCredit) {
       imageHTML += `<div class="image-meta">`;
-      if (article.imageCaption) {
-      imageHTML += `<span class="image-caption">${article.imageCaption}</span>`;
-      }
       if (article.imageCredit) {
-      imageHTML += `<span class="image-credit">${article.imageCredit}</span>`;
-    }
-    imageHTML += `</div>`;
+       imageHTML += `<span class="image-credit">${article.imageCredit}</span>`;
+     }
+     if (article.imageCaption) {
+       imageHTML += `<span class="image-caption">${article.imageCaption}</span>`;
+     }
+     imageHTML += `</div>`;
   }
   
   imageContainer.innerHTML = imageHTML;
