@@ -1078,7 +1078,7 @@ nav a:not(:last-child)::after {
 
 /* Image caption and credit */
 .image-meta {
-  margin-top: 0rem;
+  margin-top: -0.25rem;
   padding: 0.25rem 0;
   font-size: 0.85rem;
   color: #666;
