@@ -388,7 +388,7 @@ async function loadBusinessNews() {
 }
 
 // ============================
-// SPORTS NEWS (RSS via API)
+// SPORTS NEWS
 // ============================
 async function loadSportsNews() {
   try {
@@ -411,15 +411,14 @@ async function loadSportsNews() {
 
     const featured = articles[0];
     const featuredContainer = document.getElementById("sports-featured-story");
-    if (featuredContainer) {
+    if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'sports')}">${featured.title}</a></h3>
-            ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
             <div class="article-meta">
-             ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
@@ -461,7 +460,7 @@ async function loadSportsNews() {
 }
 
 // ============================
-// HEALTH NEWS (RSS via API)
+// HEALTH NEWS
 // ============================
 async function loadHealthNews() {
   try {
@@ -490,9 +489,8 @@ async function loadHealthNews() {
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'health')}">${featured.title}</a></h3>
-            ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
@@ -534,7 +532,7 @@ async function loadHealthNews() {
 }
 
 // ============================
-// ENTERTAINMENT NEWS (RSS via API)
+// ENTERTAINMENT NEWS
 // ============================
 async function loadEntertainmentNews() {
   try {
@@ -563,9 +561,8 @@ async function loadEntertainmentNews() {
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'entertainment')}">${featured.title}</a></h3>
-            ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
@@ -607,7 +604,7 @@ async function loadEntertainmentNews() {
 }
 
 // ============================
-// TECHNOLOGY NEWS (RSS via API)
+// TECHNOLOGY NEWS
 // ============================
 async function loadTechnologyNews() {
   try {
@@ -636,9 +633,8 @@ async function loadTechnologyNews() {
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'technology')}">${featured.title}</a></h3>
-            ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
