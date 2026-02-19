@@ -403,6 +403,29 @@ nav a:not(:last-child)::after {
   transform: scaleX(2.5) rotate(180deg); /* Keep width when rotated */
 }
 
+/* See more button */
+.see-more-container {
+  text-align: right;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.see-more-btn {
+  display: inline-block;
+  background: #000;
+  color: #fff;
+  padding: 0.6rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: bold;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.see-more-btn:hover {
+  background: #333;
+}
+
 /* Article Navigation */
 .article-navigation {
   display: flex;
