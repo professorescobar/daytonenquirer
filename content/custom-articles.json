@@ -1504,7 +1504,7 @@
    "description": "<b>By The Dayton Enquirer</b>\n\nKETTERING — Local law enforcement is turning to the community for assistance in tracking down two suspects involved in recent thefts at a Kettering grocery store. The Kettering Police Department has released surveillance images and is asking anyone with information to step forward.\n\nThe incidents occurred at the Kroger location on <b>East Stroop Road</b> over two consecutive days, specifically on <b>February 12</b> and <b>February 13.</b> While the exact value of the stolen merchandise has not been publicly detailed, police are eager to speak with the individuals pictured in connection with the crimes.\n\nAccording to authorities, the female suspect reportedly fled the scene in a white Chrysler, heading eastbound on East Stroop Road. The department is urging anyone who can identify either suspect, or who might have witnessed the events, to contact them directly at <b>937-296-2555.</b> As property crimes continue to be a focus for local patrols, community tips often provide the vital link needed to close these cases.", 
    "source": "The Dayton Enquirer", 
    "image": "https://i.imgur.com/cOon2js.jpeg", 
-   "pubDate": "2026-02-19T20:39:00Z", 
+   "pubDate": "2026-02-19T17:39:00Z", 
    "section": "local", 
    "custom": true 
   },
@@ -1540,5 +1540,16 @@
   "pubDate": "2026-02-19T20:50:00Z", 
   "section": "local", 
   "custom": true 
+  },
+
+  {
+   "title": "Andrew Mountbatten-Windsor Arrested in Historic Misconduct Probe",
+   "url": "andrew-mountbatten-windsor-arrested-in-historic-misconduct-probe",
+   "description": "In a move described by legal experts as \"unprecedented,\" <b>Andrew Mountbatten-Windsor</b>, the former Duke of York, was arrested by British police on Thursday morning. The arrest marks a significant escalation in the long-running saga surrounding the former royal, shifting focus from previous civil allegations to a criminal investigation into his past official conduct.\n\nDetectives from <b>Thames Valley Police</b> arrived at Wood Farm on the Sandringham Estate at approximately 8:00 AM GMT on his 66th birthday. He was taken into custody on suspicion of <b>misconduct in public office</b>. Simultaneous searches were executed at his current residence at Wood Farm and his former home, Royal Lodge in Windsor. Following approximately 11 hours of questioning at Aylsham Police Station, he was <b>released under investigation</b>, meaning he remains a primary suspect while inquiries continue. This event represents the first arrest of a senior member of the Royal Family since the era of King Charles I in 1649.\n\nThe investigation is distinct from previous civil sexual assault allegations and instead focuses on his tenure as the U.K.'s <b>Special Representative for International Trade and Investment</b> between 2001 and 2011. The arrest follows the January 30, 2026 release of extensive new documents from the U.S. Justice Department's \"Epstein files.\" These newly revealed records provide what investigators term \"contemporaneous documentary evidence\"—specifically emails and metadata—that allegedly show Mountbatten-Windsor sharing confidential state information with Jeffrey Epstein.\n\nAmong the most serious allegations is the sharing of a 2010 \"confidential brief\" regarding investment opportunities in <b>Helmand Province, Afghanistan</b>, at a time when British forces were actively deployed in combat operations there. Other newly discovered emails suggest he forwarded sensitive visit reports from official trade missions in Vietnam, Singapore, and Hong Kong to Epstein just minutes after receiving them from his government advisers.\n\nThe constitutional and political reaction has been swift and severe, signaling a definitive break between the Crown and the former prince. Buckingham Palace, having already confirmed he was stripped of his final honorary titles in October 2025 and evicted from Royal Lodge earlier this year, issued a statement from King Charles III saying only that \"the law must take its course.\" Prime Minister Keir Starmer reiterated that \"everybody is equal under the law.\" Misconduct in public office is a serious common law offense in the U.K. that carries a maximum penalty of life imprisonment.",
+   "source": "The Dayton Enquirer",
+   "image": "https://i.imgur.com/d6jHHTu.jpeg",
+   "pubDate": "2026-02-19T22:20:00Z",
+   "section": "world",
+   "custom": true
   }
 ]
