@@ -147,7 +147,7 @@ function articleLink(article, section) {
 })();
 
 // ============================
-// WORLD NEWS (RSS via API)
+// WORLD NEWS
 // ============================
 async function loadWorldNews() {
   try {
@@ -170,18 +170,17 @@ async function loadWorldNews() {
 
     const featured = articles[0];
     const featuredContainer = document.getElementById("featured-story");
-    if (featuredContainer) {
+    if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
-           <h3><a href="${articleLink(featured, 'world')}">${featured.title}</a></h3>
-           ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
-           <div class="article-meta">
-            ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
-           </div>
-         </div>
-       </article>`;
+            <h3><a href="${articleLink(featured, 'world')}">${featured.title}</a></h3>
+            <div class="article-meta">
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+            </div>
+          </div>
+        </article>`;
     }
 
     const headlinesList = document.getElementById("headlines-list");
@@ -245,7 +244,7 @@ if (toggleMoreBtn && moreHeadlinesContainer) {
 loadWorldNews();
 
 // ============================
-// NATIONAL NEWS (RSS via API)
+// NATIONAL NEWS
 // ============================
 async function loadNationalNews() {
   try {
@@ -268,18 +267,17 @@ async function loadNationalNews() {
 
     const featured = articles[0];
     const featuredContainer = document.getElementById("national-featured-story");
-    if (featuredContainer) {
+    if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
         <article class="featured-article">
-        ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
-        <div class="featured-overlay">
-         <h3><a href="${articleLink(featured, 'national')}">${featured.title}</a></h3>
-         ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
-         <div class="article-meta">
-          ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
-         </div>
-       </div>
-      </article>`;
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
+          <div class="featured-overlay">
+            <h3><a href="${articleLink(featured, 'national')}">${featured.title}</a></h3>
+            <div class="article-meta">
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+            </div>
+          </div>
+        </article>`;
     }
 
     const headlinesList = document.getElementById("national-headlines-list");
@@ -318,7 +316,7 @@ async function loadNationalNews() {
 }
 
 // ============================
-// BUSINESS NEWS (RSS via API)
+// BUSINESS NEWS
 // ============================
 async function loadBusinessNews() {
   try {
@@ -341,18 +339,17 @@ async function loadBusinessNews() {
 
     const featured = articles[0];
     const featuredContainer = document.getElementById("business-featured-story");
-    if (featuredContainer) {
+    if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
-       <article class="featured-article">
-        ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
-        <div class="featured-overlay">
-         <h3><a href="${articleLink(featured, 'business')}">${featured.title}</a></h3>
-         ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
-         <div class="article-meta">
-          ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
-         </div>
-        </div>
-       </article>`;
+        <article class="featured-article">
+          ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
+          <div class="featured-overlay">
+            <h3><a href="${articleLink(featured, 'business')}">${featured.title}</a></h3>
+            <div class="article-meta">
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+            </div>
+          </div>
+        </article>`;
     }
 
     const headlinesList = document.getElementById("business-headlines-list");
