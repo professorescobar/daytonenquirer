@@ -36,11 +36,13 @@ async function loadCarousel() {
 
       slide.innerHTML = `
         <img src="${story.image}" alt="${story.title}" />
-        <div class="slide-text">
-          <h2><a href="${slideLink}">${story.title}</a></h2>
-          <p>${story.description ? story.description.slice(0, 150) + '...' : ''}</p>
-          <span class="slide-category">${story.category} | ${formatDate(story.pubDate)}</span>
-        </div>
+        <a href="${slideLink}" class="slide-link">
+          <div class="slide-text">
+            <h2>${story.title}</h2>
+            <p>${story.description ? story.description.slice(0, 150) + '...' : ''}</p>
+            <span class="slide-category">${story.category} | ${formatDate(story.pubDate)}</span>
+          </div>
+        </a>
       `;
       carouselContainer.appendChild(slide);
     });

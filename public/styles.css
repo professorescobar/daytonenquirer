@@ -171,6 +171,17 @@ nav a:not(:last-child)::after {
 .slide-text h2 a:hover {
   text-decoration: underline;
 }
+
+.slide-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.slide-link:hover h2 {
+  text-decoration: underline;
+}
+
 /* ===============================
    WORLD NEWS SECTION
 ================================ */
