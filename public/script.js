@@ -61,7 +61,7 @@ slide.innerHTML = `
     function startAutoTimer() {
       autoTimer = setInterval(() => {
         goToSlide(currentSlide + 1);
-      }, 10000); // 10 seconds
+      }, 15000); // 15 seconds
     }
 
     function resetAutoTimer() {
