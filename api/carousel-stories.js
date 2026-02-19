@@ -1,7 +1,20 @@
 const getCustomArticles = require('./custom-articles');
 
+// Cache variables
+let cachedCarousel = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 module.exports = async (req, res) => {
   try {
+    const now = Date.now();
+    
+    // Check if cache is still valid
+    if (cachedCarousel && (now - cacheTimestamp) < CACHE_DURATION) {
+      return res.status(200).json(cachedCarousel);
+    }
+
+    // Cache expired or doesn't exist, generate fresh data
     const sections = ['local', 'national', 'world', 'business', 'sports', 'health', 'entertainment', 'technology'];
     const categoryMap = {
       local: 'Local',
@@ -47,10 +60,16 @@ module.exports = async (req, res) => {
     // Sort by date, most recent first
     carouselStories.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
-    res.status(200).json({
+    const response = {
       stories: carouselStories,
       count: carouselStories.length
-    });
+    };
+
+    // Update cache
+    cachedCarousel = response;
+    cacheTimestamp = now;
+
+    res.status(200).json(response);
   } catch (err) {
     console.error("Carousel error:", err);
     res.status(500).json({ error: "Failed to fetch carousel stories" });
