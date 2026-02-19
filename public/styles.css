@@ -262,6 +262,33 @@ nav a:not(:last-child)::after {
   text-decoration: underline;
 }
 
+.featured-link .article-meta {
+  text-decoration: none !important;
+}
+
+.slide-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.slide-link:hover h2 {
+  text-decoration: underline;
+}
+
+.slide-link .slide-text p,
+.slide-link .slide-text .slide-category {
+  text-decoration: none !important;
+}
+
+/* Aggressive meta rule - add this */
+.featured-overlay .article-meta,
+.featured-overlay .article-meta *,
+.featured-link .article-meta,
+.featured-link .article-meta * {
+  text-decoration: none !important;
+}
+
 /* Limit featured preview to 2 lines on mobile */
 @media (max-width: 768px) {
   .featured-preview,
