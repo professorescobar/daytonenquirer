@@ -100,8 +100,22 @@ async function loadArticle() {
     // Render image
     const imageContainer = document.getElementById('article-image-container');
     if (imageContainer && article.image) {
-      imageContainer.innerHTML = `<img src="${article.image}" alt="${article.title}" loading="lazy" />`;
+     let imageHTML = `<img src="${article.image}" alt="${article.title}" loading="lazy" />`;
+  
+     // Add caption/credit if they exist
+     if (article.imageCaption || article.imageCredit) {
+      imageHTML += `<div class="image-meta">`;
+      if (article.imageCaption) {
+      imageHTML += `<span class="image-caption">${article.imageCaption}</span>`;
+      }
+      if (article.imageCredit) {
+      imageHTML += `<span class="image-credit">${article.imageCredit}</span>`;
     }
+    imageHTML += `</div>`;
+  }
+  
+  imageContainer.innerHTML = imageHTML;
+}
 
     // Render description
     const descriptionEl = document.getElementById('article-description');
