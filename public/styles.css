@@ -241,6 +241,27 @@ nav a:not(:last-child)::after {
   text-decoration: underline;
 }
 
+/* Limit featured preview to 2 lines on mobile */
+@media (max-width: 768px) {
+  .featured-preview {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .slide-text p {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 /* Featured article preview text */
 .featured-preview {
   font-size: 0.9rem;
