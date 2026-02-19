@@ -780,7 +780,7 @@ if (sportsToggleBtn && sportsMoreContainer) {
 }
 
 // ============================
-// LOCAL NEWS (RSS via API)
+// LOCAL NEWS
 // ============================
 async function loadLocalNews() {
   try {
@@ -809,9 +809,8 @@ async function loadLocalNews() {
           ${featured.image ? `<img src="${featured.image}" alt="${featured.title}" loading="lazy">` : '<div class="placeholder-image"></div>'}
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'local')}">${featured.title}</a></h3>
-            ${featured.description ? ` | <p class="featured-preview">${featured.description.slice(0, 120)}...</p>` : ''}
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;

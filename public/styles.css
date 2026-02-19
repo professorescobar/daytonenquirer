@@ -250,6 +250,11 @@ nav a:not(:last-child)::after {
   display: inline;
 }
 
+.pipe {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
 /* Headlines Sidebar */
 .headlines-sidebar {
   display: flex;
