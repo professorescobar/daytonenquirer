@@ -160,7 +160,8 @@ function renderPagination(totalArticles, articlesPerPage) {
     paginationContainer = document.createElement("div");
     paginationContainer.id = "pagination-container";
     paginationContainer.className = "pagination-container";
-    document.getElementById("section-articles-grid").parentElement.appendChild(paginationContainer);
+    const grid = document.getElementById("section-articles-grid");
+    grid.parentNode.insertBefore(paginationContainer, grid.nextSibling);
   }
 
   if (totalPages <= 1) {
