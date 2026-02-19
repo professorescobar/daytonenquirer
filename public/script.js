@@ -177,7 +177,7 @@ async function loadWorldNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'world')}">${featured.title}</a></h3>
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
@@ -274,7 +274,7 @@ async function loadNationalNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'national')}">${featured.title}</a></h3>
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
@@ -346,7 +346,7 @@ async function loadBusinessNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'business')}">${featured.title}</a></h3>
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
@@ -418,7 +418,7 @@ async function loadSportsNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'sports')}">${featured.title}</a></h3>
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
@@ -490,7 +490,7 @@ async function loadHealthNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'health')}">${featured.title}</a></h3>
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
@@ -562,7 +562,7 @@ async function loadEntertainmentNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'entertainment')}">${featured.title}</a></h3>
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
@@ -634,7 +634,7 @@ async function loadTechnologyNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'technology')}">${featured.title}</a></h3>
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
@@ -803,7 +803,7 @@ async function loadLocalNews() {
           <div class="featured-overlay">
             <h3><a href="${articleLink(featured, 'local')}">${featured.title}</a></h3>
             <div class="article-meta">
-              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="pipe"> | </span><span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
+              ${featured.pubDate ? `<span class="time">${formatDate(featured.pubDate)}</span>` : ''}${featured.description ? `<span class="featured-preview">${featured.description.slice(0, 120)}...</span>` : ''}
             </div>
           </div>
         </article>`;
