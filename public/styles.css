@@ -136,12 +136,10 @@ nav a:not(:last-child)::after {
 }
 
 @media (max-width: 768px) {
-  .carousel {
-    padding: 0;
-  }
-  
-  .slide {
+  .slide img {
+    border-radius: 6px;
     margin: 0;
+    padding: 0;
   }
   
   .slide-text {
@@ -150,14 +148,10 @@ nav a:not(:last-child)::after {
     left: 0 !important;
     right: 0 !important;
     margin: 0 !important;
+    max-width: 100% !important;
     background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 50%, transparent 100%);
     height: auto;
     max-height: 25%;
-  }
-  
-  .slide img {
-    margin: 0;
-    padding: 0;
   }
   
   .slide-text p {
