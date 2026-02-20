@@ -247,6 +247,7 @@ nav a:not(:last-child)::after {
 
 .world-news-title a:hover {
   text-decoration: underline;
+  text-decoration-thickness: 2px;  
 }
 
 .world-news-content {
