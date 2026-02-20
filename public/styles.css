@@ -236,6 +236,10 @@ nav a:not(:last-child)::after {
   padding-bottom: 0.25rem;
 }
 
+.news-section h2 {
+  margin-top: 0.5rem;
+}
+
 .world-news-content {
   display: grid;
   grid-template-columns: 2fr 1fr;
