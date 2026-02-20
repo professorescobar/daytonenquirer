@@ -242,7 +242,7 @@ nav a:not(:last-child)::after {
 }
 
 .news-section h2 {
-  margin-top: 0;  /* No extra space above the title */
+  margin-top: -1;  /* No extra space above the title */
   margin-bottom: 0.5rem;
 }
 
