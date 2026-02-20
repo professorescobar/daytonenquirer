@@ -1092,6 +1092,10 @@ nav a:not(:last-child)::after {
   margin-bottom: -1rem;
 }
 
+.article-content {
+  margin-top: -1.5rem;  /* Adjust this to reduce space from ticker to category badge */
+}
+
 .article-page-header {
   margin-bottom: 1.5rem;
 }
