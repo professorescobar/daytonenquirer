@@ -88,10 +88,6 @@ async function loadArticle() {
     const sourceEl = document.getElementById('article-source');
     const dateEl = document.getElementById('article-date');
     
-    if (sourceEl && article.source) {
-      sourceEl.innerHTML = `<strong>${article.source}</strong>`;
-    }
-    
     if (dateEl && article.pubDate) {
       const date = new Date(article.pubDate);
       const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
