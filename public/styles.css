@@ -237,7 +237,7 @@ nav a:not(:last-child)::after {
 }
 
 .news-section h2 {
-  margin-top: 0.5rem;
+  margin-top: -1rem;
 }
 
 .world-news-content {
