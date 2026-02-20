@@ -1673,5 +1673,16 @@
    "pubDate": "2026-02-20T15:47:00Z", 
    "section": "sports", 
    "custom": true 
+  },
+
+  { 
+   "title": "Supreme Court Strikes Down Trump Tariffs, Stripping Executive Branch of Crucial Trade Leverage", 
+   "url": "supreme-court-strikes-down-trump-tariffs-trade-leverage", 
+   "description": "The Supreme Court's 6-3 decision on Friday to strike down President Trump's sweeping global tariffs has sent a shockwave through Washington, delivering a major setback to the administration's economic and foreign policy agenda.\n\nWhile upholding the strict constitutional separation of powers is a principle many conservatives revere, the practical reality of this ruling is stark: it effectively ties America's hands behind its back in high-stakes global trade negotiations. By stripping the executive branch of the ability to quickly and decisively use tariffs under the International Emergency Economic Powers Act (IEEPA), the United States has lost a primary bargaining chip against adversarial economies that routinely manipulate markets and exploit American workers.\n\nChief Justice John Roberts authored the majority opinion, arguing that IEEPA does not explicitly grant the president the power to impose tariffs. However, the compelling dissent by Justices Brett Kavanaugh, Clarence Thomas, and Samuel Alito rightly pointed out that the text, history, and precedent of the emergency powers law firmly supported the administration's actions. Kavanaugh argued that regulating importation naturally encompasses the traditional tool of tariffs.\n\nThe fallout from this decision is multifaceted. Not only does it embolden foreign competitors who no longer face the immediate threat of reciprocal economic action, but it also creates immense domestic fiscal chaos. The Treasury Department now faces the monumental and legally complex prospect of refunding billions in collected duties, creating a massive budgetary hole that taxpayers may ultimately have to fill.\n\nMoving forward, the administration will likely pivot to other legal mechanisms, such as Section 232 or Section 301, to protect American industries. But the message sent by the Court today complicates the broader strategy. If America is to negotiate from a position of strength on the world stage, Congress must now step up and explicitly provide the executive branch with the agile tools necessary to defend our national economic interests.", 
+   "source": "The Dayton Enquirer", 
+   "image": "https://i.imgur.com/KKe21d9.jpeg", 
+   "pubDate": "2026-02-20T16:23:00Z", 
+   "section": "national", 
+   "custom": true 
   }
 ]
