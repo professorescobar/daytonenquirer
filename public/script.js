@@ -13,16 +13,19 @@ async function loadCarousel() {
     if (!carouselContainer) return;
 
     // Format date helper function
-    function formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      const now = new Date();
-      const hours = Math.floor((now - date) / (1000 * 60 * 60));
-      if (hours < 1) return 'Just now';
-      if (hours < 24) return `${hours}h ago`;
-      if (hours < 48) return 'Yesterday';
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
+   function formatDate(dateString) {
+     if (!dateString) return '';
+     const date = new Date(dateString);
+     const now = new Date();
+     const minutes = Math.floor((now - date) / (1000 * 60));
+     const hours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+     if (minutes < 1) return 'Just now';
+     if (minutes < 60) return `${minutes}m ago`;
+     if (hours < 24) return `${hours}h ago`;
+     if (hours < 48) return 'Yesterday';
+     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+   }
 
     // Clear existing slides
     carouselContainer.innerHTML = '';
@@ -160,14 +163,17 @@ async function loadWorldNews() {
     const articles = data.articles;
 
     function formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      const now = new Date();
-      const hours = Math.floor((now - date) / (1000 * 60 * 60));
-      if (hours < 1) return 'Just now';
-      if (hours < 24) return `${hours}h ago`;
-      if (hours < 48) return 'Yesterday';
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+     if (!dateString) return '';
+     const date = new Date(dateString);
+     const now = new Date();
+     const minutes = Math.floor((now - date) / (1000 * 60));
+     const hours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+     if (minutes < 1) return 'Just now';
+     if (minutes < 60) return `${minutes}m ago`;
+     if (hours < 24) return `${hours}h ago`;
+     if (hours < 48) return 'Yesterday';
+     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     const featured = articles[0];
@@ -259,14 +265,17 @@ async function loadNationalNews() {
     const articles = data.articles;
 
     function formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      const now = new Date();
-      const hours = Math.floor((now - date) / (1000 * 60 * 60));
-      if (hours < 1) return 'Just now';
-      if (hours < 24) return `${hours}h ago`;
-      if (hours < 48) return 'Yesterday';
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+     if (!dateString) return '';
+     const date = new Date(dateString);
+     const now = new Date();
+     const minutes = Math.floor((now - date) / (1000 * 60));
+     const hours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+     if (minutes < 1) return 'Just now';
+     if (minutes < 60) return `${minutes}m ago`;
+     if (hours < 24) return `${hours}h ago`;
+     if (hours < 48) return 'Yesterday';
+     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     const featured = articles[0];
@@ -333,14 +342,17 @@ async function loadBusinessNews() {
     const articles = data.articles;
 
     function formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      const now = new Date();
-      const hours = Math.floor((now - date) / (1000 * 60 * 60));
-      if (hours < 1) return 'Just now';
-      if (hours < 24) return `${hours}h ago`;
-      if (hours < 48) return 'Yesterday';
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+     if (!dateString) return '';
+     const date = new Date(dateString);
+     const now = new Date();
+     const minutes = Math.floor((now - date) / (1000 * 60));
+     const hours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+     if (minutes < 1) return 'Just now';
+     if (minutes < 60) return `${minutes}m ago`;
+     if (hours < 24) return `${hours}h ago`;
+     if (hours < 48) return 'Yesterday';
+     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     const featured = articles[0];
@@ -407,14 +419,17 @@ async function loadSportsNews() {
     const articles = data.articles;
 
     function formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      const now = new Date();
-      const hours = Math.floor((now - date) / (1000 * 60 * 60));
-      if (hours < 1) return 'Just now';
-      if (hours < 24) return `${hours}h ago`;
-      if (hours < 48) return 'Yesterday';
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+     if (!dateString) return '';
+     const date = new Date(dateString);
+     const now = new Date();
+     const minutes = Math.floor((now - date) / (1000 * 60));
+     const hours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+     if (minutes < 1) return 'Just now';
+     if (minutes < 60) return `${minutes}m ago`;
+     if (hours < 24) return `${hours}h ago`;
+     if (hours < 48) return 'Yesterday';
+     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     const featured = articles[0];
@@ -481,14 +496,17 @@ async function loadHealthNews() {
     const articles = data.articles;
 
     function formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      const now = new Date();
-      const hours = Math.floor((now - date) / (1000 * 60 * 60));
-      if (hours < 1) return 'Just now';
-      if (hours < 24) return `${hours}h ago`;
-      if (hours < 48) return 'Yesterday';
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+     if (!dateString) return '';
+     const date = new Date(dateString);
+     const now = new Date();
+     const minutes = Math.floor((now - date) / (1000 * 60));
+     const hours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+     if (minutes < 1) return 'Just now';
+     if (minutes < 60) return `${minutes}m ago`;
+     if (hours < 24) return `${hours}h ago`;
+     if (hours < 48) return 'Yesterday';
+     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     const featured = articles[0];
@@ -555,14 +573,17 @@ async function loadEntertainmentNews() {
     const articles = data.articles;
 
     function formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      const now = new Date();
-      const hours = Math.floor((now - date) / (1000 * 60 * 60));
-      if (hours < 1) return 'Just now';
-      if (hours < 24) return `${hours}h ago`;
-      if (hours < 48) return 'Yesterday';
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+     if (!dateString) return '';
+     const date = new Date(dateString);
+     const now = new Date();
+     const minutes = Math.floor((now - date) / (1000 * 60));
+     const hours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+     if (minutes < 1) return 'Just now';
+     if (minutes < 60) return `${minutes}m ago`;
+     if (hours < 24) return `${hours}h ago`;
+     if (hours < 48) return 'Yesterday';
+     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     const featured = articles[0];
@@ -629,14 +650,17 @@ async function loadTechnologyNews() {
     const articles = data.articles;
 
     function formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      const now = new Date();
-      const hours = Math.floor((now - date) / (1000 * 60 * 60));
-      if (hours < 1) return 'Just now';
-      if (hours < 24) return `${hours}h ago`;
-      if (hours < 48) return 'Yesterday';
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+     if (!dateString) return '';
+     const date = new Date(dateString);
+     const now = new Date();
+     const minutes = Math.floor((now - date) / (1000 * 60));
+     const hours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+     if (minutes < 1) return 'Just now';
+     if (minutes < 60) return `${minutes}m ago`;
+     if (hours < 24) return `${hours}h ago`;
+     if (hours < 48) return 'Yesterday';
+     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     const featured = articles[0];
@@ -800,14 +824,17 @@ async function loadLocalNews() {
     const articles = data.articles;
 
     function formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      const now = new Date();
-      const hours = Math.floor((now - date) / (1000 * 60 * 60));
-      if (hours < 1) return 'Just now';
-      if (hours < 24) return `${hours}h ago`;
-      if (hours < 48) return 'Yesterday';
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+     if (!dateString) return '';
+     const date = new Date(dateString);
+     const now = new Date();
+     const minutes = Math.floor((now - date) / (1000 * 60));
+     const hours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+     if (minutes < 1) return 'Just now';
+     if (minutes < 60) return `${minutes}m ago`;
+     if (hours < 24) return `${hours}h ago`;
+     if (hours < 48) return 'Yesterday';
+     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     const featured = articles[0];

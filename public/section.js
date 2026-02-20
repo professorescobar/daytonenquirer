@@ -37,8 +37,11 @@ function formatDate(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
   const now = new Date();
+  const minutes = Math.floor((now - date) / (1000 * 60));
   const hours = Math.floor((now - date) / (1000 * 60 * 60));
-  if (hours < 1) return 'Just now';
+  
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
   if (hours < 48) return 'Yesterday';
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
