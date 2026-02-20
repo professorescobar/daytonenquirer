@@ -92,7 +92,20 @@ async function loadArticle() {
       const date = new Date(article.pubDate);
       const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      dateEl.textContent = `${dateStr} • ${timeStr}`;
+  
+      // Calculate time ago
+      const now = new Date();
+      const minutes = Math.floor((now - date) / (1000 * 60));
+      const hours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+      let timeAgo = '';
+      if (minutes < 1) timeAgo = 'Just now';
+      else if (minutes < 60) timeAgo = `${minutes}m ago`;  // Now shows exact minutes
+      else if (hours < 24) timeAgo = `${hours}h ago`;
+      else if (hours < 48) timeAgo = 'Yesterday';
+      else timeAgo = '';
+  
+      dateEl.textContent = timeAgo ? `${dateStr} • ${timeStr} • ${timeAgo}` : `${dateStr} • ${timeStr}`;
     }
 
     // Render image
