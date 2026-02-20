@@ -1093,7 +1093,7 @@ nav a:not(:last-child)::after {
 }
 
 .article-content {
-  margin-top: -1.5rem;  /* Adjust this to reduce space from ticker to category badge */
+  margin-top: -2rem;  /* Adjust this to reduce space from ticker to category badge */
 }
 
 .article-page-header {
