@@ -1138,7 +1138,7 @@ nav a:not(:last-child)::after {
 }
 
 #article-date {
-  margin-left: 0rem;
+  margin-left: -1rem;
 }
 
 .article-image-container {
