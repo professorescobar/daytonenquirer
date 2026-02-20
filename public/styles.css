@@ -1137,6 +1137,10 @@ nav a:not(:last-child)::after {
   color: #000;
 }
 
+#article-date {
+  margin-left: 0;
+}
+
 .article-image-container {
   margin-bottom: 1.5rem;
 }
