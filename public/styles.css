@@ -236,13 +236,13 @@ nav a:not(:last-child)::after {
   padding-bottom: 0.25rem;
 }
 
-.news-section {
-  margin-top: 2rem;  /* Space above each section */
+.world-news-section {
+  margin-top: 1rem;  /* Space between section boxes */
   margin-bottom: 2rem;
 }
 
-.news-section h2 {
-  margin-top: -2;  /* Space above the title */
+.world-news-title {
+  margin-top: 0;  /* Space above title */
   margin-bottom: 0.5rem;
 }
 
