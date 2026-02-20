@@ -92,7 +92,7 @@ async function loadArticle() {
       const date = new Date(article.pubDate);
       const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      dateEl.textContent = ` ${dateStr} • ${timeStr}`;
+      dateEl.textContent = `${dateStr} • ${timeStr}`;
     }
 
     // Render image
