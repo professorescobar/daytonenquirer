@@ -94,7 +94,9 @@ async function loadArticle() {
     
     if (dateEl && article.pubDate) {
       const date = new Date(article.pubDate);
-      dateEl.textContent = ` | ${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      dateEl.textContent = ` | ${dateStr} | ${timeStr}`;
     }
 
     // Render image
