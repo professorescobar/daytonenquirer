@@ -1755,5 +1755,16 @@
    "pubDate": "2026-02-20T19:24:00Z",
    "section": "business",
    "custom": true
+  },
+
+  { 
+   "title": "Markets End The Week Higher: Friday, Feb 20", 
+   "url": "markets-end-the-week-higher-friday-feb-20", 
+   "description": "U.S. equity markets finished Friday in positive territory, securing a gain to close out the trading week as investors reacted to a landmark Supreme Court ruling and fresh economic data. The <b>S&P 500</b> climbed 0.7% to finish at 6,861.89, while the <b>Nasdaq Composite</b> led the gains with a 0.9% rise to 22,682.73. The <b>Dow Jones Industrial Average</b> also moved higher, adding 0.5% to close at 49,395.16. This upward momentum followed a period of uncertainty, as market participants weighed the implications of a cooling domestic economy against a significant shift in federal trade policy.\n\nThe primary driver for Friday's session was the <b>U.S. Supreme Court’s 6-3 decision</b> to strike down broad 'reciprocal' tariffs previously enacted under the International Emergency Economic Powers Act (IEEPA). The ruling effectively removes a major layer of fiscal uncertainty for the retail and technology sectors, which had been bracing for multi-billion dollar cost increases. Shares of major importers like <b>Amazon</b>, <b>Meta</b>, and <b>Google</b> saw a relief rally following the news. While the administration has signaled a potential shift toward more targeted, country-specific trade measures, the immediate removal of these broad levies provided a clear catalyst for the day's gains.\n\nSimultaneously, the Bureau of Economic Analysis released its <b>Advance Estimate for Q4 2025 GDP</b>, revealing a significant deceleration in growth. The U.S. economy expanded at an annualized rate of 1.4% in the final quarter of the year, a sharp drop from the 4.4% growth seen in Q3. Despite this cooling, the <b>Personal Consumption Expenditures (PCE) price index</b> held steady at 2.6%. This combination of slower growth and persistent inflation suggests the Federal Reserve remains in a delicate position, as the data does not yet provide a clear mandate for immediate interest rate cuts.\n\nBeyond the headline indexes, <b>Silver (XAG/USD)</b> surged over 7.5% as industrial demand expectations shifted in light of the trade ruling. In the corporate sector, <b>Comfort Systems</b> rose 2.4% following a strong earnings report. As the market looks toward next week, the focus is shifting to the potential for 'IEEPA refunds'—the billions in tariffs already collected that may now be owed back to corporations. If these refunds materialize, they could act as a substantial liquidity injection for the private sector, potentially serving as a catalyst for future investment.", 
+   "source": "The Dayton Enquirer", 
+   "image": "https://i.imgur.com/3JWZpxa.jpeg", 
+   "pubDate": "2026-02-20T22:02:00Z", 
+   "section": "business", 
+   "custom": true 
   }
 ]
