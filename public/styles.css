@@ -242,7 +242,7 @@ nav a:not(:last-child)::after {
 }
 
 .world-news-title {
-  margin-top: 0;  /* Space above title */
+  margin-top: -1.5;  /* Space above title */
   margin-bottom: 0.5rem;
 }
 
