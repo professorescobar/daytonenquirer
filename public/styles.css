@@ -1088,7 +1088,7 @@ nav a:not(:last-child)::after {
 }
 
 #section-title {
-  margin-top: 0rem;
+  margin-top: -1rem;
 }
 
 .article-page-header {
