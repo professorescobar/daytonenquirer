@@ -499,7 +499,9 @@ nav a:not(:last-child)::after {
 
 /* More Button (full width, invisible until hover) */
 .more-button {
-  width: 100%;
+  width: calc(100% + 3rem);
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
   background: transparent;
   border: none;
   border-top: 1px solid #ddd;
