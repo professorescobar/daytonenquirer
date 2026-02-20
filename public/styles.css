@@ -223,27 +223,30 @@ nav a:not(:last-child)::after {
 .world-news-section {
   border: 1px solid #ddd;
   padding: 1.5rem;
-  padding-bottom: 0; /* Remove bottom padding for button */
-  margin: 1.5rem auto;
+  padding-bottom: 0;
+  margin-top: 1rem;  /* Space between section boxes - adjust this */
+  margin-bottom: 2rem;
+  margin-left: auto;
+  margin-right: auto;
   background: #fff;
   position: relative;
 }
 
 .world-news-title {
   font-size: 1.6rem;
-  margin-bottom: 1rem;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
   border-bottom: 2px solid #000;
   padding-bottom: 0.25rem;
 }
 
-.world-news-section {
-  margin-top: 1rem;  /* Space between section boxes */
-  margin-bottom: 2rem;
+.world-news-title a {
+  text-decoration: none;
+  color: inherit;
 }
 
-.world-news-title {
-  margin-top: -1.5;  /* Space above title */
-  margin-bottom: 0.5rem;
+.world-news-title a:hover {
+  text-decoration: underline;
 }
 
 .world-news-content {
@@ -1019,15 +1022,6 @@ nav a:not(:last-child)::after {
   .section-articles-grid {
     grid-template-columns: 1fr;
   }
-}
-
-.world-news-title a {
-  text-decoration: none;
-  color: inherit;
-}
-
-.world-news-title a:hover {
-  text-decoration: underline;
 }
 
 /* Pagination */
