@@ -100,10 +100,6 @@ nav a:not(:last-child)::after {
   border-bottom: 1px solid #ddd;
 }
 
-#section-title {
-  margin-top: 1rem;
-}
-
 /* ===============================
    CAROUSEL
 ================================ */
@@ -1089,6 +1085,10 @@ nav a:not(:last-child)::after {
 .article-page {
   max-width: 800px;
   padding: 2rem 1rem;
+}
+
+#section-title {
+  margin-top: 0rem;
 }
 
 .article-page-header {
