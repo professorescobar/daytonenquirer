@@ -222,10 +222,16 @@ async function setupArticleNavigation(currentSection) {
     
     const prevBtn = document.getElementById('prev-article');
     const nextBtn = document.getElementById('next-article');
+    const navSection = document.getElementById('article-navigation');
+    
+    // Show navigation section
+    if (navSection) navSection.removeAttribute('hidden');
     
     if (prevBtn) {
       if (prevArticle) {
-        prevBtn.href = `article.html?slug=${prevArticle.slug}`;
+        prevBtn.addEventListener('click', () => {
+          window.location.href = `article.html?slug=${prevArticle.slug}`;
+        });
         prevBtn.disabled = false;
       } else {
         prevBtn.disabled = true;
@@ -234,7 +240,9 @@ async function setupArticleNavigation(currentSection) {
     
     if (nextBtn) {
       if (nextArticle) {
-        nextBtn.href = `article.html?slug=${nextArticle.slug}`;
+        nextBtn.addEventListener('click', () => {
+          window.location.href = `article.html?slug=${nextArticle.slug}`;
+        });
         nextBtn.disabled = false;
       } else {
         nextBtn.disabled = true;
