@@ -47,11 +47,9 @@ function formatDate(dateString) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function articleLink(article) {
-  if (article.custom) {
-    return `/api/article?slug=${article.url}&og=true`;
-  }
-  return `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${sectionKey}`;
+function articleLink(article, section) {
+  // All articles now use slug-based URLs
+  return `article.html?slug=${encodeURIComponent(article.slug)}`;
 }
 
 let allArticles = [];

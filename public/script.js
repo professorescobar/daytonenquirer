@@ -108,10 +108,8 @@ async function loadCarousel() {
 // ARTICLE LINK HELPER
 // ============================
 function articleLink(article, section) {
-  if (article.custom) {
-    return `/api/article?slug=${article.url}&og=true`;
-  }
-  return `article.html?url=${encodeURIComponent(article.url)}&title=${encodeURIComponent(article.title)}&source=${encodeURIComponent(article.source)}&date=${encodeURIComponent(article.pubDate || '')}&image=${encodeURIComponent(article.image || '')}&desc=${encodeURIComponent(article.description || '')}&section=${section}`;
+  // All articles now use slug-based URLs
+  return `article.html?slug=${encodeURIComponent(article.slug)}`;
 }
 
 // ============================
