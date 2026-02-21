@@ -1777,5 +1777,16 @@
    "pubDate": "2026-02-20T22:13:00Z", 
    "section": "world", 
    "custom": true 
+  },
+
+  { 
+   "title": "DOT Orders Immediate Closure of 557 Commercial Driving Schools", 
+   "url": "dot-orders-immediate-closure-557-driving-schools", 
+   "description": "The U.S. Department of Transportation (DOT) has announced a massive enforcement action, ordering the immediate closure or removal of 557 commercial driving schools from the National Training Provider Registry (TPR). The move follows a two-month federal investigation into 'CDL mills' that officials say have been prioritizing profit over road safety.\n\nThe Federal Motor Carrier Safety Administration (FMCSA) mobilized over 300 investigators in December 2025 to conduct on-site audits of 1,426 training facilities across all 50 states. Of the schools affected, 448 were issued 'notices of proposed removal' for failing to meet federal safety and training standards, while 109 schools voluntarily withdrew from the registry immediately upon the arrival of federal investigators. Another 97 schools remain under federal scrutiny as investigators continue to review training logs and instructor credentials.\n\nTransportation Secretary Sean Duffy characterized the targeted schools as part of a 'Wild West' atmosphere in the industry. The audits revealed several critical violations, including the use of unqualified instructors who lacked proper licenses and widespread curriculum shortcuts. Investigators found that many schools were failing to provide required 'behind-the-wheel' training and skipping mandatory lessons on hazardous materials (HazMat) safety. Additionally, a significant number of closures were linked to a failure to meet the 2026 federal requirement that all CDL training and testing be conducted in English.\n\nThis enforcement action comes in the wake of several high-profile fatal crashes involving commercial drivers who were later found to have received substandard training. While the closure of 557 schools is a significant number, industry analysts suggest the impact on the national supply chain will be mitigated by a recent 10% dip in national freight volumes. The administration is now leveraging this crackdown to pressure states; those that fail to purge 'sham schools' from their state registries face the loss of millions in federal highway funds.", 
+   "source": "The Dayton Enquirer", 
+   "image": "https://i.imgur.com/55Sph2R.jpeg", 
+   "pubDate": "2026-02-21T01:13:00Z", 
+   "section": "national", 
+   "custom": true 
   }
 ]
