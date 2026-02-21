@@ -238,7 +238,7 @@ function renderFeaturedCustoms(articles) {
   
   // Get custom articles with images, sorted by date, excluding the featured article (first one)
   const customs = articles
-    .filter(a => a.custom && a.image)
+    .filter(a => a.image)  // Remove the a.custom check
     .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
     .slice(1, 7);  // Skip first (featured), take next 6
   

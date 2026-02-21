@@ -282,7 +282,7 @@ async function setupArticleNavigation(currentSection) {
     const data = await res.json();
     
     // Get all custom articles
-    const customArticles = data.articles.filter(a => a.custom);
+   const customArticles = data.articles;
     
     // Find current article index
     let currentIndex = -1;
