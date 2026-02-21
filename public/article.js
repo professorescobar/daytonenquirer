@@ -192,6 +192,8 @@ async function loadRelatedArticles(section) {
 }
 
 async function setupArticleNavigation(currentSection) {
+  console.log('setupArticleNavigation called with section:', currentSection);
+  
   try {
     const sectionConfig = {
       local: '/api/local-news',
@@ -205,47 +207,80 @@ async function setupArticleNavigation(currentSection) {
     };
     
     const apiUrl = sectionConfig[currentSection];
-    if (!apiUrl) return;
+    console.log('API URL:', apiUrl);
+    if (!apiUrl) {
+      console.log('No API URL found');
+      return;
+    }
     
     const res = await fetch(apiUrl);
-    if (!res.ok) return;
+    if (!res.ok) {
+      console.log('API fetch failed');
+      return;
+    }
     const data = await res.json();
     const articles = data.articles;
     
+    console.log('Total articles:', articles.length);
+    console.log('Current slug:', slug);
+    
     // Find current article index
     const currentIndex = articles.findIndex(a => a.slug === slug);
-    if (currentIndex === -1 || articles.length < 2) return;
+    console.log('Current index:', currentIndex);
+    
+    if (currentIndex === -1 || articles.length < 2) {
+      console.log('Not enough articles or index not found');
+      return;
+    }
     
     // Prev = newer (lower index), Next = older (higher index)
     const prevArticle = currentIndex > 0 ? articles[currentIndex - 1] : null;
     const nextArticle = currentIndex < articles.length - 1 ? articles[currentIndex + 1] : null;
     
+    console.log('Prev article:', prevArticle?.title);
+    console.log('Next article:', nextArticle?.title);
+    
     const prevBtn = document.getElementById('prev-article');
     const nextBtn = document.getElementById('next-article');
     const navSection = document.getElementById('article-navigation');
     
+    console.log('Navigation elements found:', {
+      prevBtn: !!prevBtn,
+      nextBtn: !!nextBtn,
+      navSection: !!navSection
+    });
+    
     // Show navigation section
-    if (navSection) navSection.removeAttribute('hidden');
+    if (navSection) {
+      navSection.removeAttribute('hidden');
+      console.log('Navigation section unhidden');
+    }
     
     if (prevBtn) {
       if (prevArticle) {
         prevBtn.addEventListener('click', () => {
+          console.log('Prev button clicked! Navigating to:', prevArticle.slug);
           window.location.href = `article.html?slug=${prevArticle.slug}`;
         });
         prevBtn.disabled = false;
+        console.log('Prev button enabled');
       } else {
         prevBtn.disabled = true;
+        console.log('Prev button disabled (no prev article)');
       }
     }
     
     if (nextBtn) {
       if (nextArticle) {
         nextBtn.addEventListener('click', () => {
+          console.log('Next button clicked! Navigating to:', nextArticle.slug);
           window.location.href = `article.html?slug=${nextArticle.slug}`;
         });
         nextBtn.disabled = false;
+        console.log('Next button enabled');
       } else {
         nextBtn.disabled = true;
+        console.log('Next button disabled (no next article)');
       }
     }
   } catch (err) {
