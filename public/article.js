@@ -220,8 +220,8 @@ async function loadRelatedArticles(section) {
 
     const data = await res.json();
     
-    // Filter to ONLY custom articles with images
-    let articles = data.articles.filter(a => a.custom && a.image);
+    // Filter to articles with images
+    let articles = data.articles.filter(a => a.image);
     
     // Filter out current article
     if (slug) {
