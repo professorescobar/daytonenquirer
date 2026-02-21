@@ -272,54 +272,48 @@ async function setupArticleNavigation(currentSection) {
       entertainment: '/api/entertainment-news',
       technology: '/api/technology-news'
     };
-
     const apiUrl = sectionConfig[currentSection];
     if (!apiUrl) return;
-
     const res = await fetch(apiUrl);
     if (!res.ok) return;
-
     const data = await res.json();
     
-    // Get all custom articles
-    const customArticles = data.articles.filter(a => a.custom);
+    // Get all articles
+    const articles = data.articles;
     
     // Find current article index
     let currentIndex = -1;
     if (slug) {
-      currentIndex = customArticles.findIndex(a => a.url === slug);
+      currentIndex = articles.findIndex(a => a.slug === slug);
     }
     
-    if (currentIndex === -1 || customArticles.length < 2) return;
-
-    // Show navigation
-    const navSection = document.getElementById('article-navigation');
-    if (navSection) navSection.removeAttribute('hidden');
-
+    if (currentIndex === -1 || articles.length < 2) return;
+    
+    // Get prev and next articles
+    const prevArticle = currentIndex < articles.length - 1 ? articles[currentIndex + 1] : null;
+    const nextArticle = currentIndex > 0 ? articles[currentIndex - 1] : null;
+    
     // Setup buttons
     const prevBtn = document.getElementById('prev-article');
     const nextBtn = document.getElementById('next-article');
-
-    // Previous article (newer)
-    if (currentIndex > 0) {
-      const prevArticle = customArticles[currentIndex - 1];
-      prevBtn.onclick = () => {
-        window.location.href = `/api/article?slug=${prevArticle.url}&og=true`;
-      };
-    } else {
-      prevBtn.disabled = true;
+    
+    if (prevBtn) {
+      if (prevArticle) {
+        prevBtn.onclick = () => window.location.href = `article.html?slug=${prevArticle.slug}`;
+        prevBtn.disabled = false;
+      } else {
+        prevBtn.disabled = true;
+      }
     }
-
-    // Next article (older)
-    if (currentIndex < customArticles.length - 1) {
-      const nextArticle = customArticles[currentIndex + 1];
-      nextBtn.onclick = () => {
-        window.location.href = `/api/article?slug=${nextArticle.url}&og=true`;
-      };
-    } else {
-      nextBtn.disabled = true;
+    
+    if (nextBtn) {
+      if (nextArticle) {
+        nextBtn.onclick = () => window.location.href = `article.html?slug=${nextArticle.slug}`;
+        nextBtn.disabled = false;
+      } else {
+        nextBtn.disabled = true;
+      }
     }
-
   } catch (err) {
     console.error('Navigation setup error:', err);
   }
