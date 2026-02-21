@@ -1,4 +1,4 @@
-const getCustomArticles = require('./custom-articles');
+const { neon } = require('@neondatabase/serverless');
 
 module.exports = async (req, res) => {
   const { slug, og } = req.query;
@@ -7,29 +7,39 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Slug required' });
   }
 
-  // Get all custom articles
-  const allCustoms = [
-    ...getCustomArticles('local'),
-    ...getCustomArticles('national'),
-    ...getCustomArticles('world'),
-    ...getCustomArticles('business'),
-    ...getCustomArticles('sports'),
-    ...getCustomArticles('health'),
-    ...getCustomArticles('entertainment'),
-    ...getCustomArticles('technology'),
-    ...getCustomArticles('all')
-  ];
-
-  // Find article by slug
-  const article = allCustoms.find(a => a.url === slug);
-
-  if (!article) {
-    return res.status(404).json({ error: 'Article not found' });
-  }
-
-  // If og=true, return HTML with Open Graph tags for social sharing
-  if (og === 'true') {
-    const html = `
+  try {
+    const sql = neon(process.env.DATABASE_URL);
+    
+    // Find article by slug
+    const results = await sql`
+      SELECT 
+        id,
+        slug,
+        title,
+        description,
+        content,
+        section,
+        image,
+        image_caption as "imageCaption",
+        image_credit as "imageCredit",
+        pub_date as "pubDate"
+      FROM articles
+      WHERE slug = ${slug} AND status = 'published'
+      LIMIT 1
+    `;
+    
+    if (!results || results.length === 0) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
+    
+    const article = results[0];
+    
+    // Add url field for compatibility with frontend
+    article.url = article.slug;
+    
+    // If og=true, return HTML with Open Graph tags for social sharing
+    if (og === 'true') {
+      const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -65,15 +75,19 @@ module.exports = async (req, res) => {
   </main>
 </body>
 </html>
-    `;
-
-    res.setHeader('Content-Type', 'text/html');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    return res.status(200).send(html);
+      `;
+      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      return res.status(200).send(html);
+    }
+    
+    // Otherwise return JSON
+    res.status(200).json({ article });
+    
+  } catch (error) {
+    console.error('Article fetch error:', error);
+    return res.status(500).json({ error: 'Failed to fetch article' });
   }
-
-  // Otherwise return JSON
-  res.status(200).json({ article });
 };
