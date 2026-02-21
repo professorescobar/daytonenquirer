@@ -102,6 +102,7 @@ async function loadArticle() {
     loadRelatedArticles(article.section);
 
     // Setup prev/next navigation
+    console.log('About to call setupArticleNavigation with:', article.section);
     setupArticleNavigation(article.section);
 
   } catch (err) {
