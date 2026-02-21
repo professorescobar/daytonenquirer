@@ -1,30 +1,30 @@
-const getCustomArticles = require('./custom-articles');
+const { neon } = require('@neondatabase/serverless');
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
+  const sql = neon(process.env.DATABASE_URL);
+  
   try {
-    // Get custom articles for this section
-    const customArticles = getCustomArticles('technology');
+    // Get all published articles for technology section, sorted by date
+    const articles = await sql`
+      SELECT 
+        id,
+        slug,
+        title,
+        description,
+        content,
+        section,
+        image,
+        image_caption as "imageCaption",
+        image_credit as "imageCredit",
+        pub_date as "pubDate"
+      FROM articles
+      WHERE section = 'technology' AND status = 'published'
+      ORDER BY pub_date DESC
+    `;
     
-    // Sort by date (most recent first)
-    customArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
-    // Featured article = most recent with image
-    const featuredArticle = customArticles.find(a => a.image);
-
-    // Remaining articles for headlines
-    const headlines = customArticles.filter(a => a !== featuredArticle);
-
-    // Final articles array: featured first, then headlines
-    const articles = featuredArticle 
-      ? [featuredArticle, ...headlines] 
-      : customArticles;
-
-    res.status(200).json({ 
-      articles, 
-      articleCount: articles.length
-    });
-  } catch (err) {
-    console.error("Full error:", err);
-    res.status(500).json({ error: "Failed to fetch articles", details: err.message });
+    res.json({ articles });
+  } catch (error) {
+    console.error('Database error:', error);
+    res.status(500).json({ error: 'Failed to fetch articles' });
   }
-};
+}
