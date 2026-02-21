@@ -138,13 +138,9 @@ async function loadArticle() {
     const readFullBtn = document.getElementById('article-read-full');
     const sourceNameEl = document.getElementById('article-source-name');
     
-    if (readFullBtn && sourceNameEl) {
-      if (article.custom) {
-        readFullBtn.setAttribute('hidden', '');
-      } else {
-        readFullBtn.href = article.url;
-        sourceNameEl.textContent = article.source;
-      }
+    if (readFullBtn) {
+      // All articles from database are "custom" - always hide the button
+      readFullBtn.setAttribute('hidden', '');
     }
 
     // Show related articles section
@@ -158,9 +154,7 @@ async function loadArticle() {
     loadRelatedArticles(article.section);
 
      // Setup prev/next navigation
-    if (article.custom) {
-      setupArticleNavigation(article.section);
-    }
+     setupArticleNavigation(article.section);
 
   } catch (err) {
     console.error('Article load error:', err);
@@ -225,9 +219,9 @@ async function loadRelatedArticles(section) {
     
     // Filter out current article
     if (slug) {
-      articles = articles.filter(a => a.url !== slug);
+      articles = articles.filter(a => a.slug !== slug);
     } else if (oldUrl) {
-      articles = articles.filter(a => a.url !== decodeURIComponent(oldUrl));
+      articles = articles.filter(a => a.slug !== decodeURIComponent(oldUrl));
     }
     
     articles = articles.slice(0, 6);
@@ -245,7 +239,7 @@ async function loadRelatedArticles(section) {
       const card = document.createElement('div');
       card.className = 'bottom-article-card';
       card.innerHTML = `
-        <a href="/api/article?slug=${article.url}&og=true">
+        <a href="article.html?slug=${article.slug}">
           <img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">
           <h4>${article.title}</h4>
           <div class="article-meta">
