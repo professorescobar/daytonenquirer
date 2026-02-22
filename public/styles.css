@@ -40,7 +40,7 @@ img {
 .news-header {
   background: #fff;
   border-bottom: 2px solid #ddd;
-  padding: 1rem 0 1rem 0;
+  padding: 0 0 1rem 0;
 }
 
 .header-inner {
@@ -297,8 +297,8 @@ nav a:not(:last-child)::after {
   line-height: 1.4;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-  max-width: 97%;
-  text-wrap: balance;
+  max-width: 94%;
+  white-space: normal;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
