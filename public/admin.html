@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Draft Admin | The Dayton Enquirer</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+  <header class="news-header">
+    <div class="container header-inner">
+      <div class="logo">
+        <a href="/index.html"><h1>The Dayton Enquirer</h1></a>
+      </div>
+      <nav>
+        <a href="/index.html">Home</a>
+        <a href="/admin.html">Draft Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container admin-page">
+    <section id="admin-lock" class="admin-panel admin-lock">
+      <h2>Admin Access Required</h2>
+      <p class="hint">Enter your admin UI password to unlock this page.</p>
+      <div class="admin-grid single">
+        <label>
+          Admin UI Password
+          <input id="admin-ui-password" type="password" placeholder="Enter password" />
+        </label>
+      </div>
+      <div class="admin-actions">
+        <button id="unlock-admin-btn" class="btn btn-primary">Unlock Admin</button>
+      </div>
+    </section>
+
+    <section id="admin-app" hidden>
+    <section class="admin-panel">
+      <h2>Draft Operations</h2>
+      <p class="hint">Use your admin token to generate, review, edit, and publish AI drafts.</p>
+
+      <div class="admin-grid">
+        <label>
+          Admin Token
+          <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
+        </label>
+        <label>
+          Status Filter
+          <select id="status-filter">
+            <option value="pending_review" selected>pending_review</option>
+            <option value="published">published</option>
+            <option value="all">all</option>
+          </select>
+        </label>
+        <label>
+          List Limit
+          <input id="list-limit" type="number" min="1" max="200" value="25" />
+        </label>
+      </div>
+
+      <div class="admin-actions">
+        <button id="save-token-btn" class="btn">Save Token</button>
+        <button id="load-drafts-btn" class="btn">Load Drafts</button>
+      </div>
+    </section>
+
+    <section class="admin-panel">
+      <h3>Manual Draft Generation</h3>
+      <div class="admin-grid">
+        <label>
+          Count
+          <input id="gen-count" type="number" min="1" max="20" value="3" />
+        </label>
+        <label>
+          Include Sections (comma list)
+          <input id="gen-include" type="text" placeholder="local,national,world" />
+        </label>
+        <label>
+          Exclude Sections (comma list)
+          <input id="gen-exclude" type="text" placeholder="health,entertainment,technology" />
+        </label>
+      </div>
+      <div class="admin-actions">
+        <button id="generate-btn" class="btn btn-primary">Generate Drafts</button>
+      </div>
+    </section>
+
+    <section class="admin-panel">
+      <h3>Draft Queue</h3>
+      <div id="admin-message" class="message" hidden></div>
+      <div id="draft-list" class="draft-list"></div>
+    </section>
+    </section>
+  </main>
+
+  <script src="/admin.js"></script>
+</body>
+</html>
