@@ -336,7 +336,7 @@ async function generateDrafts() {
     const count = encodeURIComponent(genCountInput.value || '3');
     const includeSections = encodeURIComponent((genIncludeInput.value || '').trim());
     const excludeSections = encodeURIComponent((genExcludeInput.value || '').trim());
-    const url = `/api/admin-generate-drafts?count=${count}&includeSections=${includeSections}&excludeSections=${excludeSections}`;
+    const url = `/api/admin-generate-drafts?count=${count}&includeSections=${includeSections}&excludeSections=${excludeSections}&runMode=manual`;
     const data = await apiRequest(url, { method: 'POST' });
     setMessage(`Generated ${data.createdCount || 0} draft(s), skipped ${data.skippedCount || 0}.`);
     await loadUsageDashboard();

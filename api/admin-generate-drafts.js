@@ -1388,7 +1388,12 @@ module.exports = async (req, res) => {
   const dryRun = String(req.body?.dryRun || req.query.dryRun || 'false') === 'true';
   const dailyTokenBudgetOverride = req.body?.dailyTokenBudget || req.query.dailyTokenBudget;
   const scheduleMode = String(req.body?.schedule || req.query.schedule || '').toLowerCase();
+  const requestedRunMode = String(req.body?.runMode || req.query.runMode || 'auto').toLowerCase();
   const track = String(req.body?.track || req.query.track || '').toLowerCase();
+  const runMode = scheduleMode === 'auto'
+    ? 'auto'
+    : (requestedRunMode === 'manual' ? 'manual' : 'auto');
+  const createdVia = runMode === 'manual' ? 'manual' : 'auto';
   const includeSections = parseSectionList(req.body?.includeSections || req.query.includeSections);
   const excludeSections = parseSectionList(req.body?.excludeSections || req.query.excludeSections);
   const activeSections = resolveActiveSections(includeSections, excludeSections);
@@ -1439,7 +1444,7 @@ module.exports = async (req, res) => {
         AND created_via = 'auto'
     `;
     const tokensUsedToday = todayTokensRows?.[0]?.tokens || 0;
-    if (!dryRun && tokensUsedToday >= dailyTokenBudget) {
+    if (!dryRun && runMode === 'auto' && tokensUsedToday >= dailyTokenBudget) {
       return res.status(200).json({
         ok: true,
         skipped: true,
@@ -1466,7 +1471,9 @@ module.exports = async (req, res) => {
       }
     }
 
-    const targetCount = dryRun ? requestedCount : Math.min(requestedCount, remainingToday);
+    const targetCount = dryRun
+      ? requestedCount
+      : (runMode === 'manual' ? requestedCount : Math.min(requestedCount, remainingToday));
 
     if (targetCount <= 0) {
       return res.status(200).json({
@@ -1486,7 +1493,15 @@ module.exports = async (req, res) => {
       });
     }
 
-    const runTargets = buildRunTargets(remainingBySection, targetCount, activeSections);
+    const manualRunRemainingBySection = {};
+    for (const section of SECTION_ORDER) {
+      manualRunRemainingBySection[section] = activeSections.includes(section) ? requestedCount : 0;
+    }
+    const runTargets = buildRunTargets(
+      runMode === 'manual' ? manualRunRemainingBySection : remainingBySection,
+      targetCount,
+      activeSections
+    );
     const candidates = await fetchCandidates(runTargets, activeSections, sportsFocusMode, etTime);
     const created = [];
     const skipped = [];
@@ -1633,7 +1648,7 @@ module.exports = async (req, res) => {
     }
 
     for (const candidate of candidates) {
-      if (!dryRun && (tokensUsedToday + runTokensConsumed) >= dailyTokenBudget) {
+      if (!dryRun && runMode === 'auto' && (tokensUsedToday + runTokensConsumed) >= dailyTokenBudget) {
         skipped.push({ reason: 'daily_token_budget_reached', title: candidate.title, url: candidate.url });
         break;
       }
@@ -1966,7 +1981,7 @@ module.exports = async (req, res) => {
             ${draft.inputTokens || 0},
             ${draft.outputTokens || 0},
             ${draft.totalTokens || 0},
-            'auto',
+            ${createdVia},
             'pending_review'
           )
           ON CONFLICT (slug) DO NOTHING
@@ -2038,6 +2053,8 @@ module.exports = async (req, res) => {
       tokensUsedAfterRun: tokensUsedToday + runTokensConsumed,
       scheduleMode,
       track,
+      runMode,
+      createdVia,
       sportsFocusMode,
       etDate,
       etTime,
