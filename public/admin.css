@@ -78,6 +78,15 @@
   background: #222;
 }
 
+.btn-danger {
+  border-color: #8b1a1a;
+  color: #8b1a1a;
+}
+
+.btn-danger:hover {
+  background: #fff0f0;
+}
+
 .message {
   background: #f0f4ff;
   border: 1px solid #b0c4ff;

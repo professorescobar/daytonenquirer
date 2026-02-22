@@ -189,6 +189,7 @@ function renderDrafts(drafts) {
       <div class="draft-actions">
         <button class="btn btn-save">Save Draft</button>
         <button class="btn btn-primary btn-publish">Publish Draft</button>
+        <button class="btn btn-danger btn-delete">Delete Draft</button>
       </div>
     </article>
   `).join('');
@@ -298,6 +299,15 @@ async function publishDraft(card) {
   });
 }
 
+async function deleteDraft(card) {
+  const id = Number(card.dataset.id);
+  await apiRequest('/api/admin-delete-draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+}
+
 function onDraftListClick(event) {
   const button = event.target.closest('button');
   if (!button) return;
@@ -318,6 +328,18 @@ function onDraftListClick(event) {
         await loadDrafts();
       })
       .catch((err) => setMessage(`Publish failed: ${err.message}`));
+  }
+
+  if (button.classList.contains('btn-delete')) {
+    const ok = window.confirm(`Delete draft #${card.dataset.id}? This cannot be undone.`);
+    if (!ok) return;
+
+    deleteDraft(card)
+      .then(async () => {
+        setMessage(`Draft #${card.dataset.id} deleted.`);
+        await loadDrafts();
+      })
+      .catch((err) => setMessage(`Delete failed: ${err.message}`));
   }
 }
 
