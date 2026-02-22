@@ -30,6 +30,9 @@ let loadedArticles = [];
 let lastTotalCount = 0;
 let totalAllArticles = 0;
 const ET_TIME_ZONE = 'America/New_York';
+const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
+const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
+const CLOUDINARY_WIDTH = 1600;
 
 function setMessage(text) {
   messageEl.hidden = !text;
@@ -182,6 +185,68 @@ function sectionSelectHtml(selected) {
   }).join('');
 }
 
+function buildCloudinaryOptimizedUrl(publicId) {
+  const safeId = String(publicId || '')
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/f_auto,q_auto,c_limit,w_${CLOUDINARY_WIDTH}/${safeId}`;
+}
+
+async function uploadImageToCloudinary(file) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: 'POST', body: form }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error?.message || 'Upload failed');
+  }
+  if (!data.public_id) {
+    throw new Error('Upload succeeded but no public_id returned');
+  }
+  return {
+    optimizedUrl: buildCloudinaryOptimizedUrl(data.public_id),
+    secureUrl: data.secure_url || '',
+    publicId: data.public_id
+  };
+}
+
+function setUploadStatus(el, text) {
+  if (!el) return;
+  el.hidden = !text;
+  el.textContent = text || '';
+}
+
+async function handleCardImageUpload(card, file) {
+  const imageInput = card.querySelector('.field-image');
+  const status = card.querySelector('.upload-status');
+  const previewWrap = card.querySelector('.upload-preview');
+  const previewImg = card.querySelector('.upload-preview img');
+  if (!file) return;
+
+  const mime = String(file.type || '');
+  if (!mime.startsWith('image/')) {
+    setUploadStatus(status, 'Please select an image file.');
+    return;
+  }
+
+  try {
+    setUploadStatus(status, 'Uploading image...');
+    const result = await uploadImageToCloudinary(file);
+    imageInput.value = result.optimizedUrl;
+    if (previewImg) previewImg.src = result.optimizedUrl;
+    if (previewWrap) previewWrap.hidden = false;
+    setUploadStatus(status, 'Upload complete. Optimized URL applied.');
+  } catch (err) {
+    setUploadStatus(status, `Upload failed: ${err.message}`);
+  }
+}
+
 function renderArticles(articles) {
   if (!articles.length) {
     listEl.innerHTML = '<p>No published articles found.</p>';
@@ -216,6 +281,17 @@ function renderArticles(articles) {
           Image URL
           <input class="field-image" type="text" value="${escapeHtml(article.image || '')}" />
         </label>
+        <div class="full image-uploader">
+          <button type="button" class="upload-dropzone btn-reset">
+            Drop image here or click to upload
+          </button>
+          <input class="file-image" type="file" accept="image/*" hidden />
+          <p class="upload-hint">Uploads to Cloudinary and auto-fills optimized URL.</p>
+          <p class="upload-status" hidden></p>
+          <div class="upload-preview" ${article.image ? '' : 'hidden'}>
+            <img src="${escapeHtml(article.image || '')}" alt="Uploaded preview" loading="lazy" />
+          </div>
+        </div>
         <label class="full">
           Image Description / Caption
           <textarea class="field-image-caption">${escapeHtml(article.imageCaption || '')}</textarea>
@@ -340,6 +416,48 @@ function onListClick(event) {
     saveArticle(card)
       .then(() => setMessage(`Article #${card.dataset.id} saved.`))
       .catch((err) => setMessage(`Save failed: ${err.message}`));
+    return;
+  }
+
+  if (button.classList.contains('upload-dropzone')) {
+    const fileInput = card.querySelector('.file-image');
+    if (fileInput) fileInput.click();
+    return;
+  }
+}
+
+function onListChange(event) {
+  const input = event.target;
+  if (!input.classList.contains('file-image')) return;
+  const card = input.closest('.draft-card');
+  if (!card) return;
+  const file = input.files && input.files[0];
+  handleCardImageUpload(card, file);
+}
+
+function onListDragOver(event) {
+  const zone = event.target.closest('.upload-dropzone');
+  if (!zone) return;
+  event.preventDefault();
+  zone.classList.add('is-drag-over');
+}
+
+function onListDragLeave(event) {
+  const zone = event.target.closest('.upload-dropzone');
+  if (!zone) return;
+  zone.classList.remove('is-drag-over');
+}
+
+function onListDrop(event) {
+  const zone = event.target.closest('.upload-dropzone');
+  if (!zone) return;
+  event.preventDefault();
+  zone.classList.remove('is-drag-over');
+
+  const card = zone.closest('.draft-card');
+  const file = event.dataTransfer?.files?.[0];
+  if (card && file) {
+    handleCardImageUpload(card, file);
   }
 }
 
@@ -347,11 +465,15 @@ saveTokenBtn.addEventListener('click', saveToken);
 loadArticlesBtn.addEventListener('click', loadArticles);
 unlockAdminBtn.addEventListener('click', unlock);
 listEl.addEventListener('click', onListClick);
+listEl.addEventListener('change', onListChange);
+listEl.addEventListener('dragover', onListDragOver);
+listEl.addEventListener('dragleave', onListDragLeave);
+listEl.addEventListener('drop', onListDrop);
 articleSearchInput.addEventListener('input', applySearchFilter);
 showAllBtn.addEventListener('click', showAllArticles);
 limitInput.addEventListener('input', () => {
   const raw = Number(limitInput.value || 50);
-  const stepped = Math.max(25, Math.min(200, Math.round(raw / 25) * 25));
+  const stepped = Math.max(25, Math.min(5000, Math.round(raw / 25) * 25));
   if (stepped !== raw) limitInput.value = String(stepped);
 });
 

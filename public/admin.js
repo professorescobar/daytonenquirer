@@ -23,6 +23,10 @@ const usageDraftsEl = document.getElementById('usage-drafts');
 const usageBudgetInput = document.getElementById('usage-budget-input');
 const saveBudgetBtn = document.getElementById('save-budget-btn');
 
+const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
+const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
+const CLOUDINARY_WIDTH = 1600;
+
 const SECTION_OPTIONS = [
   'local',
   'national',
@@ -163,6 +167,17 @@ function renderDrafts(drafts) {
           Image URL
           <input class="field-image" type="text" value="${escapeHtml(draft.image || '')}" />
         </label>
+        <div class="full image-uploader">
+          <button type="button" class="upload-dropzone btn-reset">
+            Drop image here or click to upload
+          </button>
+          <input class="file-image" type="file" accept="image/*" hidden />
+          <p class="upload-hint">Uploads to Cloudinary and auto-fills optimized URL.</p>
+          <p class="upload-status" hidden></p>
+          <div class="upload-preview" ${draft.image ? '' : 'hidden'}>
+            <img src="${escapeHtml(draft.image || '')}" alt="Uploaded preview" loading="lazy" />
+          </div>
+        </div>
         <label class="full">
           Image Description / Caption
           <textarea class="field-image-caption">${escapeHtml(draft.imageCaption || '')}</textarea>
@@ -193,6 +208,75 @@ function renderDrafts(drafts) {
       </div>
     </article>
   `).join('');
+}
+
+function buildCloudinaryOptimizedUrl(publicId) {
+  const safeId = String(publicId || '')
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/f_auto,q_auto,c_limit,w_${CLOUDINARY_WIDTH}/${safeId}`;
+}
+
+async function uploadImageToCloudinary(file) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: 'POST', body: form }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error?.message || 'Upload failed');
+  }
+  if (!data.public_id) {
+    throw new Error('Upload succeeded but no public_id returned');
+  }
+  return {
+    optimizedUrl: buildCloudinaryOptimizedUrl(data.public_id),
+    secureUrl: data.secure_url || '',
+    publicId: data.public_id
+  };
+}
+
+function getUploadElements(card) {
+  return {
+    imageInput: card.querySelector('.field-image'),
+    fileInput: card.querySelector('.file-image'),
+    status: card.querySelector('.upload-status'),
+    previewWrap: card.querySelector('.upload-preview'),
+    previewImg: card.querySelector('.upload-preview img')
+  };
+}
+
+function setUploadStatus(el, text) {
+  if (!el) return;
+  el.hidden = !text;
+  el.textContent = text || '';
+}
+
+async function handleCardImageUpload(card, file) {
+  const { imageInput, status, previewWrap, previewImg } = getUploadElements(card);
+  if (!file) return;
+
+  const mime = String(file.type || '');
+  if (!mime.startsWith('image/')) {
+    setUploadStatus(status, 'Please select an image file.');
+    return;
+  }
+
+  try {
+    setUploadStatus(status, 'Uploading image...');
+    const result = await uploadImageToCloudinary(file);
+    imageInput.value = result.optimizedUrl;
+    if (previewImg) previewImg.src = result.optimizedUrl;
+    if (previewWrap) previewWrap.hidden = false;
+    setUploadStatus(status, 'Upload complete. Optimized URL applied.');
+  } catch (err) {
+    setUploadStatus(status, `Upload failed: ${err.message}`);
+  }
 }
 
 async function loadDrafts() {
@@ -341,6 +425,46 @@ function onDraftListClick(event) {
       })
       .catch((err) => setMessage(`Delete failed: ${err.message}`));
   }
+
+  if (button.classList.contains('upload-dropzone')) {
+    const fileInput = card.querySelector('.file-image');
+    if (fileInput) fileInput.click();
+  }
+}
+
+function onDraftListChange(event) {
+  const input = event.target;
+  if (!input.classList.contains('file-image')) return;
+  const card = input.closest('.draft-card');
+  if (!card) return;
+  const file = input.files && input.files[0];
+  handleCardImageUpload(card, file);
+}
+
+function onDraftListDragOver(event) {
+  const zone = event.target.closest('.upload-dropzone');
+  if (!zone) return;
+  event.preventDefault();
+  zone.classList.add('is-drag-over');
+}
+
+function onDraftListDragLeave(event) {
+  const zone = event.target.closest('.upload-dropzone');
+  if (!zone) return;
+  zone.classList.remove('is-drag-over');
+}
+
+function onDraftListDrop(event) {
+  const zone = event.target.closest('.upload-dropzone');
+  if (!zone) return;
+  event.preventDefault();
+  zone.classList.remove('is-drag-over');
+
+  const card = zone.closest('.draft-card');
+  const file = event.dataTransfer?.files?.[0];
+  if (card && file) {
+    handleCardImageUpload(card, file);
+  }
 }
 
 function loadStoredToken() {
@@ -358,6 +482,10 @@ loadDraftsBtn.addEventListener('click', loadDrafts);
 generateBtn.addEventListener('click', generateDrafts);
 createDraftBtn.addEventListener('click', createManualDraft);
 draftListEl.addEventListener('click', onDraftListClick);
+draftListEl.addEventListener('change', onDraftListChange);
+draftListEl.addEventListener('dragover', onDraftListDragOver);
+draftListEl.addEventListener('dragleave', onDraftListDragLeave);
+draftListEl.addEventListener('drop', onDraftListDrop);
 unlockAdminBtn.addEventListener('click', unlockAdminUi);
 saveBudgetBtn.addEventListener('click', saveBudget);
 

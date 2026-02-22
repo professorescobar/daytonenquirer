@@ -245,6 +245,48 @@
   margin-top: 0.7rem;
 }
 
+.image-uploader {
+  border: 1px dashed #a9a9a9;
+  background: #fcfcfc;
+  padding: 0.7rem;
+}
+
+.upload-dropzone {
+  border: 1px dashed #9c9c9c;
+  background: #fff;
+  padding: 0.75rem;
+  text-align: center;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.upload-dropzone.is-drag-over {
+  background: #eef5ff;
+  border-color: #6f95e8;
+}
+
+.upload-hint {
+  color: #666;
+  font-size: 0.85rem;
+  margin-top: 0.4rem;
+}
+
+.upload-status {
+  color: #333;
+  font-size: 0.88rem;
+  margin-top: 0.35rem;
+}
+
+.upload-preview {
+  margin-top: 0.6rem;
+}
+
+.upload-preview img {
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid #ddd;
+}
+
 @media (max-width: 900px) {
   .admin-grid,
   .draft-form {
