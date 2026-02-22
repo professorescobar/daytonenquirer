@@ -113,7 +113,7 @@ function articleLink(article, section) {
 }
 
 function getSidebarHeadlineCount() {
-  return window.innerWidth <= 768 ? 4 : 3;
+  return 4;
 }
 
 // ============================
