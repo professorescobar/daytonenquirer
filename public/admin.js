@@ -149,6 +149,18 @@ function renderDrafts(drafts) {
           Content
           <textarea class="field-content">${escapeHtml(draft.content || '')}</textarea>
         </label>
+        <label class="full">
+          Image URL
+          <input class="field-image" type="text" value="${escapeHtml(draft.image || '')}" />
+        </label>
+        <label class="full">
+          Image Description / Caption
+          <textarea class="field-image-caption">${escapeHtml(draft.imageCaption || '')}</textarea>
+        </label>
+        <label class="full">
+          Image Source / Credit
+          <input class="field-image-credit" type="text" value="${escapeHtml(draft.imageCredit || '')}" />
+        </label>
         <label>
           Section
           <select class="field-section">
@@ -207,6 +219,9 @@ async function saveDraft(card) {
     title: card.querySelector('.field-title').value,
     description: card.querySelector('.field-description').value,
     content: card.querySelector('.field-content').value,
+    image: card.querySelector('.field-image').value,
+    imageCaption: card.querySelector('.field-image-caption').value,
+    imageCredit: card.querySelector('.field-image-credit').value,
     section: card.querySelector('.field-section').value,
     status: card.querySelector('.field-status').value
   };

@@ -47,6 +47,7 @@
   padding: 0.5rem;
   font-family: inherit;
   font-size: 0.95rem;
+  width: 100%;
 }
 
 .admin-actions {
@@ -113,6 +114,13 @@
 .draft-meta {
   color: #555;
   font-size: 0.9rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.draft-meta a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .draft-form {
@@ -121,12 +129,19 @@
   gap: 0.6rem;
 }
 
+.draft-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: bold;
+}
+
 .draft-form .full {
   grid-column: 1 / -1;
 }
 
 .draft-form textarea {
-  min-height: 130px;
+  min-height: 170px;
   resize: vertical;
 }
 
