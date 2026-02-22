@@ -40,7 +40,7 @@ img {
 .news-header {
   background: #fff;
   border-bottom: 2px solid #ddd;
-  padding: 1.1rem 0 1rem 0;
+  padding: 1rem 0 1rem 0;
 }
 
 .header-inner {
@@ -198,7 +198,7 @@ nav a:not(:last-child)::after {
   padding: 1.5rem;
   padding-bottom: 0;
   margin-top: 1rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
   margin-left: auto;
   margin-right: auto;
   background: #fff;
@@ -228,7 +228,7 @@ nav a:not(:last-child)::after {
   display: grid;
   grid-template-columns: minmax(0, 1.9fr) minmax(0, 1.1fr);
   gap: 0.9rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 /* ===============================
@@ -297,6 +297,8 @@ nav a:not(:last-child)::after {
   line-height: 1.4;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  max-width: 97%;
+  text-wrap: balance;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
