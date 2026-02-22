@@ -199,6 +199,11 @@ function renderDrafts(drafts) {
             <option value="published" ${draft.status === 'published' ? 'selected' : ''}>published</option>
           </select>
         </label>
+        <label class="full">
+          Publish Date (ET, optional)
+          <input class="field-publish-at-et" type="datetime-local" value="" />
+          <small class="hint">Leave blank to publish at the current time.</small>
+        </label>
       </div>
 
       <div class="draft-actions">
@@ -376,10 +381,11 @@ async function saveDraft(card) {
 
 async function publishDraft(card) {
   const id = Number(card.dataset.id);
+  const publishAtEt = card.querySelector('.field-publish-at-et')?.value || '';
   await apiRequest('/api/admin-publish-draft', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id })
+    body: JSON.stringify({ id, publishAtEt })
   });
 }
 
@@ -406,7 +412,8 @@ function onDraftListClick(event) {
   }
 
   if (button.classList.contains('btn-publish')) {
-    publishDraft(card)
+    saveDraft(card)
+      .then(() => publishDraft(card))
       .then(async () => {
         setMessage(`Draft #${card.dataset.id} published.`);
         await loadDrafts();
