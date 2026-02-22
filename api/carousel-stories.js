@@ -1,77 +1,77 @@
-const getCustomArticles = require('./custom-articles');
+const { neon } = require('@neondatabase/serverless');
 
-// Cache variables
 let cachedCarousel = null;
 let cacheTimestamp = 0;
-const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
+  const now = Date.now();
+  
+  // Return cached data if still fresh
+  if (cachedCarousel && (now - cacheTimestamp < CACHE_DURATION)) {
+    return res.json(cachedCarousel);
+  }
+
   try {
-    const now = Date.now();
+    const sql = neon(process.env.DATABASE_URL);
     
-    // Check if cache is still valid
-    if (cachedCarousel && (now - cacheTimestamp) < CACHE_DURATION) {
-      return res.status(200).json(cachedCarousel);
-    }
-
-    // Cache expired or doesn't exist, generate fresh data
     const sections = ['local', 'national', 'world', 'business', 'sports', 'health', 'entertainment', 'technology'];
-    const categoryMap = {
-      local: 'Local',
-      national: 'National',
-      world: 'World',
-      business: 'Business',
-      sports: 'Sports',
-      health: 'Health',
-      entertainment: 'Entertainment',
-      technology: 'Technology'
-    };
-
-    const carouselStories = [];
+    const stories = [];
 
     for (const section of sections) {
-      const customArticles = getCustomArticles(section);
-      
-      // Get second most recent custom article with image
-      const withImages = customArticles
-        .filter(article => article.image)
-        .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-      
-      // Use index [1] for second most recent, fall back to [0] if only one exists
-      const carouselArticle = withImages[1] || withImages[0];
-      
-      if (carouselArticle) {
-        carouselStories.push({
-          ...carouselArticle,
-          category: categoryMap[section]
+      // Get second most recent article with image from each section
+      const articles = await sql`
+        SELECT 
+          slug,
+          title,
+          description,
+          image,
+          section,
+          pub_date as "pubDate"
+        FROM articles
+        WHERE section = ${section} 
+          AND status = 'published'
+          AND image IS NOT NULL 
+          AND image != ''
+        ORDER BY pub_date DESC
+        LIMIT 2
+      `;
+
+      if (articles.length >= 2) {
+        const story = articles[1]; // Second most recent
+        stories.push({
+          title: story.title,
+          description: story.description || '',
+          image: story.image,
+          category: section.charAt(0).toUpperCase() + section.slice(1),
+          slug: story.slug,
+          section: story.section,
+          pubDate: story.pubDate
+        });
+      } else if (articles.length === 1) {
+        // Fallback to first if only one exists
+        const story = articles[0];
+        stories.push({
+          title: story.title,
+          description: story.description || '',
+          image: story.image,
+          category: section.charAt(0).toUpperCase() + section.slice(1),
+          slug: story.slug,
+          section: story.section,
+          pubDate: story.pubDate
         });
       }
     }
 
-    // Also get any "all" section articles (second most recent)
-    const allArticles = getCustomArticles('all')
-      .filter(article => article.image)
-      .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+    const result = { stories };
     
-    if (allArticles.length > 0) {
-      carouselStories.push(...allArticles.slice(0, 2));
-    }
-
-    // Sort by date, most recent first
-    carouselStories.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
-    const response = {
-      stories: carouselStories,
-      count: carouselStories.length
-    };
-
-    // Update cache
-    cachedCarousel = response;
+    // Cache the result
+    cachedCarousel = result;
     cacheTimestamp = now;
-
-    res.status(200).json(response);
-  } catch (err) {
-    console.error("Carousel error:", err);
-    res.status(500).json({ error: "Failed to fetch carousel stories" });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Carousel database error:', error);
+    res.status(500).json({ error: 'Failed to fetch carousel stories' });
   }
-};
+}
