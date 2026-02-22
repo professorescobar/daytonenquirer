@@ -145,6 +145,18 @@
   resize: vertical;
 }
 
+.draft-form .field-description {
+  min-height: 80px;
+}
+
+.draft-form .field-content {
+  min-height: 760px;
+}
+
+.draft-form .field-image-caption {
+  min-height: 90px;
+}
+
 .draft-actions {
   display: flex;
   gap: 0.5rem;
