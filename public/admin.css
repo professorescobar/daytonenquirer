@@ -170,6 +170,21 @@
   gap: 0.75rem;
 }
 
+.btn-reset {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
+.draft-toggle {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
 .draft-meta {
   color: #555;
   font-size: 0.9rem;

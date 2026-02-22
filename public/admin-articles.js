@@ -181,13 +181,16 @@ function renderArticles(articles) {
 
   listEl.innerHTML = articles.map((article) => `
     <article class="draft-card" data-id="${article.id}">
-      <div class="draft-header">
+      <button class="draft-header draft-toggle btn-reset" type="button">
         <strong>#${article.id} - ${escapeHtml(article.title || '')}</strong>
-        <span class="draft-meta">slug: ${escapeHtml(article.slug || '')}</span>
-      </div>
-      <p class="draft-meta">section: ${escapeHtml(article.section || '')} | published: ${escapeHtml(formatDate(article.pubDate))}</p>
+        <span class="draft-meta">
+          section: ${escapeHtml(article.section || '')} |
+          published: ${escapeHtml(formatDate(article.pubDate))} |
+          slug: ${escapeHtml(article.slug || '')}
+        </span>
+      </button>
 
-      <div class="draft-form">
+      <div class="draft-form article-editor" hidden>
         <label class="full">
           Title
           <input class="field-title" type="text" value="${escapeHtml(article.title || '')}" />
@@ -221,7 +224,7 @@ function renderArticles(articles) {
           <input class="field-pubdate" type="datetime-local" value="${escapeHtml(formatUtcIsoToEtLocalValue(article.pubDate))}" />
         </label>
       </div>
-      <div class="draft-actions">
+      <div class="draft-actions article-editor" hidden>
         <button class="btn btn-primary btn-save-article">Save Article</button>
       </div>
     </article>
@@ -267,10 +270,20 @@ async function saveArticle(card) {
 }
 
 function onListClick(event) {
-  const button = event.target.closest('button');
-  if (!button) return;
   const card = event.target.closest('.draft-card');
   if (!card) return;
+  const button = event.target.closest('button');
+  if (!button) return;
+
+  if (button.classList.contains('draft-toggle')) {
+    const editors = card.querySelectorAll('.article-editor');
+    const isHidden = editors[0]?.hasAttribute('hidden');
+    editors.forEach((el) => {
+      if (isHidden) el.removeAttribute('hidden');
+      else el.setAttribute('hidden', '');
+    });
+    return;
+  }
 
   if (button.classList.contains('btn-save-article')) {
     saveArticle(card)
