@@ -1,4 +1,4 @@
-const getCustomArticles = require('./custom-articles');
+const { neon } = require('@neondatabase/serverless');
 
 module.exports = async (req, res) => {
   const { slug, og } = req.query;
@@ -7,67 +7,106 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Slug required' });
   }
 
-  const getArticleSlug = (article) => article?.slug || article?.url || '';
+  try {
+    const sql = neon(process.env.DATABASE_URL);
 
-  // Get all custom articles
-  const allCustomsRaw = [
-    ...getCustomArticles('local'),
-    ...getCustomArticles('national'),
-    ...getCustomArticles('world'),
-    ...getCustomArticles('business'),
-    ...getCustomArticles('sports'),
-    ...getCustomArticles('health'),
-    ...getCustomArticles('entertainment'),
-    ...getCustomArticles('technology'),
-    ...getCustomArticles('all')
-  ];
+    const rows = await sql`
+      SELECT
+        id,
+        slug,
+        title,
+        description,
+        content,
+        section,
+        image,
+        image_caption as "imageCaption",
+        image_credit as "imageCredit",
+        pub_date as "pubDate"
+      FROM articles
+      WHERE slug = ${slug} AND status = 'published'
+      LIMIT 1
+    `;
 
-  // De-duplicate by slug/url and sort newest first for stable prev/next behavior
-  const seen = new Set();
-  const allCustoms = allCustomsRaw
-    .filter((article) => {
-      const articleSlug = getArticleSlug(article);
-      if (!articleSlug || seen.has(articleSlug)) return false;
-      seen.add(articleSlug);
-      return true;
-    })
-    .sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
+    const article = rows[0];
+    if (!article) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
 
-  // Find article by slug
-  const currentIndex = allCustoms.findIndex((a) => getArticleSlug(a) === slug);
-  const article = currentIndex !== -1 ? allCustoms[currentIndex] : null;
+    // Prev = newer in same section, Next = older in same section
+    const prevRows = await sql`
+      SELECT
+        id,
+        slug,
+        title,
+        description,
+        content,
+        section,
+        image,
+        image_caption as "imageCaption",
+        image_credit as "imageCredit",
+        pub_date as "pubDate"
+      FROM articles
+      WHERE section = ${article.section}
+        AND status = 'published'
+        AND (
+          pub_date > ${article.pubDate}
+          OR (pub_date = ${article.pubDate} AND id > ${article.id})
+        )
+      ORDER BY pub_date ASC, id ASC
+      LIMIT 1
+    `;
 
-  if (!article) {
-    return res.status(404).json({ error: 'Article not found' });
-  }
+    const nextRows = await sql`
+      SELECT
+        id,
+        slug,
+        title,
+        description,
+        content,
+        section,
+        image,
+        image_caption as "imageCaption",
+        image_credit as "imageCredit",
+        pub_date as "pubDate"
+      FROM articles
+      WHERE section = ${article.section}
+        AND status = 'published'
+        AND (
+          pub_date < ${article.pubDate}
+          OR (pub_date = ${article.pubDate} AND id < ${article.id})
+        )
+      ORDER BY pub_date DESC, id DESC
+      LIMIT 1
+    `;
 
-  // Prev = newer, Next = older
-  const prevArticle = currentIndex > 0 ? allCustoms[currentIndex - 1] : null;
-  const nextArticle = currentIndex < allCustoms.length - 1 ? allCustoms[currentIndex + 1] : null;
+    const prevArticle = prevRows[0] || null;
+    const nextArticle = nextRows[0] || null;
 
-  // If og=true, return HTML with Open Graph tags for social sharing
-  if (og === 'true') {
-    const html = `
+    // If og=true, return HTML with Open Graph tags for social sharing
+    if (og === 'true') {
+      const safeDescription = (article.description || '').slice(0, 160).replace(/"/g, '&quot;');
+      const safeTitle = (article.title || '').replace(/"/g, '&quot;');
+      const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${article.title} | The Dayton Enquirer</title>
-  <meta name="description" content="${article.description.slice(0, 160).replace(/"/g, '&quot;')}">
+  <meta name="description" content="${safeDescription}">
   
   <!-- Open Graph for Facebook/LinkedIn -->
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="The Dayton Enquirer">
-  <meta property="og:title" content="${article.title.replace(/"/g, '&quot;')}">
-  <meta property="og:description" content="${article.description.slice(0, 160).replace(/"/g, '&quot;')}">
+  <meta property="og:title" content="${safeTitle}">
+  <meta property="og:description" content="${safeDescription}">
   <meta property="og:image" content="${article.image || ''}">
   <meta property="og:url" content="https://thedaytonenquirer.com/article.html?slug=${slug}">
   
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${article.title.replace(/"/g, '&quot;')}">
-  <meta name="twitter:description" content="${article.description.slice(0, 160).replace(/"/g, '&quot;')}">
+  <meta name="twitter:title" content="${safeTitle}">
+  <meta name="twitter:description" content="${safeDescription}">
   <meta name="twitter:image" content="${article.image || ''}">
   
   <link rel="stylesheet" href="/styles.css" />
@@ -85,13 +124,17 @@ module.exports = async (req, res) => {
 </html>
     `;
 
-    res.setHeader('Content-Type', 'text/html');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    return res.status(200).send(html);
-  }
+      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      return res.status(200).send(html);
+    }
 
-  // Otherwise return JSON
-  res.status(200).json({ article, prevArticle, nextArticle });
+    // Otherwise return JSON
+    return res.status(200).json({ article, prevArticle, nextArticle });
+  } catch (error) {
+    console.error('Article API database error:', error);
+    return res.status(500).json({ error: 'Failed to fetch article' });
+  }
 };
