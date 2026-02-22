@@ -8,6 +8,38 @@ function getArticleSlug(article) {
   return article?.slug || article?.url || '';
 }
 
+function dedupeArticlesBySlug(articles) {
+  const seen = new Set();
+  const result = [];
+  for (const article of articles || []) {
+    const articleSlug = getArticleSlug(article);
+    if (!articleSlug || seen.has(articleSlug)) continue;
+    seen.add(articleSlug);
+    result.push(article);
+  }
+  return result;
+}
+
+function sortArticlesNewestFirst(articles) {
+  return [...articles].sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
+}
+
+async function fetchSectionArticles(apiUrl) {
+  const res = await fetch(apiUrl);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data.articles) ? data.articles : [];
+}
+
+async function fetchAllSectionArticles(sectionConfig) {
+  const urls = Object.values(sectionConfig);
+  const settled = await Promise.allSettled(urls.map(fetchSectionArticles));
+  const merged = settled
+    .filter(item => item.status === 'fulfilled')
+    .flatMap(item => item.value);
+  return sortArticlesNewestFirst(dedupeArticlesBySlug(merged));
+}
+
 async function loadArticle() {
   const loadingEl = document.getElementById('article-loading');
   const contentEl = document.getElementById('article-content');
@@ -216,24 +248,26 @@ async function setupArticleNavigation(currentSection) {
     
     const apiUrl = sectionConfig[currentSection];
     console.log('API URL:', apiUrl);
-    if (!apiUrl) {
-      console.log('No API URL found');
-      return;
+
+    let articles = [];
+    if (apiUrl) {
+      articles = sortArticlesNewestFirst(dedupeArticlesBySlug(await fetchSectionArticles(apiUrl)));
     }
-    
-    const res = await fetch(apiUrl);
-    if (!res.ok) {
-      console.log('API fetch failed');
-      return;
+    if (!articles.length || currentSection === 'all') {
+      console.log('Falling back to all-sections article list');
+      articles = await fetchAllSectionArticles(sectionConfig);
     }
-    const data = await res.json();
-    const articles = data.articles;
     
     console.log('Total articles:', articles.length);
     console.log('Current slug:', slug);
     
     // Find current article index
-    const currentIndex = articles.findIndex(a => getArticleSlug(a) === slug);
+    let currentIndex = articles.findIndex(a => getArticleSlug(a) === slug);
+    if (currentIndex === -1 && apiUrl) {
+      console.log('Article not found in section list, retrying against all sections');
+      articles = await fetchAllSectionArticles(sectionConfig);
+      currentIndex = articles.findIndex(a => getArticleSlug(a) === slug);
+    }
     console.log('Current index:', currentIndex);
     
     if (currentIndex === -1 || articles.length < 2) {
