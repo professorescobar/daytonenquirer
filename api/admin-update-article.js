@@ -66,7 +66,7 @@ module.exports = async (req, res) => {
         image = ${cleanText(image) || ''},
         image_caption = ${cleanText(imageCaption) || ''},
         image_credit = ${cleanText(imageCredit) || ''},
-        pub_date = ${pubDate || new Date().toISOString()},
+        pub_date = COALESCE(${pubDate || null}, pub_date),
         updated_at = NOW()
       WHERE id = ${articleId}
     `;

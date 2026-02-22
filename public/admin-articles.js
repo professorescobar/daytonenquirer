@@ -23,6 +23,7 @@ const SECTION_OPTIONS = [
 ];
 
 let unlocked = false;
+const ET_TIME_ZONE = 'America/New_York';
 
 function setMessage(text) {
   messageEl.hidden = !text;
@@ -103,6 +104,68 @@ function formatDate(dateString) {
   return d.toLocaleString();
 }
 
+function getEtPartsFromDate(date) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: ET_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  const parts = dtf.formatToParts(date);
+  const out = {};
+  for (const part of parts) {
+    if (part.type !== 'literal') out[part.type] = part.value;
+  }
+  return out;
+}
+
+function formatUtcIsoToEtLocalValue(utcIso) {
+  if (!utcIso) return '';
+  const date = new Date(utcIso);
+  if (Number.isNaN(date.getTime())) return '';
+  const p = getEtPartsFromDate(date);
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+function etLocalToUtcIso(localValue) {
+  if (!localValue) return null;
+  const match = String(localValue).match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/
+  );
+  if (!match) return null;
+
+  const [, y, mo, d, h, mi] = match;
+  const year = Number(y);
+  const month = Number(mo);
+  const day = Number(d);
+  const hour = Number(h);
+  const minute = Number(mi);
+
+  // Brute-force a 24h window around a UTC guess to find exact ET wall time.
+  const guessUtc = Date.UTC(year, month - 1, day, hour + 5, minute, 0);
+  const windowStart = guessUtc - 12 * 60 * 60 * 1000;
+  const windowEnd = guessUtc + 12 * 60 * 60 * 1000;
+
+  for (let t = windowStart; t <= windowEnd; t += 60 * 1000) {
+    const p = getEtPartsFromDate(new Date(t));
+    if (
+      Number(p.year) === year &&
+      Number(p.month) === month &&
+      Number(p.day) === day &&
+      Number(p.hour) === hour &&
+      Number(p.minute) === minute
+    ) {
+      return new Date(t).toISOString();
+    }
+  }
+
+  return null;
+}
+
 function sectionSelectHtml(selected) {
   return SECTION_OPTIONS.map((value) => {
     const isSelected = value === selected ? 'selected' : '';
@@ -154,8 +217,8 @@ function renderArticles(articles) {
           <select class="field-section">${sectionSelectHtml(article.section)}</select>
         </label>
         <label>
-          Publish Date
-          <input class="field-pubdate" type="datetime-local" value="${escapeHtml((article.pubDate || '').slice(0, 16))}" />
+          Publish Date (ET)
+          <input class="field-pubdate" type="datetime-local" value="${escapeHtml(formatUtcIsoToEtLocalValue(article.pubDate))}" />
         </label>
       </div>
       <div class="draft-actions">
@@ -181,7 +244,10 @@ async function loadArticles() {
 async function saveArticle(card) {
   const id = Number(card.dataset.id);
   const pubDateRaw = card.querySelector('.field-pubdate').value;
-  const pubDate = pubDateRaw ? new Date(pubDateRaw).toISOString() : null;
+  const pubDate = pubDateRaw ? etLocalToUtcIso(pubDateRaw) : null;
+  if (pubDateRaw && !pubDate) {
+    throw new Error('Invalid ET publish date format');
+  }
 
   await apiRequest('/api/admin-update-article', {
     method: 'POST',
