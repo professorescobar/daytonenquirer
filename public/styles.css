@@ -40,7 +40,7 @@ img {
 .news-header {
   background: #fff;
   border-bottom: 2px solid #ddd;
-  padding: 1.5rem 0;
+  padding: 1.5rem 0 1rem 0;
 }
 
 .header-inner {
@@ -197,7 +197,7 @@ nav a:not(:last-child)::after {
   padding: 1.5rem;
   padding-bottom: 0;
   margin-top: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
   margin-left: auto;
   margin-right: auto;
   background: #fff;
@@ -348,19 +348,20 @@ nav a:not(:last-child)::after {
 
   .world-news-content .headlines-sidebar ul {
     height: 100%;
-    display: grid;
-    grid-template-rows: repeat(4, minmax(0, 1fr));
-    gap: 0.1rem;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+    overflow: visible;
   }
 
   .world-news-content .headlines-sidebar li {
     margin-bottom: 0;
-    min-height: 0;
     line-height: 1.25;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
+    display: list-item;
+    overflow: visible;
+    list-style-position: outside;
   }
 
   .world-news-content .headlines-sidebar li::marker {
@@ -533,15 +534,22 @@ nav a:not(:last-child)::after {
   color: #ddd;
   margin-top: 0.5rem;
   display: grid;
-  grid-template-columns: 2.5rem 1fr;
+  grid-template-columns: 2.2rem 1fr;
   column-gap: 0.6rem;
-  align-items: end;
+  align-items: stretch;
 }
 
 .featured-overlay .article-meta .time {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  line-height: 1.05;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: normal;
   text-align: center;
-  margin-bottom: 0;
+  margin: 0;
 }
 
 .article-meta .source {
