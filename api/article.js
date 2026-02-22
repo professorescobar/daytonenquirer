@@ -7,8 +7,10 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Slug required' });
   }
 
+  const getArticleSlug = (article) => article?.slug || article?.url || '';
+
   // Get all custom articles
-  const allCustoms = [
+  const allCustomsRaw = [
     ...getCustomArticles('local'),
     ...getCustomArticles('national'),
     ...getCustomArticles('world'),
@@ -20,12 +22,28 @@ module.exports = async (req, res) => {
     ...getCustomArticles('all')
   ];
 
+  // De-duplicate by slug/url and sort newest first for stable prev/next behavior
+  const seen = new Set();
+  const allCustoms = allCustomsRaw
+    .filter((article) => {
+      const articleSlug = getArticleSlug(article);
+      if (!articleSlug || seen.has(articleSlug)) return false;
+      seen.add(articleSlug);
+      return true;
+    })
+    .sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
+
   // Find article by slug
-  const article = allCustoms.find(a => a.url === slug);
+  const currentIndex = allCustoms.findIndex((a) => getArticleSlug(a) === slug);
+  const article = currentIndex !== -1 ? allCustoms[currentIndex] : null;
 
   if (!article) {
     return res.status(404).json({ error: 'Article not found' });
   }
+
+  // Prev = newer, Next = older
+  const prevArticle = currentIndex > 0 ? allCustoms[currentIndex - 1] : null;
+  const nextArticle = currentIndex < allCustoms.length - 1 ? allCustoms[currentIndex + 1] : null;
 
   // If og=true, return HTML with Open Graph tags for social sharing
   if (og === 'true') {
@@ -75,5 +93,5 @@ module.exports = async (req, res) => {
   }
 
   // Otherwise return JSON
-  res.status(200).json({ article });
+  res.status(200).json({ article, prevArticle, nextArticle });
 };

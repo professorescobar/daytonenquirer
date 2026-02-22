@@ -137,14 +137,54 @@ async function loadArticle() {
     // Load related articles
     loadRelatedArticles(article.section);
 
-    // Setup prev/next navigation
-    console.log('About to call setupArticleNavigation with:', article.section);
-    setupArticleNavigation(article.section);
+    // Setup prev/next navigation (prefer deterministic backend neighbors)
+    setupNavigationButtons(data.prevArticle, data.nextArticle);
+    if (!data.prevArticle && !data.nextArticle) {
+      console.log('API neighbors missing, falling back to section-based navigation');
+      setupArticleNavigation(article.section);
+    }
 
   } catch (err) {
     console.error('Article load error:', err);
     if (loadingEl) loadingEl.innerHTML = '<p>Article not found.</p>';
   }
+}
+
+function setupNavigationButtons(prevArticle, nextArticle) {
+  const prevBtn = document.getElementById('prev-article');
+  const nextBtn = document.getElementById('next-article');
+  const navSection = document.getElementById('article-navigation');
+
+  if (navSection) navSection.removeAttribute('hidden');
+  if (!prevBtn || !nextBtn) return;
+
+  const prevSlug = getArticleSlug(prevArticle);
+  const nextSlug = getArticleSlug(nextArticle);
+
+  prevBtn.type = 'button';
+  nextBtn.type = 'button';
+
+  prevBtn.disabled = !prevSlug;
+  nextBtn.disabled = !nextSlug;
+
+  prevBtn.onclick = prevSlug
+    ? () => {
+        console.log('Prev button clicked! Navigating to:', prevSlug);
+        window.location.href = `article.html?slug=${encodeURIComponent(prevSlug)}`;
+      }
+    : null;
+
+  nextBtn.onclick = nextSlug
+    ? () => {
+        console.log('Next button clicked! Navigating to:', nextSlug);
+        window.location.href = `article.html?slug=${encodeURIComponent(nextSlug)}`;
+      }
+    : null;
+
+  console.log('Navigation wired:', {
+    prevEnabled: !!prevSlug,
+    nextEnabled: !!nextSlug
+  });
 }
 
 function formatDate(dateString) {
@@ -282,69 +322,7 @@ async function setupArticleNavigation(currentSection) {
     console.log('Prev article:', prevArticle?.title);
     console.log('Next article:', nextArticle?.title);
     
-    const prevBtn = document.getElementById('prev-article');
-    const nextBtn = document.getElementById('next-article');
-    const navSection = document.getElementById('article-navigation');
-    
-    console.log('Navigation elements found:', {
-      prevBtn: !!prevBtn,
-      nextBtn: !!nextBtn,
-      navSection: !!navSection
-    });
-    
-    // Show navigation section
-    if (navSection) {
-      navSection.removeAttribute('hidden');
-      console.log('Navigation section unhidden');
-    }
-    
-    if (prevBtn) {
-      prevBtn.replaceWith(prevBtn.cloneNode(true));
-    }
-    if (nextBtn) {
-      nextBtn.replaceWith(nextBtn.cloneNode(true));
-    }
-
-    const freshPrevBtn = document.getElementById('prev-article');
-    const freshNextBtn = document.getElementById('next-article');
-
-    if (freshPrevBtn) {
-      if (prevArticle) {
-        const prevSlug = getArticleSlug(prevArticle);
-        if (!prevSlug) {
-          freshPrevBtn.disabled = true;
-          return;
-        }
-        freshPrevBtn.addEventListener('click', () => {
-          console.log('Prev button clicked! Navigating to:', prevSlug);
-          window.location.href = `article.html?slug=${encodeURIComponent(prevSlug)}`;
-        });
-        freshPrevBtn.disabled = false;
-        console.log('Prev button enabled');
-      } else {
-        freshPrevBtn.disabled = true;
-        console.log('Prev button disabled (no prev article)');
-      }
-    }
-    
-    if (freshNextBtn) {
-      if (nextArticle) {
-        const nextSlug = getArticleSlug(nextArticle);
-        if (!nextSlug) {
-          freshNextBtn.disabled = true;
-          return;
-        }
-        freshNextBtn.addEventListener('click', () => {
-          console.log('Next button clicked! Navigating to:', nextSlug);
-          window.location.href = `article.html?slug=${encodeURIComponent(nextSlug)}`;
-        });
-        freshNextBtn.disabled = false;
-        console.log('Next button enabled');
-      } else {
-        freshNextBtn.disabled = true;
-        console.log('Next button disabled (no next article)');
-      }
-    }
+    setupNavigationButtons(prevArticle, nextArticle);
   } catch (err) {
     console.error('Navigation setup error:', err);
   }
