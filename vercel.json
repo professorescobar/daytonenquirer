@@ -1,4 +1,14 @@
 {
+  "crons": [
+    {
+      "path": "/api/admin-generate-drafts?schedule=auto&track=multi&count=4&excludeSections=health,entertainment,technology",
+      "schedule": "5 * * * *"
+    },
+    {
+      "path": "/api/admin-generate-drafts?schedule=auto&track=single&count=3&includeSections=health,entertainment,technology",
+      "schedule": "5 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
