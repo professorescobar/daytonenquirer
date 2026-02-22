@@ -131,6 +131,24 @@
   width: 100%;
 }
 
+.admin-page-nav {
+  display: flex;
+  gap: 0.8rem;
+  margin-bottom: 0.6rem;
+  font-weight: bold;
+}
+
+.admin-page-nav a {
+  text-decoration: none;
+  border: 1px solid #d0d0d0;
+  padding: 0.35rem 0.55rem;
+  background: #fafafa;
+}
+
+.admin-page-nav a:hover {
+  background: #f0f0f0;
+}
+
 .usage-label {
   color: #555;
   font-size: 0.82rem;

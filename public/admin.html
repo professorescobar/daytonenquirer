@@ -16,12 +16,17 @@
       <nav>
         <a href="/index.html">Home</a>
         <a href="/admin.html">Draft Admin</a>
+        <a href="/admin-articles.html">Published Editor</a>
       </nav>
     </div>
   </header>
 
   <main class="container admin-page">
     <section id="admin-lock" class="admin-panel admin-lock">
+      <div class="admin-page-nav">
+        <a href="/admin.html">Draft Admin</a>
+        <a href="/admin-articles.html">Published Editor</a>
+      </div>
       <h2>Admin Access Required</h2>
       <p class="hint">Enter your admin UI password to unlock this page.</p>
       <div class="admin-grid single">
@@ -36,6 +41,12 @@
     </section>
 
     <section id="admin-app" hidden>
+    <section class="admin-panel">
+      <div class="admin-page-nav">
+        <a href="/admin.html">Draft Admin</a>
+        <a href="/admin-articles.html">Published Editor</a>
+      </div>
+    </section>
     <section class="admin-panel">
       <h3>Token Budget Dashboard</h3>
       <div class="usage-grid">
@@ -143,6 +154,7 @@
       <div id="admin-message" class="message" hidden></div>
       <div id="draft-list" class="draft-list"></div>
     </section>
+
     </section>
   </main>
 

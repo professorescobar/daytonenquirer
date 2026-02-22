@@ -1,0 +1,222 @@
+const lockSection = document.getElementById('article-lock');
+const appSection = document.getElementById('article-app');
+const adminUiPasswordInput = document.getElementById('admin-ui-password');
+const unlockAdminBtn = document.getElementById('unlock-admin-btn');
+
+const tokenInput = document.getElementById('admin-token');
+const sectionFilterInput = document.getElementById('article-section-filter');
+const limitInput = document.getElementById('article-list-limit');
+const saveTokenBtn = document.getElementById('save-token-btn');
+const loadArticlesBtn = document.getElementById('load-articles-btn');
+const messageEl = document.getElementById('admin-message');
+const listEl = document.getElementById('article-list');
+
+const SECTION_OPTIONS = [
+  'local',
+  'national',
+  'world',
+  'business',
+  'sports',
+  'health',
+  'entertainment',
+  'technology'
+];
+
+let unlocked = false;
+
+function setMessage(text) {
+  messageEl.hidden = !text;
+  messageEl.textContent = text || '';
+}
+
+function getToken() {
+  return (tokenInput.value || '').trim();
+}
+
+function setLockState(value) {
+  unlocked = value;
+  lockSection.hidden = value;
+  appSection.hidden = !value;
+}
+
+async function unlock() {
+  try {
+    const password = (adminUiPasswordInput.value || '').trim();
+    if (!password) throw new Error('Enter admin UI password');
+
+    const res = await fetch('/api/admin-ui-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Unlock failed');
+
+    sessionStorage.setItem('de_admin_unlocked_articles', '1');
+    setLockState(true);
+    setMessage('Editor unlocked.');
+  } catch (err) {
+    setMessage(`Unlock failed: ${err.message}`);
+  }
+}
+
+async function apiRequest(url, options = {}) {
+  if (!unlocked) throw new Error('Editor is locked');
+  const token = getToken();
+  if (!token) throw new Error('Missing admin token');
+
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      'x-admin-token': token,
+      ...(options.headers || {})
+    }
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+function saveToken() {
+  localStorage.setItem('de_admin_token', getToken());
+  setMessage('Token saved.');
+}
+
+function loadToken() {
+  const token = localStorage.getItem('de_admin_token') || '';
+  if (token) tokenInput.value = token;
+}
+
+function escapeHtml(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatDate(dateString) {
+  if (!dateString) return '';
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return dateString;
+  return d.toLocaleString();
+}
+
+function sectionSelectHtml(selected) {
+  return SECTION_OPTIONS.map((value) => {
+    const isSelected = value === selected ? 'selected' : '';
+    return `<option value="${value}" ${isSelected}>${value}</option>`;
+  }).join('');
+}
+
+function renderArticles(articles) {
+  if (!articles.length) {
+    listEl.innerHTML = '<p>No published articles found.</p>';
+    return;
+  }
+
+  listEl.innerHTML = articles.map((article) => `
+    <article class="draft-card" data-id="${article.id}">
+      <div class="draft-header">
+        <strong>#${article.id} - ${escapeHtml(article.title || '')}</strong>
+        <span class="draft-meta">slug: ${escapeHtml(article.slug || '')}</span>
+      </div>
+      <p class="draft-meta">section: ${escapeHtml(article.section || '')} | published: ${escapeHtml(formatDate(article.pubDate))}</p>
+
+      <div class="draft-form">
+        <label class="full">
+          Title
+          <input class="field-title" type="text" value="${escapeHtml(article.title || '')}" />
+        </label>
+        <label class="full">
+          Description
+          <textarea class="field-description">${escapeHtml(article.description || '')}</textarea>
+        </label>
+        <label class="full">
+          Content
+          <textarea class="field-content">${escapeHtml(article.content || '')}</textarea>
+        </label>
+        <label class="full">
+          Image URL
+          <input class="field-image" type="text" value="${escapeHtml(article.image || '')}" />
+        </label>
+        <label class="full">
+          Image Description / Caption
+          <textarea class="field-image-caption">${escapeHtml(article.imageCaption || '')}</textarea>
+        </label>
+        <label class="full">
+          Image Source / Credit
+          <input class="field-image-credit" type="text" value="${escapeHtml(article.imageCredit || '')}" />
+        </label>
+        <label>
+          Section
+          <select class="field-section">${sectionSelectHtml(article.section)}</select>
+        </label>
+        <label>
+          Publish Date
+          <input class="field-pubdate" type="datetime-local" value="${escapeHtml((article.pubDate || '').slice(0, 16))}" />
+        </label>
+      </div>
+      <div class="draft-actions">
+        <button class="btn btn-primary btn-save-article">Save Article</button>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function loadArticles() {
+  try {
+    setMessage('Loading published articles...');
+    const section = encodeURIComponent(sectionFilterInput.value || 'all');
+    const limit = encodeURIComponent(limitInput.value || '20');
+    const data = await apiRequest(`/api/admin-articles?section=${section}&limit=${limit}`);
+    renderArticles(data.articles || []);
+    setMessage(`Loaded ${data.count || 0} article(s).`);
+  } catch (err) {
+    setMessage(`Load failed: ${err.message}`);
+  }
+}
+
+async function saveArticle(card) {
+  const id = Number(card.dataset.id);
+  const pubDateRaw = card.querySelector('.field-pubdate').value;
+  const pubDate = pubDateRaw ? new Date(pubDateRaw).toISOString() : null;
+
+  await apiRequest('/api/admin-update-article', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id,
+      title: card.querySelector('.field-title').value,
+      description: card.querySelector('.field-description').value,
+      content: card.querySelector('.field-content').value,
+      section: card.querySelector('.field-section').value,
+      image: card.querySelector('.field-image').value,
+      imageCaption: card.querySelector('.field-image-caption').value,
+      imageCredit: card.querySelector('.field-image-credit').value,
+      pubDate
+    })
+  });
+}
+
+function onListClick(event) {
+  const button = event.target.closest('button');
+  if (!button) return;
+  const card = event.target.closest('.draft-card');
+  if (!card) return;
+
+  if (button.classList.contains('btn-save-article')) {
+    saveArticle(card)
+      .then(() => setMessage(`Article #${card.dataset.id} saved.`))
+      .catch((err) => setMessage(`Save failed: ${err.message}`));
+  }
+}
+
+saveTokenBtn.addEventListener('click', saveToken);
+loadArticlesBtn.addEventListener('click', loadArticles);
+unlockAdminBtn.addEventListener('click', unlock);
+listEl.addEventListener('click', onListClick);
+
+loadToken();
+setLockState(sessionStorage.getItem('de_admin_unlocked_articles') === '1');

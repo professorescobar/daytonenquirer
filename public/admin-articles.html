@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Published Editor | The Dayton Enquirer</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+  <header class="news-header">
+    <div class="container header-inner">
+      <div class="logo">
+        <a href="/index.html"><h1>The Dayton Enquirer</h1></a>
+      </div>
+      <nav>
+        <a href="/index.html">Home</a>
+        <a href="/admin.html">Draft Admin</a>
+        <a href="/admin-articles.html">Published Editor</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container admin-page">
+    <section id="article-lock" class="admin-panel admin-lock">
+      <div class="admin-page-nav">
+        <a href="/admin.html">Draft Admin</a>
+        <a href="/admin-articles.html">Published Editor</a>
+      </div>
+      <h2>Admin Access Required</h2>
+      <p class="hint">Enter your admin UI password to unlock this page.</p>
+      <div class="admin-grid single">
+        <label>
+          Admin UI Password
+          <input id="admin-ui-password" type="password" placeholder="Enter password" />
+        </label>
+      </div>
+      <div class="admin-actions">
+        <button id="unlock-admin-btn" class="btn btn-primary">Unlock Editor</button>
+      </div>
+    </section>
+
+    <section id="article-app" hidden>
+      <section class="admin-panel">
+        <div class="admin-page-nav">
+          <a href="/admin.html">Draft Admin</a>
+          <a href="/admin-articles.html">Published Editor</a>
+        </div>
+      </section>
+      <section class="admin-panel">
+        <h2>Published Articles Editor</h2>
+        <p class="hint">Edit existing published articles directly.</p>
+        <div class="admin-grid">
+          <label>
+            Admin Token
+            <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
+          </label>
+          <label>
+            Section Filter
+            <select id="article-section-filter">
+              <option value="all" selected>all</option>
+              <option value="local">local</option>
+              <option value="national">national</option>
+              <option value="world">world</option>
+              <option value="business">business</option>
+              <option value="sports">sports</option>
+              <option value="health">health</option>
+              <option value="entertainment">entertainment</option>
+              <option value="technology">technology</option>
+            </select>
+          </label>
+          <label>
+            List Limit
+            <input id="article-list-limit" type="number" min="1" max="200" value="20" />
+          </label>
+        </div>
+        <div class="admin-actions">
+          <button id="save-token-btn" class="btn">Save Token</button>
+          <button id="load-articles-btn" class="btn btn-primary">Load Published Articles</button>
+        </div>
+      </section>
+
+      <section class="admin-panel">
+        <div id="admin-message" class="message" hidden></div>
+        <div id="article-list" class="draft-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/admin-articles.js"></script>
+</body>
+</html>
