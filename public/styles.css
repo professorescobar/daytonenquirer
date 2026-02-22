@@ -333,16 +333,19 @@ nav a:not(:last-child)::after {
 
   .world-news-content .headlines-sidebar ul {
     height: 100%;
-    display: grid;
-    grid-template-rows: repeat(4, minmax(0, 1fr));
-    gap: 0.35rem;
+    display: block;
+    overflow: hidden;
   }
 
   .world-news-content .headlines-sidebar li {
-    margin-bottom: 0;
-    min-height: 0;
+    margin-bottom: 0.35rem;
+    max-height: 84px;
     overflow: hidden;
     line-height: 1.25;
+  }
+
+  .world-news-content .headlines-sidebar li:last-child {
+    margin-bottom: 0;
   }
 
   .world-news-content .headlines-sidebar a {
