@@ -8,6 +8,7 @@ const sectionFilterInput = document.getElementById('article-section-filter');
 const limitInput = document.getElementById('article-list-limit');
 const saveTokenBtn = document.getElementById('save-token-btn');
 const loadArticlesBtn = document.getElementById('load-articles-btn');
+const articleSearchInput = document.getElementById('article-search');
 const messageEl = document.getElementById('admin-message');
 const listEl = document.getElementById('article-list');
 
@@ -23,6 +24,7 @@ const SECTION_OPTIONS = [
 ];
 
 let unlocked = false;
+let loadedArticles = [];
 const ET_TIME_ZONE = 'America/New_York';
 
 function setMessage(text) {
@@ -190,7 +192,7 @@ function renderArticles(articles) {
         </span>
       </button>
 
-      <div class="draft-form article-editor" hidden>
+      <div class="draft-form article-editor is-collapsed" hidden>
         <label class="full">
           Title
           <input class="field-title" type="text" value="${escapeHtml(article.title || '')}" />
@@ -224,11 +226,30 @@ function renderArticles(articles) {
           <input class="field-pubdate" type="datetime-local" value="${escapeHtml(formatUtcIsoToEtLocalValue(article.pubDate))}" />
         </label>
       </div>
-      <div class="draft-actions article-editor" hidden>
+      <div class="draft-actions article-editor is-collapsed" hidden>
         <button class="btn btn-primary btn-save-article">Save Article</button>
       </div>
     </article>
   `).join('');
+}
+
+function articleSearchHaystack(article) {
+  const title = String(article.title || '').toLowerCase();
+  const section = String(article.section || '').toLowerCase();
+  const slug = String(article.slug || '').toLowerCase();
+  const iso = String(article.pubDate || '').toLowerCase();
+  const pretty = String(formatDate(article.pubDate) || '').toLowerCase();
+  return `${title} ${section} ${slug} ${iso} ${pretty}`;
+}
+
+function applySearchFilter() {
+  const q = String(articleSearchInput.value || '').trim().toLowerCase();
+  if (!q) {
+    renderArticles(loadedArticles);
+    return;
+  }
+  const filtered = loadedArticles.filter((a) => articleSearchHaystack(a).includes(q));
+  renderArticles(filtered);
 }
 
 async function loadArticles() {
@@ -237,7 +258,8 @@ async function loadArticles() {
     const section = encodeURIComponent(sectionFilterInput.value || 'all');
     const limit = encodeURIComponent(limitInput.value || '20');
     const data = await apiRequest(`/api/admin-articles?section=${section}&limit=${limit}`);
-    renderArticles(data.articles || []);
+    loadedArticles = data.articles || [];
+    applySearchFilter();
     setMessage(`Loaded ${data.count || 0} article(s).`);
   } catch (err) {
     setMessage(`Load failed: ${err.message}`);
@@ -279,8 +301,13 @@ function onListClick(event) {
     const editors = card.querySelectorAll('.article-editor');
     const isHidden = editors[0]?.hasAttribute('hidden');
     editors.forEach((el) => {
-      if (isHidden) el.removeAttribute('hidden');
-      else el.setAttribute('hidden', '');
+      if (isHidden) {
+        el.removeAttribute('hidden');
+        el.classList.remove('is-collapsed');
+      } else {
+        el.setAttribute('hidden', '');
+        el.classList.add('is-collapsed');
+      }
     });
     return;
   }
@@ -296,6 +323,7 @@ saveTokenBtn.addEventListener('click', saveToken);
 loadArticlesBtn.addEventListener('click', loadArticles);
 unlockAdminBtn.addEventListener('click', unlock);
 listEl.addEventListener('click', onListClick);
+articleSearchInput.addEventListener('input', applySearchFilter);
 
 loadToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked_articles') === '1');

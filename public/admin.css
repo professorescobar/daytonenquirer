@@ -185,6 +185,10 @@
   cursor: pointer;
 }
 
+.article-editor.is-collapsed {
+  display: none !important;
+}
+
 .draft-meta {
   color: #555;
   font-size: 0.9rem;
