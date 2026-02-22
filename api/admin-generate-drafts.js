@@ -86,6 +86,258 @@ const SPORTS_LOCAL_COMMUNITY_TERMS = [
   'community league',
   'youth sports'
 ];
+const SPORTS_HOCKEY_TERMS = [
+  'hockey',
+  'ice hockey',
+  'nhl',
+  'echl',
+  'puck drop',
+  'power play',
+  'penalty kill',
+  'overtime',
+  'shootout',
+  'dayton bombers',
+  'flyers club hockey',
+  'dayton stealth',
+  'raha'
+];
+const SPORTS_US_OLYMPICS_TERMS = [
+  'team usa',
+  'u.s. olympic',
+  'us olympic',
+  'olympic trials',
+  'usa olympic',
+  'team usa olympics'
+];
+const SPORTS_RACKET_TERMS = [
+  'tennis',
+  'pickleball',
+  'cincinnati open',
+  'western & southern open',
+  'atp',
+  'wta',
+  'hard court'
+];
+const SPORTS_TENNIS_TERMS = [
+  'tennis',
+  'cincinnati open',
+  'western & southern open',
+  'atp',
+  'wta',
+  'hard court',
+  'dayton flyers tennis',
+  'university of dayton tennis'
+];
+const LOCAL_CITY_TERMS = [
+  'dayton',
+  'oakwood',
+  'kettering',
+  'moraine',
+  'trotwood',
+  'huber heights',
+  'beavercreek',
+  'bellbrook',
+  'fairborn',
+  'xenia',
+  'springfield',
+  'troy',
+  'tipp city',
+  'miamisburg',
+  'centerville',
+  'springboro',
+  'franklin',
+  'middletown',
+  'miami valley',
+  'montgomery county'
+];
+const LOCAL_INSTITUTION_TERMS = [
+  'sinclair community college',
+  'kettering college',
+  'central state university',
+  'antioch university midwest',
+  'cedarville university',
+  'soche',
+  'strategic ohio council for higher education',
+  'wright-patterson',
+  'wright patt',
+  'fuyao',
+  'fuyao glass',
+  'fuyao glass america',
+  'dayton international airport',
+  'james m. cox dayton international airport',
+  '2nd street market',
+  'second street market',
+  'dayton food truck rally',
+  'oregon district',
+  'stivers school of the arts',
+  'lexisnexis',
+  'reynolds and reynolds',
+  'honda anna'
+];
+const HEALTH_INSTITUTION_TERMS = [
+  'dayton children',
+  'dayton children’s',
+  "dayton children's",
+  'dayton childrens',
+  'kettering health',
+  'premier health',
+  'premier health network',
+  'dayton va',
+  'dayton va hospital',
+  'dayton veterans affairs medical center',
+  'va dayton',
+  'care source',
+  'caresource',
+  'dayton & montgomery county public health',
+  'dayton and montgomery county public health',
+  'greater dayton area hospital association',
+  'gdaha',
+  'community health centers of greater dayton',
+  'five rivers health centers',
+  'ohio department of health',
+  'ohiohealth newsroom',
+  'dayton daily news health',
+  'hospital',
+  'medical center',
+  'health network'
+];
+const NATIONAL_NON_OHIO_STATE_TERMS = [
+  'california', 'texas', 'florida', 'new york', 'georgia', 'north carolina', 'virginia',
+  'pennsylvania', 'michigan', 'illinois', 'indiana', 'wisconsin', 'minnesota', 'missouri',
+  'arizona', 'colorado', 'washington', 'oregon', 'massachusetts', 'new jersey', 'tennessee',
+  'alabama', 'louisiana', 'kentucky', 'south carolina', 'north dakota', 'south dakota',
+  'nevada', 'utah', 'kansas', 'oklahoma', 'iowa', 'nebraska', 'montana', 'idaho', 'wyoming',
+  'new mexico', 'maine', 'vermont', 'new hampshire', 'connecticut', 'rhode island', 'maryland',
+  'west virginia', 'delaware', 'alaska', 'hawaii', 'arkansas', 'mississippi'
+];
+const NATIONAL_LOW_PRIORITY_POLITICS_TERMS = [
+  'poll', 'polling', 'approval rating', 'campaign trail', 'rally', 'partisan',
+  'democrat vs republican', 'gop', 'dnc', 'rnc', 'culture war'
+];
+const NATIONAL_EXCLUDED_STATE = 'ohio';
+const BUSINESS_MARKET_UPDATE_SLOT_ET = '06:05';
+const BUSINESS_LOCAL_DAILY_MIN = 1;
+const BUSINESS_DAILY_MARKET_UPDATE_MAX = 1;
+const BUSINESS_MARKET_UPDATE_TERMS = [
+  'market update', 'market outlook', 'futures', 's&p 500', 'nasdaq', 'dow', 'treasury yield',
+  'bond market', 'commodities', 'u.s. dollar', 'dxy', 'market wrap', 'closing bell'
+];
+const BUSINESS_EARNINGS_TERMS = [
+  'earnings', 'quarterly results', 'guidance', 'revenue', 'eps', 'profit', 'forecast'
+];
+const BUSINESS_LARGE_CAP_TERMS = [
+  'mega cap', 'large cap', 's&p 500', 'dow', 'nasdaq 100', 'blue chip'
+];
+const BUSINESS_SMALL_CAP_NOISE_TERMS = [
+  'penny stock', 'microcap', 'small-cap', 'otc', 'otcmkts', 'pink sheets'
+];
+const ENTERTAINMENT_EVENT_TERMS = [
+  'festival', 'concert', 'show', 'live music', 'exhibit', 'gallery', 'theater',
+  'things to do', 'weekend events', 'arts', 'performance', 'downtown events',
+  'food truck', 'market', 'fair', 'nightlife'
+];
+const ENTERTAINMENT_SURROUNDING_CITY_TERMS = [
+  'oakwood', 'kettering', 'moraine', 'trotwood', 'huber heights', 'beavercreek',
+  'bellbrook', 'fairborn', 'xenia', 'springfield', 'troy', 'tipp city', 'miamisburg',
+  'centerville', 'springboro', 'franklin', 'middletown'
+];
+const TECHNOLOGY_LOCAL_TERMS = [
+  'sinclair', 'sinclair community college', 'university of dayton', 'dayton flyers',
+  'wright state', 'miami valley career technology center', 'mvctc', 'wright-patterson',
+  'wright patt', 'dayton inno', 'ohio tech news', 'ohiox', 'technology first',
+  'dayton development coalition', 'the entrepreneurs center', "entrepreneur's center",
+  'startup', 'venture capital', 'government contract', 'sbir', 'tech transfer'
+];
+const WORLD_REQUIRED_DAILY_REGIONS = ['southeast_asia', 'europe', 'south_america'];
+const WORLD_SPREAD_REGIONS = [
+  'southeast_asia',
+  'europe',
+  'south_america',
+  'africa',
+  'india',
+  'russia',
+  'australia',
+  'middle_east'
+];
+const WORLD_REGION_TERMS = {
+  southeast_asia: [
+    'southeast asia', 'asean', 'indonesia', 'thailand', 'vietnam', 'philippines',
+    'malaysia', 'singapore', 'myanmar', 'cambodia', 'laos', 'brunei', 'timor-leste'
+  ],
+  europe: [
+    'europe', 'eu ', 'european union', 'uk ', 'united kingdom', 'germany', 'france',
+    'italy', 'spain', 'poland', 'netherlands', 'sweden', 'norway', 'finland', 'greece',
+    'ukraine', 'belgium', 'ireland', 'switzerland', 'austria', 'portugal'
+  ],
+  south_america: [
+    'south america', 'brazil', 'argentina', 'chile', 'colombia', 'peru', 'ecuador',
+    'uruguay', 'paraguay', 'bolivia', 'venezuela', 'guyana', 'suriname'
+  ],
+  africa: [
+    'africa', 'nigeria', 'south africa', 'kenya', 'egypt', 'ethiopia', 'ghana',
+    'tanzania', 'uganda', 'morocco', 'algeria', 'tunisia', 'senegal', 'sudan'
+  ],
+  india: ['india', 'indian'],
+  russia: ['russia', 'russian'],
+  australia: ['australia', 'australian', 'new zealand'],
+  middle_east: [
+    'middle east', 'israel', 'gaza', 'palestinian', 'iran', 'iraq', 'syria', 'lebanon',
+    'saudi arabia', 'yemen', 'jordan', 'qatar', 'uae', 'united arab emirates', 'oman',
+    'bahrain', 'kuwait'
+  ]
+};
+const WORLD_US_DIPLOMACY_TERMS = [
+  'u.s. diplomacy', 'us diplomacy', 'u.s. embassy', 'us embassy', 'state department',
+  'secretary of state', 'american diplomat', 'u.s. envoy', 'us envoy', 'bilateral talks with the u.s.',
+  'white house says', 'u.s. sanctions', 'us sanctions', 'u.s. foreign policy', 'us foreign policy'
+];
+const POLITICAL_TOPIC_TERMS = [
+  'election',
+  'vote',
+  'voter',
+  'congress',
+  'senate',
+  'house',
+  'governor',
+  'president',
+  'supreme court',
+  'legislation',
+  'bill',
+  'executive order',
+  'immigration',
+  'border',
+  'crime policy',
+  'public safety policy',
+  'foreign policy',
+  'tax policy'
+];
+const OPINION_STYLE_TERMS = [
+  'op-ed',
+  'op ed',
+  'opinion',
+  'editorial',
+  'column',
+  'commentary',
+  'analysis:'
+];
+const LOCAL_SPORTS_NOISE_TERMS = [
+  'athletics',
+  'basketball',
+  'football',
+  'baseball',
+  'softball',
+  'soccer',
+  'hockey',
+  'tennis',
+  'volleyball',
+  'wrestling',
+  'matchup',
+  'vs',
+  'game preview',
+  'game recap',
+  'tipoff',
+  'kickoff'
+];
 
 function parseSectionList(raw) {
   if (!raw) return null;
@@ -162,26 +414,90 @@ function resolveSportsFocusMode(rawMode, etNowParts) {
 const BASE_FEEDS_BY_SECTION = {
   local: [
     'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+local+news+when:1d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Montgomery+County+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=Montgomery+County+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:daytondailynews.com+Dayton+local+news+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:wdtn.com+Dayton+local+news+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Sinclair+Community+College+Dayton+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Kettering+College+Dayton+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Central+State+University+Ohio+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Antioch+University+Midwest+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Cedarville+University+Ohio+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=SOCHE+Ohio+higher+education+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:udayton.edu+University+of+Dayton+-athletics+-basketball+-football+-baseball+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:wright.edu+Wright+State+-athletics+-basketball+-football+-baseball+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:miamioh.edu+Miami+University+Oxford+Ohio+-athletics+-basketball+-football+-baseball+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Wright-Patterson+Air+Force+Base+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Fuyao+Glass+America+Moraine+Ohio+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+International+Airport+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=2nd+Street+Market+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+Food+Truck+Rally+when:30d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Oregon+District+Dayton+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Stivers+School+of+the+Arts+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=LexisNexis+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Reynolds+and+Reynolds+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Honda+Anna+Ohio+plant+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Oakwood+Kettering+Moraine+Trotwood+Huber+Heights+Beavercreek+Bellbrook+Fairborn+Xenia+Springfield+Troy+Tipp+City+Miamisburg+Centerville+Springboro+Franklin+Middletown+news+when:3d&hl=en-US&gl=US&ceid=US:en'
   ],
   national: [
-    'https://news.google.com/rss/headlines/section/topic/NATION?hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/headlines/section/topic/NATION?hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=United+States+state+news+-Ohio+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=state+government+update+United+States+-Ohio+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=state+supreme+court+decision+United+States+-Ohio+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=governor+announces+United+States+-Ohio+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=statewide+emergency+United+States+-Ohio+when:5d&hl=en-US&gl=US&ceid=US:en'
   ],
   world: [
     'https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en'
   ],
   business: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+business+economy+jobs+when:2d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+business+economy+jobs+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:bizjournals.com/dayton+Dayton+Business+Journal+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:daytondailynews.com+business+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:cnbc.com+earnings+large+cap+market+movers+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:finance.yahoo.com+earnings+large+cap+market+movers+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=S%26P+500+market+wrap+bond+yields+commodities+dollar+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=largest+market+cap+companies+earnings+when:2d&hl=en-US&gl=US&ceid=US:en'
   ],
   sports: [],
   health: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+health+hospital+medical+when:3d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+health+hospital+medical+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+Children%27s+Hospital+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Kettering+Health+Dayton+when:10d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Premier+Health+Dayton+when:10d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=CareSource+Dayton+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+VA+Medical+Center+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Miami+Valley+hospital+network+healthcare+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+%26+Montgomery+County+Public+Health+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Greater+Dayton+Area+Hospital+Association+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Community+Health+Centers+of+Greater+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Ohio+Department+of+Health+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=OhioHealth+newsroom+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+Daily+News+health+section+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Five+Rivers+Health+Centers+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en'
   ],
   entertainment: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+entertainment+arts+music+events+when:3d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+entertainment+arts+music+events+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+things+to+do+this+weekend+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Oakwood+Kettering+Beavercreek+Centerville+Springboro+events+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Springfield+Troy+Miamisburg+Middletown+events+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Cincinnati+events+things+to+do+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Columbus+events+things+to+do+when:7d&hl=en-US&gl=US&ceid=US:en'
   ],
   technology: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+technology+startup+innovation+when:3d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+technology+startup+innovation+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:sinclair.edu+technology+innovation+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:udayton.edu+technology+research+innovation+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:wright.edu+technology+research+innovation+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Miami+Valley+Career+Technology+Center+technology+when:30d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Wright-Patterson+technology+contract+innovation+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:bizjournals.com/dayton+Dayton+Inno+startup+venture+capital+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Ohio+tech+news+startup+venture+capital+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:daytondailynews.com+business+technology+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:wdtn.com+technology+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=OhioX+technology+startup+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Technology+First+Dayton+when:30d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+Development+Coalition+technology+when:30d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=The+Entrepreneurs+Center+Dayton+startup+when:30d&hl=en-US&gl=US&ceid=US:en'
   ]
 };
 
@@ -193,7 +509,19 @@ const SPORTS_FEEDS_BY_MODE = {
     'https://news.google.com/rss/search?q=site:miamiredhawks.com+basketball+preview+schedule+game+notes+when:7d&hl=en-US&gl=US&ceid=US:en',
     'https://news.google.com/rss/search?q=University+of+Dayton+basketball+preview+when:7d&hl=en-US&gl=US&ceid=US:en',
     'https://news.google.com/rss/search?q=Wright+State+basketball+preview+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Miami+University+Ohio+basketball+preview+when:7d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=Miami+University+Ohio+basketball+preview+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Columbus+Blue+Jackets+preview+matchup+when:5d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Cincinnati+Cyclones+preview+matchup+when:5d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+Flyers+club+hockey+preview+when:10d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+Stealth+hockey+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=RAHA+Dayton+hockey+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Team+USA+Olympics+Ohio+athletes+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Cincinnati+Open+tennis+when:30d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=University+of+Dayton+tennis+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+Ohio+pickleball+tournament+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Miami+RedHawks+hockey+preview+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Ohio+State+hockey+preview+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Bowling+Green+hockey+preview+when:7d&hl=en-US&gl=US&ceid=US:en'
   ],
   nba: [
     'https://news.google.com/rss/search?q=Cleveland+Cavaliers+preview+matchup+injury+report+when:4d&hl=en-US&gl=US&ceid=US:en',
@@ -220,7 +548,19 @@ const SPORTS_FEEDS_BY_MODE = {
     'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+sports+when:3d&hl=en-US&gl=US&ceid=US:en',
     'https://news.google.com/rss/search?q=University+of+Dayton+athletics+preview+schedule+when:7d&hl=en-US&gl=US&ceid=US:en',
     'https://news.google.com/rss/search?q=Wright+State+athletics+preview+schedule+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Miami+University+Ohio+athletics+preview+schedule+when:7d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=Miami+University+Ohio+athletics+preview+schedule+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Columbus+Blue+Jackets+Dayton+Ohio+when:5d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Cincinnati+Cyclones+Dayton+Ohio+when:5d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+Flyers+club+hockey+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+Stealth+hockey+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=RAHA+Dayton+Recreational+Amateur+Hockey+Association+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Team+USA+Olympics+when:14d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=U.S.+Olympic+trials+Ohio+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Cincinnati+Open+tennis+Ohio+when:30d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Western+%26+Southern+Open+tennis+when:30d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=site:daytonflyers.com+tennis+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Dayton+Ohio+pickleball+when:21d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Miami+RedHawks+Ohio+State+Bowling+Green+hockey+when:7d&hl=en-US&gl=US&ceid=US:en'
   ]
 };
 
@@ -230,7 +570,13 @@ const SPORTS_LOCAL_COMMUNITY_FEEDS = [
   'https://news.google.com/rss/search?q=Dayton+area+prep+sports+when:7d&hl=en-US&gl=US&ceid=US:en',
   'https://news.google.com/rss/search?q=GWOC+sports+Dayton+when:14d&hl=en-US&gl=US&ceid=US:en',
   'https://news.google.com/rss/search?q=Miami+Valley+League+sports+Ohio+when:14d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=Dayton+community+sports+league+when:14d&hl=en-US&gl=US&ceid=US:en'
+  'https://news.google.com/rss/search?q=Dayton+community+sports+league+when:14d&hl=en-US&gl=US&ceid=US:en',
+  'https://news.google.com/rss/search?q=Dayton+Bombers+hockey+history+Dayton+Ohio+when:30d&hl=en-US&gl=US&ceid=US:en',
+  'https://news.google.com/rss/search?q=Dayton+Stealth+youth+hockey+when:21d&hl=en-US&gl=US&ceid=US:en',
+  'https://news.google.com/rss/search?q=RAHA+Dayton+hockey+league+when:30d&hl=en-US&gl=US&ceid=US:en',
+  'https://news.google.com/rss/search?q=Dayton+pickleball+league+when:30d&hl=en-US&gl=US&ceid=US:en',
+  'https://news.google.com/rss/search?q=Miami+Valley+pickleball+when:30d&hl=en-US&gl=US&ceid=US:en',
+  'https://news.google.com/rss/search?q=Cincinnati+Open+history+oldest+tennis+tournament+US+when:60d&hl=en-US&gl=US&ceid=US:en'
 ];
 
 function getFeedsBySection(sportsFocusMode) {
@@ -288,6 +634,39 @@ async function callAnthropicForDraft(candidate) {
   const localityRule = LOCAL_SCOPE_SECTIONS.has(candidate.section)
     ? 'This article MUST be focused on Dayton, Ohio and/or the Miami Valley region. "Miami" in this context means Miami Valley or Miami University (Oxford, Ohio), not Miami, Florida. If the source is not locally relevant, reject it by returning JSON with empty title/description/content.'
     : 'This article may cover broader non-local scope.';
+  const localRule = candidate.section === 'local'
+    ? 'For the local section, prioritize civic/institutional/community reporting in Dayton and nearby cities. Avoid sports coverage in local section (sports belong in the sports section).'
+    : '';
+  const healthRule = candidate.section === 'health'
+    ? 'For the health section, prioritize Dayton/Miami Valley healthcare coverage: hospital systems, patient care updates, public health advisories, medical research, healthcare access and policy impacts. Include Dayton Children\'s, Kettering Health, Premier Health, CareSource, and Dayton VA when relevant.'
+    : '';
+  const nationalRule = candidate.section === 'national'
+    ? 'For the national section, prioritize impactful stories from U.S. states outside Ohio. Avoid over-indexing on divisive political narrative content unless the story has clear broad public impact.'
+    : '';
+  const businessRule = candidate.section === 'business'
+    ? `For the business section:
+- Include at least one local business/economy story per day (Dayton/Miami Valley focus).
+- Produce one daily market update that evaluates prior trading action in individual stocks, index funds, bonds, commodities, and the U.S. dollar over 5-day, 30-day, 3-month, 6-month, and 1-year context windows.
+- No financial recommendations, no price targets, no calls to buy/sell/hold.
+- Avoid cliches like "bulls and bears" and avoid sentiment-chasing language.
+- Favor earnings, major large-cap developments, and notable market movers with clear reasons.
+- Exclude penny stocks and microcap-focused stories unless there is extraordinary broad impact.`
+    : '';
+  const technologyRule = candidate.section === 'technology'
+    ? 'For technology section, prioritize Dayton/Miami Valley innovation coverage: local university research, workforce-tech programs, startups, venture capital, government contracts, and regional innovation organizations (Sinclair, UD, Wright State, MVCTC, Wright-Patt, Dayton Inno, OhioX, Technology First, Dayton Development Coalition, The Entrepreneurs Center).'
+    : '';
+  const marketUpdateFormatRule = candidate.section === 'business' && candidate.businessMode === 'daily_market_update'
+    ? `This is the required daily market structure update. Use this exact editorial approach:
+- Focus only on verified market facts and cross-asset structure.
+- Required coverage blocks: (1) major indexes, (2) representative large-cap leaders/laggards, (3) bond market and yields, (4) commodities, (5) U.S. dollar.
+- For each block, explicitly anchor observations to: 5-day, 30-day, 3-month, 6-month, and 1-year context.
+- Explain what changed in the latest session and where that sits inside each broader window.
+- Keep tone analytical, concise, and non-dramatic.
+- Prohibited style: "bulls", "bears", "risk-on/risk-off", hype, emotional adjectives, or narrative fluff.
+- Do not repeat generic template phrases from prior days.`
+    : '';
+  const politicsStyleRule =
+    'If the story is political, write in a straight-news, centrist, non-inflammatory voice. Avoid partisan advocacy, ideological sloganeering, and culture-war framing. Focus on verified facts, constitutional process, rule of law, public safety, and practical impacts on everyday Americans. Do not write opinion or activist-style content.';
   const sportsRule = candidate.section === 'sports'
     ? `Prioritize upcoming local game coverage (previews, schedules, matchup context, stakes, and what to watch) when available. Current sports focus mode is "${candidate.sportsFocusMode || 'broad'}". Also prioritize Dayton/Miami Valley high school and community sports whenever strong local coverage is available. Avoid writing a second article on the same recent matchup unless there is clearly new and material information.`
     : '';
@@ -316,12 +695,20 @@ Requirements:
 6) Writing quality:
    - Open by centering the main current event in the first 1-2 paragraphs.
    - Then transition into meaningful related context readers care about (local impact, timeline, policy, business, public safety, practical implications).
+   - Make the piece thought-provoking by surfacing deeper implications and unresolved questions grounded in facts.
    - Be thorough and specific, but concise. Do not ramble or repeat.
    - Avoid fluff and generic filler language.
 6) section must be one of: local, national, world, business, sports, health, entertainment, technology.
 7) Do not include fake quotes or unverifiable claims. If details are uncertain, state uncertainty clearly.
 8) ${localityRule}
 9) ${sportsRule}
+10) ${localRule}
+11) ${healthRule}
+12) ${nationalRule}
+13) ${politicsStyleRule}
+14) ${businessRule}
+15) ${marketUpdateFormatRule}
+16) ${technologyRule}
 
 Return only JSON.
 `;
@@ -422,9 +809,21 @@ function scoreSportsCandidate(candidate) {
   if (text.includes('reds') || text.includes('cincinnati reds')) score += 3;
   if (text.includes('cavaliers') || text.includes('cavs')) score += 3;
   if (text.includes('pacers') || text.includes('indiana pacers')) score += 3;
+  if (text.includes('blue jackets') || text.includes('columbus blue jackets')) score += 3;
+  if (text.includes('cyclones') || text.includes('cincinnati cyclones')) score += 3;
+  if (text.includes('dayton bombers') || (text.includes('bombers') && text.includes('hockey'))) score += 3;
+  if (text.includes('flyers') && text.includes('club') && text.includes('hockey')) score += 3;
+  if (text.includes('dayton stealth')) score += 3;
+  if (text.includes('raha') || text.includes('recreational amateur hockey association')) score += 3;
+  if (text.includes('cincinnati open') || text.includes('western & southern open')) score += 4;
+  if (text.includes('tennis')) score += 2;
+  if (text.includes('pickleball')) score += 2;
+  if (text.includes('team usa') && text.includes('olympic')) score += 3;
+  if (text.includes('u.s.') && text.includes('olympic')) score += 2;
   if (text.includes('bengals') || text.includes('cincinnati bengals')) score += 3;
   if (text.includes('ohio state') || text.includes('buckeyes')) score += 3;
   if (mode === 'college_basketball' && (text.includes('cavaliers') || text.includes('pacers'))) score += 2;
+  if (mode === 'college_basketball' && (text.includes('blue jackets') || text.includes('cyclones') || text.includes('hockey'))) score += 2;
   if (mode === 'nba' && (text.includes('cavaliers') || text.includes('cavs'))) score += 4;
   if (mode === 'nba' && (text.includes('pacers') || text.includes('indiana pacers'))) score += 4;
   if (mode === 'nba' && (text.includes('flyers') || text.includes('raiders') || text.includes('redhawks'))) score += 1;
@@ -437,6 +836,25 @@ function scoreSportsCandidate(candidate) {
   if (mode === 'football' && (text.includes('bengals') || text.includes('cincinnati bengals'))) score += 4;
   if (mode === 'football' && (text.includes('ohio state') || text.includes('buckeyes'))) score += 4;
   if (mode === 'football' && (text.includes('dragons') || text.includes('baseball'))) score -= 2;
+  for (const term of SPORTS_HOCKEY_TERMS) {
+    if (text.includes(term)) score += 1;
+  }
+  if (text.includes('blue jackets') || text.includes('cyclones')) score += 1;
+  if (text.includes('dayton bombers') || (text.includes('bombers') && text.includes('hockey'))) score += 2;
+  if (text.includes('flyers') && text.includes('club') && text.includes('hockey')) score += 2;
+  if (text.includes('dayton stealth')) score += 2;
+  if (text.includes('raha') || text.includes('recreational amateur hockey association')) score += 2;
+  if (text.includes('miami redhawks') && text.includes('hockey')) score += 2;
+  if (text.includes('ohio state') && text.includes('hockey')) score += 2;
+  if (text.includes('bowling green') && text.includes('hockey')) score += 2;
+  for (const term of SPORTS_US_OLYMPICS_TERMS) {
+    if (text.includes(term)) score += 1;
+  }
+  for (const term of SPORTS_RACKET_TERMS) {
+    if (text.includes(term)) score += 1;
+  }
+  if (text.includes('university of dayton') && text.includes('tennis')) score += 3;
+  if (text.includes('dayton flyers') && text.includes('tennis')) score += 3;
   for (const term of SPORTS_LOCAL_COMMUNITY_TERMS) {
     if (text.includes(term)) score += 2;
   }
@@ -448,6 +866,183 @@ function scoreSportsCandidate(candidate) {
   }
   if (text.includes('postgame') || text.includes('final score') || text.includes('recap')) score -= 2;
   return score;
+}
+
+function scoreLocalCandidate(candidate) {
+  const text = `${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`.toLowerCase();
+  let score = 0;
+
+  for (const term of LOCAL_CITY_TERMS) {
+    if (text.includes(term)) score += 1;
+  }
+  for (const term of LOCAL_INSTITUTION_TERMS) {
+    if (text.includes(term)) score += 3;
+  }
+  if (text.includes('daytondailynews.com')) score += 2;
+  if (text.includes('wdtn.com')) score += 2;
+  if (text.includes('wright-patterson') || text.includes('wright patt')) score += 3;
+
+  return score;
+}
+
+function scoreHealthCandidate(candidate) {
+  const text = `${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`.toLowerCase();
+  let score = 0;
+
+  for (const term of HEALTH_INSTITUTION_TERMS) {
+    if (text.includes(term)) score += 3;
+  }
+  if (text.includes('dayton children')) score += 2;
+  if (text.includes('kettering health') || text.includes('premier health')) score += 2;
+  if (text.includes('dayton va') || text.includes('veterans affairs')) score += 2;
+  if (text.includes('public health') || text.includes('health department')) score += 1;
+
+  return score;
+}
+
+function detectNationalStates(text) {
+  const lower = String(text || '').toLowerCase();
+  const states = [];
+  for (const state of NATIONAL_NON_OHIO_STATE_TERMS) {
+    if (lower.includes(state)) states.push(state);
+  }
+  if (lower.includes(NATIONAL_EXCLUDED_STATE)) states.push(NATIONAL_EXCLUDED_STATE);
+  return Array.from(new Set(states));
+}
+
+function scoreNationalCandidate(candidate) {
+  const text = `${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`.toLowerCase();
+  let score = 0;
+
+  const states = detectNationalStates(text);
+  for (const state of states) {
+    if (state === NATIONAL_EXCLUDED_STATE) continue;
+    score += 2;
+  }
+
+  if (text.includes('public safety') || text.includes('court') || text.includes('policy') || text.includes('economy')) {
+    score += 1;
+  }
+  for (const term of NATIONAL_LOW_PRIORITY_POLITICS_TERMS) {
+    if (text.includes(term)) score -= 1;
+  }
+  if (states.includes(NATIONAL_EXCLUDED_STATE) && states.length === 1) {
+    score -= 3;
+  }
+
+  return score;
+}
+
+function detectWorldRegions(text) {
+  const lower = String(text || '').toLowerCase();
+  const regions = [];
+  for (const [region, terms] of Object.entries(WORLD_REGION_TERMS)) {
+    if (terms.some((term) => lower.includes(term))) {
+      regions.push(region);
+    }
+  }
+  return Array.from(new Set(regions));
+}
+
+function isUsDiplomacyTopic(text) {
+  const lower = String(text || '').toLowerCase();
+  return WORLD_US_DIPLOMACY_TERMS.some((term) => lower.includes(term));
+}
+
+function scoreWorldCandidate(candidate) {
+  const text = `${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`.toLowerCase();
+  const regions = detectWorldRegions(text);
+  let score = 0;
+
+  for (const region of regions) {
+    if (WORLD_REQUIRED_DAILY_REGIONS.includes(region)) score += 4;
+    else if (WORLD_SPREAD_REGIONS.includes(region)) score += 2;
+  }
+  if (isUsDiplomacyTopic(text)) score -= 2;
+  if (regions.includes('middle_east')) score -= 1;
+  if (regions.length === 0) score -= 3;
+
+  return score;
+}
+
+function isBusinessMarketUpdateTopic(text) {
+  const lower = String(text || '').toLowerCase();
+  return BUSINESS_MARKET_UPDATE_TERMS.some((term) => lower.includes(term));
+}
+
+function isBusinessSmallCapNoise(text) {
+  const lower = String(text || '').toLowerCase();
+  return BUSINESS_SMALL_CAP_NOISE_TERMS.some((term) => lower.includes(term));
+}
+
+function isBusinessLocalTopic(text) {
+  const lower = String(text || '').toLowerCase();
+  const hasLocal = LOCAL_CITY_TERMS.some((term) => lower.includes(term));
+  const hasLocalInstitution = LOCAL_INSTITUTION_TERMS.some((term) => lower.includes(term));
+  return hasLocal || hasLocalInstitution;
+}
+
+function scoreBusinessCandidate(candidate) {
+  const text = `${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`.toLowerCase();
+  let score = 0;
+
+  if (candidate.businessMode === 'daily_market_update') score += 100;
+  if (isBusinessLocalTopic(text)) score += 4;
+  if (BUSINESS_EARNINGS_TERMS.some((term) => text.includes(term))) score += 3;
+  if (BUSINESS_LARGE_CAP_TERMS.some((term) => text.includes(term))) score += 2;
+  if (isBusinessMarketUpdateTopic(text)) score += 2;
+  if (text.includes('cnbc.com')) score += 2;
+  if (text.includes('finance.yahoo.com')) score += 2;
+  if (isBusinessSmallCapNoise(text)) score -= 6;
+
+  return score;
+}
+
+function scoreTechnologyCandidate(candidate) {
+  const text = `${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`.toLowerCase();
+  let score = 0;
+
+  for (const term of TECHNOLOGY_LOCAL_TERMS) {
+    if (text.includes(term)) score += 2;
+  }
+  if (text.includes('dayton') || text.includes('miami valley')) score += 2;
+  if (text.includes('startup') || text.includes('venture capital')) score += 1;
+  if (text.includes('government contract') || text.includes('sbir')) score += 1;
+
+  return score;
+}
+
+function getEntertainmentGeoTier(text) {
+  const lower = String(text || '').toLowerCase();
+  if (lower.includes('dayton') || lower.includes('miami valley')) return 4;
+  if (ENTERTAINMENT_SURROUNDING_CITY_TERMS.some((term) => lower.includes(term))) return 3;
+  if (lower.includes('cincinnati')) return 2;
+  if (lower.includes('columbus')) return 1;
+  return 0;
+}
+
+function scoreEntertainmentCandidate(candidate) {
+  const text = `${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`.toLowerCase();
+  let score = getEntertainmentGeoTier(text) * 10;
+  for (const term of ENTERTAINMENT_EVENT_TERMS) {
+    if (text.includes(term)) score += 1;
+  }
+  if (text.includes('things to do')) score += 2;
+  return score;
+}
+
+function isLocalSportsNoise(candidate) {
+  if (candidate.section !== 'local') return false;
+  const text = `${candidate.title || ''} ${candidate.snippet || ''}`.toLowerCase();
+  const hasUniversityContext =
+    text.includes('university of dayton') ||
+    text.includes('dayton flyers') ||
+    text.includes('wright state') ||
+    text.includes('raiders') ||
+    text.includes('miami university') ||
+    text.includes('miami redhawks');
+  const hasSportsTerm = LOCAL_SPORTS_NOISE_TERMS.some((term) => text.includes(term));
+  return hasUniversityContext && hasSportsTerm;
 }
 
 function isFloridaMiamiSportsNoise(candidate) {
@@ -477,7 +1072,7 @@ function isFloridaMiamiSportsNoise(candidate) {
   return false;
 }
 
-async function fetchCandidates(runTargets, activeSections, sportsFocusMode) {
+async function fetchCandidates(runTargets, activeSections, sportsFocusMode, etTime) {
   const out = [];
   const seen = new Set();
   const activeSet = new Set(activeSections);
@@ -517,6 +1112,32 @@ async function fetchCandidates(runTargets, activeSections, sportsFocusMode) {
 
     if (section === 'sports') {
       sectionCandidates.sort((a, b) => scoreSportsCandidate(b) - scoreSportsCandidate(a));
+    } else if (section === 'local') {
+      sectionCandidates.sort((a, b) => scoreLocalCandidate(b) - scoreLocalCandidate(a));
+    } else if (section === 'national') {
+      sectionCandidates.sort((a, b) => scoreNationalCandidate(b) - scoreNationalCandidate(a));
+    } else if (section === 'world') {
+      sectionCandidates.sort((a, b) => scoreWorldCandidate(b) - scoreWorldCandidate(a));
+    } else if (section === 'health') {
+      sectionCandidates.sort((a, b) => scoreHealthCandidate(b) - scoreHealthCandidate(a));
+    } else if (section === 'technology') {
+      sectionCandidates.sort((a, b) => scoreTechnologyCandidate(b) - scoreTechnologyCandidate(a));
+    } else if (section === 'entertainment') {
+      sectionCandidates.sort((a, b) => scoreEntertainmentCandidate(b) - scoreEntertainmentCandidate(a));
+    } else if (section === 'business') {
+      // Ensure a dependable daily market outlook candidate appears at 6:05 ET.
+      if (etTime === BUSINESS_MARKET_UPDATE_SLOT_ET) {
+        sectionCandidates.unshift({
+          section: 'business',
+          title: 'U.S. Markets Daily Update: Multi-Asset Context Before Futures',
+          url: 'internal://business-daily-market-update',
+          snippet: 'Assess prior-day patterns in stocks, major indexes, bond market, commodities, and the U.S. dollar across 5-day, 30-day, 3-month, 6-month, and 1-year contexts. No recommendations.',
+          sourcePublishedAt: null,
+          sportsFocusMode,
+          businessMode: 'daily_market_update'
+        });
+      }
+      sectionCandidates.sort((a, b) => scoreBusinessCandidate(b) - scoreBusinessCandidate(a));
     }
     out.push(...sectionCandidates);
   }
@@ -564,7 +1185,19 @@ const SPORTS_TEAM_ALIASES = {
   'cleveland-cavaliers': ['cleveland cavaliers', 'cavs', 'cavaliers'],
   'indiana-pacers': ['indiana pacers', 'pacers'],
   'bowling-green-falcons': ['bowling green', 'falcons'],
-  'dayton-dutch-lions': ['dayton dutch lions', 'dutch lions']
+  'dayton-dutch-lions': ['dayton dutch lions', 'dutch lions'],
+  'dayton-bombers': ['dayton bombers', 'bombers'],
+  'dayton-flyers-club-hockey': ['dayton flyers club hockey', 'flyers club hockey'],
+  'dayton-stealth': ['dayton stealth'],
+  'raha-dayton': ['raha', 'recreational amateur hockey association'],
+  'cincinnati-open': ['cincinnati open', 'western & southern open'],
+  'dayton-flyers-tennis': ['dayton flyers tennis', 'university of dayton tennis', 'dayton tennis'],
+  'dayton-pickleball': ['dayton pickleball', 'miami valley pickleball', 'pickleball'],
+  'columbus-blue-jackets': ['columbus blue jackets', 'blue jackets'],
+  'cincinnati-cyclones': ['cincinnati cyclones', 'cyclones'],
+  'miami-redhawks-hockey': ['miami redhawks hockey', 'miami hockey'],
+  'ohio-state-buckeyes-hockey': ['ohio state hockey', 'buckeyes hockey'],
+  'bowling-green-falcons-hockey': ['bowling green hockey', 'falcons hockey']
 };
 
 function detectSportsTeams(text) {
@@ -603,11 +1236,52 @@ function buildSportsEventKeys(text) {
   return Array.from(keys);
 }
 
+function buildGeneralEventKeys(text) {
+  const tokens = normalizeTitleForCompare(text);
+  if (!tokens.length) return [];
+  const bigrams = buildBigrams(tokens).slice(0, 8);
+  const keys = new Set();
+  for (const bg of bigrams) {
+    keys.add(`bg:${bg}`);
+  }
+  return Array.from(keys);
+}
+
+function buildSectionEventKeys(section, text) {
+  if (normalizeSection(section) === 'sports') {
+    return buildSportsEventKeys(text);
+  }
+  return buildGeneralEventKeys(text);
+}
+
 function hasAnyKeyIntersection(candidateKeys, existingKeySet) {
   for (const key of candidateKeys) {
     if (existingKeySet.has(key)) return true;
   }
   return false;
+}
+
+function countKeyIntersection(candidateKeys, existingKeySet) {
+  let count = 0;
+  for (const key of candidateKeys) {
+    if (existingKeySet.has(key)) count += 1;
+  }
+  return count;
+}
+
+function isLikelyPoliticalTopic(text) {
+  const lower = String(text || '').toLowerCase();
+  return POLITICAL_TOPIC_TERMS.some((term) => lower.includes(term));
+}
+
+function isOpinionStyleContent(text) {
+  const lower = String(text || '').toLowerCase();
+  return OPINION_STYLE_TERMS.some((term) => lower.includes(term));
+}
+
+function isTennisTopic(text) {
+  const lower = String(text || '').toLowerCase();
+  return SPORTS_TENNIS_TERMS.some((term) => lower.includes(term));
 }
 
 function isNearDuplicateTitle(candidateTitle, existingTitles) {
@@ -762,12 +1436,84 @@ module.exports = async (req, res) => {
     }
 
     const runTargets = buildRunTargets(remainingBySection, targetCount, activeSections);
-    const candidates = await fetchCandidates(runTargets, activeSections, sportsFocusMode);
+    const candidates = await fetchCandidates(runTargets, activeSections, sportsFocusMode, etTime);
     const created = [];
     const skipped = [];
     let runTokensConsumed = 0;
+    const tennisDailyCap = 1;
     const createdBySection = {};
     for (const section of SECTION_ORDER) createdBySection[section] = 0;
+    const todaySportsTopicRows = await sql`
+      SELECT title, description, content, source_title as "sourceTitle"
+      FROM article_drafts
+      WHERE created_at >= date_trunc('day', now())
+        AND created_via = 'auto'
+        AND section = 'sports'
+    `;
+    const tennisCreatedToday = todaySportsTopicRows.filter((row) =>
+      isTennisTopic(`${row.title || ''} ${row.description || ''} ${row.content || ''} ${row.sourceTitle || ''}`)
+    ).length;
+    let tennisCreatedThisRun = 0;
+    const todayBusinessTopicRows = await sql`
+      SELECT title, description, content, source_title as "sourceTitle", source_url as "sourceUrl"
+      FROM article_drafts
+      WHERE created_at >= date_trunc('day', now())
+        AND created_via = 'auto'
+        AND section = 'business'
+    `;
+    const businessLocalCreatedToday = todayBusinessTopicRows.filter((row) =>
+      isBusinessLocalTopic(`${row.title || ''} ${row.description || ''} ${row.content || ''} ${row.sourceTitle || ''}`)
+    ).length;
+    const businessMarketUpdateCreatedToday = todayBusinessTopicRows.filter((row) =>
+      isBusinessMarketUpdateTopic(`${row.title || ''} ${row.description || ''} ${row.content || ''} ${row.sourceTitle || ''} ${row.sourceUrl || ''}`)
+    ).length;
+    let businessLocalCreatedThisRun = 0;
+    let businessMarketUpdateCreatedThisRun = 0;
+    const worldRegionDailyCap = 1;
+    const worldUsDiplomacyDailyCap = 1;
+    const worldMiddleEastDailyCap = 1;
+    const todayWorldTopicRows = await sql`
+      SELECT title, description, content, source_title as "sourceTitle"
+      FROM article_drafts
+      WHERE created_at >= date_trunc('day', now())
+        AND created_via = 'auto'
+        AND section = 'world'
+    `;
+    const worldRegionCountsToday = {};
+    for (const region of WORLD_SPREAD_REGIONS) worldRegionCountsToday[region] = 0;
+    let worldUsDiplomacyToday = 0;
+    let worldMiddleEastToday = 0;
+    for (const row of todayWorldTopicRows) {
+      const text = `${row.title || ''} ${row.description || ''} ${row.content || ''} ${row.sourceTitle || ''}`;
+      const regions = detectWorldRegions(text);
+      for (const region of regions) {
+        if (worldRegionCountsToday[region] !== undefined) {
+          worldRegionCountsToday[region] += 1;
+        }
+      }
+      if (regions.includes('middle_east')) worldMiddleEastToday += 1;
+      if (isUsDiplomacyTopic(text)) worldUsDiplomacyToday += 1;
+    }
+    const worldRegionCountsThisRun = {};
+    for (const region of WORLD_SPREAD_REGIONS) worldRegionCountsThisRun[region] = 0;
+    let worldUsDiplomacyThisRun = 0;
+    let worldMiddleEastThisRun = 0;
+    const nationalStateDailyCap = 1;
+    const todayNationalTopicRows = await sql`
+      SELECT title, description, content, source_title as "sourceTitle"
+      FROM article_drafts
+      WHERE created_at >= date_trunc('day', now())
+        AND created_via = 'auto'
+        AND section = 'national'
+    `;
+    const nationalStatesUsedToday = new Set();
+    for (const row of todayNationalTopicRows) {
+      const states = detectNationalStates(`${row.title || ''} ${row.description || ''} ${row.content || ''} ${row.sourceTitle || ''}`);
+      for (const state of states) {
+        if (state !== NATIONAL_EXCLUDED_STATE) nationalStatesUsedToday.add(state);
+      }
+    }
+    const nationalStatesUsedThisRun = new Set();
     const existingTitleRows = await sql`
       SELECT section, title AS compare_text FROM articles
       WHERE pub_date >= NOW() - INTERVAL '30 days'
@@ -787,17 +1533,26 @@ module.exports = async (req, res) => {
           .filter(Boolean)
       )
     );
-    const existingSportsEventKeys = new Set();
+    const existingEventKeysBySection = {};
+    for (const section of SECTION_ORDER) {
+      existingEventKeysBySection[section] = new Set();
+    }
     for (const row of existingTitleRows) {
-      if (normalizeSection(row.section) !== 'sports') continue;
+      const section = normalizeSection(row.section) || 'local';
+      if (!existingEventKeysBySection[section]) {
+        existingEventKeysBySection[section] = new Set();
+      }
       const compareText = cleanText(row.compare_text);
       if (!compareText) continue;
-      for (const key of buildSportsEventKeys(compareText)) {
-        existingSportsEventKeys.add(key);
+      for (const key of buildSectionEventKeys(section, compareText)) {
+        existingEventKeysBySection[section].add(key);
       }
     }
     const runTitles = [];
-    const runSportsEventKeys = new Set();
+    const runEventKeysBySection = {};
+    for (const section of SECTION_ORDER) {
+      runEventKeysBySection[section] = new Set();
+    }
 
     for (const candidate of candidates) {
       if (!dryRun && (tokensUsedToday + runTokensConsumed) >= dailyTokenBudget) {
@@ -806,6 +1561,91 @@ module.exports = async (req, res) => {
       }
       if (created.length >= targetCount) break;
       if (createdBySection[candidate.section] >= (runTargets[candidate.section] || 0)) {
+        continue;
+      }
+      if (candidate.section === 'national') {
+        const candidateStates = detectNationalStates(`${candidate.title || ''} ${candidate.snippet || ''}`);
+        const nonOhioStates = candidateStates.filter((s) => s !== NATIONAL_EXCLUDED_STATE);
+        if (!nonOhioStates.length) {
+          skipped.push({ reason: 'national_state_outside_ohio_required', title: candidate.title, url: candidate.url });
+          continue;
+        }
+        const hasAvailableState = nonOhioStates.some((state) => {
+          const usedCount = (nationalStatesUsedToday.has(state) ? 1 : 0) + (nationalStatesUsedThisRun.has(state) ? 1 : 0);
+          return usedCount < nationalStateDailyCap;
+        });
+        if (!hasAvailableState) {
+          skipped.push({ reason: 'national_state_daily_cap_reached', title: candidate.title, url: candidate.url });
+          continue;
+        }
+      }
+      if (candidate.section === 'world') {
+        const candidateText = `${candidate.title || ''} ${candidate.snippet || ''}`;
+        const candidateRegions = detectWorldRegions(candidateText);
+        if (!candidateRegions.length) {
+          skipped.push({ reason: 'world_region_unclassified', title: candidate.title, url: candidate.url });
+          continue;
+        }
+        const missingRequiredRegions = WORLD_REQUIRED_DAILY_REGIONS.filter((region) =>
+          ((worldRegionCountsToday[region] || 0) + (worldRegionCountsThisRun[region] || 0)) < 1
+        );
+        if (missingRequiredRegions.length && !candidateRegions.some((r) => missingRequiredRegions.includes(r))) {
+          skipped.push({ reason: 'world_required_region_pending', title: candidate.title, url: candidate.url });
+          continue;
+        }
+        const hasAvailableRegion = candidateRegions.some((region) => {
+          if (!WORLD_SPREAD_REGIONS.includes(region)) return false;
+          const used = (worldRegionCountsToday[region] || 0) + (worldRegionCountsThisRun[region] || 0);
+          return used < worldRegionDailyCap;
+        });
+        if (!hasAvailableRegion) {
+          skipped.push({ reason: 'world_region_daily_cap_reached', title: candidate.title, url: candidate.url });
+          continue;
+        }
+        if (candidateRegions.includes('middle_east') &&
+            (worldMiddleEastToday + worldMiddleEastThisRun) >= worldMiddleEastDailyCap) {
+          skipped.push({ reason: 'world_middle_east_daily_cap_reached', title: candidate.title, url: candidate.url });
+          continue;
+        }
+        if (isUsDiplomacyTopic(candidateText) &&
+            (worldUsDiplomacyToday + worldUsDiplomacyThisRun) >= worldUsDiplomacyDailyCap) {
+          skipped.push({ reason: 'world_us_diplomacy_daily_cap_reached', title: candidate.title, url: candidate.url });
+          continue;
+        }
+      }
+      if (candidate.section === 'entertainment') {
+        const tier = getEntertainmentGeoTier(`${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`);
+        if (tier <= 0) {
+          skipped.push({ reason: 'entertainment_geo_outside_scope', title: candidate.title, url: candidate.url });
+          continue;
+        }
+      }
+      if (candidate.section === 'business') {
+        const candidateText = `${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`;
+        const isLocalBusinessCandidate = isBusinessLocalTopic(candidateText);
+        const isMarketUpdateCandidate = candidate.businessMode === 'daily_market_update' || isBusinessMarketUpdateTopic(candidateText);
+        if (isBusinessSmallCapNoise(candidateText)) {
+          skipped.push({ reason: 'business_small_cap_filtered', title: candidate.title, url: candidate.url });
+          continue;
+        }
+        if ((businessMarketUpdateCreatedToday + businessMarketUpdateCreatedThisRun) >= BUSINESS_DAILY_MARKET_UPDATE_MAX && isMarketUpdateCandidate) {
+          skipped.push({ reason: 'business_daily_market_update_cap_reached', title: candidate.title, url: candidate.url });
+          continue;
+        }
+        if (
+          (businessLocalCreatedToday + businessLocalCreatedThisRun) < BUSINESS_LOCAL_DAILY_MIN &&
+          !isLocalBusinessCandidate
+        ) {
+          skipped.push({ reason: 'business_local_required_pending', title: candidate.title, url: candidate.url });
+          continue;
+        }
+      }
+      if (
+        candidate.section === 'sports' &&
+        isTennisTopic(`${candidate.title || ''} ${candidate.snippet || ''}`) &&
+        (tennisCreatedToday + tennisCreatedThisRun) >= tennisDailyCap
+      ) {
+        skipped.push({ reason: 'daily_tennis_cap_reached', title: candidate.title, url: candidate.url });
         continue;
       }
 
@@ -818,19 +1658,40 @@ module.exports = async (req, res) => {
         skipped.push({ reason: 'non_local_miami_noise', title: candidate.title, url: candidate.url });
         continue;
       }
+      if (isLocalSportsNoise(candidate)) {
+        skipped.push({ reason: 'local_sports_noise', title: candidate.title, url: candidate.url });
+        continue;
+      }
+      if (isLikelyPoliticalTopic(`${candidate.title || ''} ${candidate.snippet || ''}`) &&
+          isOpinionStyleContent(`${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`)) {
+        skipped.push({ reason: 'opinion_politics_filtered', title: candidate.title, url: candidate.url });
+        continue;
+      }
       if (isNearDuplicateTitle(candidate.title, existingTitles) || isNearDuplicateTitle(candidate.title, runTitles)) {
         skipped.push({ reason: 'near_duplicate_title', title: candidate.title, url: candidate.url });
         continue;
       }
-      if (candidate.section === 'sports') {
-        const candidateEventKeys = buildSportsEventKeys(`${candidate.title} ${candidate.snippet || ''}`);
-        if (
-          candidateEventKeys.length &&
-          (hasAnyKeyIntersection(candidateEventKeys, existingSportsEventKeys) ||
-            hasAnyKeyIntersection(candidateEventKeys, runSportsEventKeys))
-        ) {
-          skipped.push({ reason: 'duplicate_sports_event', title: candidate.title, url: candidate.url });
-          continue;
+      {
+        const section = normalizeSection(candidate.section) || 'local';
+        const candidateEventKeys = buildSectionEventKeys(section, `${candidate.title} ${candidate.snippet || ''}`);
+        const existingSet = existingEventKeysBySection[section] || new Set();
+        const runSet = runEventKeysBySection[section] || new Set();
+        if (candidateEventKeys.length) {
+          if (section === 'sports') {
+            if (hasAnyKeyIntersection(candidateEventKeys, existingSet) || hasAnyKeyIntersection(candidateEventKeys, runSet)) {
+              skipped.push({ reason: 'duplicate_sports_event', title: candidate.title, url: candidate.url });
+              continue;
+            }
+          } else {
+            const overlap = Math.max(
+              countKeyIntersection(candidateEventKeys, existingSet),
+              countKeyIntersection(candidateEventKeys, runSet)
+            );
+            if (overlap >= 2) {
+              skipped.push({ reason: 'duplicate_section_event', title: candidate.title, url: candidate.url });
+              continue;
+            }
+          }
         }
       }
 
@@ -852,15 +1713,121 @@ module.exports = async (req, res) => {
         skipped.push({ reason: 'near_duplicate_draft_title', title: draft.title, url: candidate.url });
         continue;
       }
-      if (draft.section === 'sports') {
-        const draftEventKeys = buildSportsEventKeys(`${draft.title} ${draft.description || ''}`);
-        if (
-          draftEventKeys.length &&
-          (hasAnyKeyIntersection(draftEventKeys, existingSportsEventKeys) ||
-            hasAnyKeyIntersection(draftEventKeys, runSportsEventKeys))
-        ) {
-          skipped.push({ reason: 'duplicate_sports_event_draft', title: draft.title, url: candidate.url });
+      if (isLikelyPoliticalTopic(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`) &&
+          isOpinionStyleContent(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`)) {
+        skipped.push({ reason: 'opinion_politics_filtered_draft', title: draft.title, url: candidate.url });
+        continue;
+      }
+      if (draft.section === 'local' && isLocalSportsNoise({ ...candidate, title: draft.title, snippet: `${draft.description || ''} ${draft.content || ''}` })) {
+        skipped.push({ reason: 'local_sports_noise_draft', title: draft.title, url: candidate.url });
+        continue;
+      }
+      if (draft.section === 'entertainment') {
+        const tier = getEntertainmentGeoTier(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''} ${candidate.url || ''}`);
+        if (tier <= 0) {
+          skipped.push({ reason: 'entertainment_geo_outside_scope_draft', title: draft.title, url: candidate.url });
           continue;
+        }
+      }
+      if (draft.section === 'business') {
+        const draftText = `${draft.title || ''} ${draft.description || ''} ${draft.content || ''} ${candidate.url || ''}`;
+        const isLocalBusinessDraft = isBusinessLocalTopic(draftText);
+        const isMarketUpdateDraft = candidate.businessMode === 'daily_market_update' || isBusinessMarketUpdateTopic(draftText);
+        if (isBusinessSmallCapNoise(draftText)) {
+          skipped.push({ reason: 'business_small_cap_filtered_draft', title: draft.title, url: candidate.url });
+          continue;
+        }
+        if ((businessMarketUpdateCreatedToday + businessMarketUpdateCreatedThisRun) >= BUSINESS_DAILY_MARKET_UPDATE_MAX && isMarketUpdateDraft) {
+          skipped.push({ reason: 'business_daily_market_update_cap_reached_draft', title: draft.title, url: candidate.url });
+          continue;
+        }
+        if (
+          (businessLocalCreatedToday + businessLocalCreatedThisRun) < BUSINESS_LOCAL_DAILY_MIN &&
+          !isLocalBusinessDraft
+        ) {
+          skipped.push({ reason: 'business_local_required_pending_draft', title: draft.title, url: candidate.url });
+          continue;
+        }
+      }
+      if (draft.section === 'world') {
+        const draftText = `${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`;
+        const draftRegions = detectWorldRegions(draftText);
+        if (!draftRegions.length) {
+          skipped.push({ reason: 'world_region_unclassified_draft', title: draft.title, url: candidate.url });
+          continue;
+        }
+        const missingRequiredRegions = WORLD_REQUIRED_DAILY_REGIONS.filter((region) =>
+          ((worldRegionCountsToday[region] || 0) + (worldRegionCountsThisRun[region] || 0)) < 1
+        );
+        if (missingRequiredRegions.length && !draftRegions.some((r) => missingRequiredRegions.includes(r))) {
+          skipped.push({ reason: 'world_required_region_pending_draft', title: draft.title, url: candidate.url });
+          continue;
+        }
+        const hasAvailableRegion = draftRegions.some((region) => {
+          if (!WORLD_SPREAD_REGIONS.includes(region)) return false;
+          const used = (worldRegionCountsToday[region] || 0) + (worldRegionCountsThisRun[region] || 0);
+          return used < worldRegionDailyCap;
+        });
+        if (!hasAvailableRegion) {
+          skipped.push({ reason: 'world_region_daily_cap_reached_draft', title: draft.title, url: candidate.url });
+          continue;
+        }
+        if (draftRegions.includes('middle_east') &&
+            (worldMiddleEastToday + worldMiddleEastThisRun) >= worldMiddleEastDailyCap) {
+          skipped.push({ reason: 'world_middle_east_daily_cap_reached_draft', title: draft.title, url: candidate.url });
+          continue;
+        }
+        if (isUsDiplomacyTopic(draftText) &&
+            (worldUsDiplomacyToday + worldUsDiplomacyThisRun) >= worldUsDiplomacyDailyCap) {
+          skipped.push({ reason: 'world_us_diplomacy_daily_cap_reached_draft', title: draft.title, url: candidate.url });
+          continue;
+        }
+      }
+      if (
+        draft.section === 'sports' &&
+        isTennisTopic(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`) &&
+        (tennisCreatedToday + tennisCreatedThisRun) >= tennisDailyCap
+      ) {
+        skipped.push({ reason: 'daily_tennis_cap_reached', title: draft.title, url: candidate.url });
+        continue;
+      }
+      if (draft.section === 'national') {
+        const draftStates = detectNationalStates(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`);
+        const nonOhioStates = draftStates.filter((s) => s !== NATIONAL_EXCLUDED_STATE);
+        if (!nonOhioStates.length) {
+          skipped.push({ reason: 'national_state_outside_ohio_required', title: draft.title, url: candidate.url });
+          continue;
+        }
+        const hasAvailableState = nonOhioStates.some((state) => {
+          const usedCount = (nationalStatesUsedToday.has(state) ? 1 : 0) + (nationalStatesUsedThisRun.has(state) ? 1 : 0);
+          return usedCount < nationalStateDailyCap;
+        });
+        if (!hasAvailableState) {
+          skipped.push({ reason: 'national_state_daily_cap_reached', title: draft.title, url: candidate.url });
+          continue;
+        }
+      }
+      {
+        const section = normalizeSection(draft.section) || 'local';
+        const draftEventKeys = buildSectionEventKeys(section, `${draft.title} ${draft.description || ''}`);
+        const existingSet = existingEventKeysBySection[section] || new Set();
+        const runSet = runEventKeysBySection[section] || new Set();
+        if (draftEventKeys.length) {
+          if (section === 'sports') {
+            if (hasAnyKeyIntersection(draftEventKeys, existingSet) || hasAnyKeyIntersection(draftEventKeys, runSet)) {
+              skipped.push({ reason: 'duplicate_sports_event_draft', title: draft.title, url: candidate.url });
+              continue;
+            }
+          } else {
+            const overlap = Math.max(
+              countKeyIntersection(draftEventKeys, existingSet),
+              countKeyIntersection(draftEventKeys, runSet)
+            );
+            if (overlap >= 2) {
+              skipped.push({ reason: 'duplicate_section_event_draft', title: draft.title, url: candidate.url });
+              continue;
+            }
+          }
         }
       }
       const slug = generateSlug(draft.title);
@@ -908,11 +1875,40 @@ module.exports = async (req, res) => {
       createdBySection[draft.section] = (createdBySection[draft.section] || 0) + 1;
       runTokensConsumed += Number(draft.totalTokens || 0);
       runTitles.push(draft.title);
-      if (draft.section === 'sports') {
-        const eventKeys = buildSportsEventKeys(`${draft.title} ${draft.description || ''}`);
+      {
+        const section = normalizeSection(draft.section) || 'local';
+        const eventKeys = buildSectionEventKeys(section, `${draft.title} ${draft.description || ''}`);
+        if (!runEventKeysBySection[section]) runEventKeysBySection[section] = new Set();
         for (const key of eventKeys) {
-          runSportsEventKeys.add(key);
+          runEventKeysBySection[section].add(key);
         }
+      }
+      if (draft.section === 'sports' && isTennisTopic(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`)) {
+        tennisCreatedThisRun += 1;
+      }
+      if (draft.section === 'business') {
+        const text = `${draft.title || ''} ${draft.description || ''} ${draft.content || ''} ${candidate.url || ''}`;
+        if (isBusinessLocalTopic(text)) businessLocalCreatedThisRun += 1;
+        if (candidate.businessMode === 'daily_market_update' || isBusinessMarketUpdateTopic(text)) {
+          businessMarketUpdateCreatedThisRun += 1;
+        }
+      }
+      if (draft.section === 'national') {
+        const states = detectNationalStates(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`);
+        for (const state of states) {
+          if (state !== NATIONAL_EXCLUDED_STATE) nationalStatesUsedThisRun.add(state);
+        }
+      }
+      if (draft.section === 'world') {
+        const text = `${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`;
+        const regions = detectWorldRegions(text);
+        for (const region of regions) {
+          if (worldRegionCountsThisRun[region] !== undefined) {
+            worldRegionCountsThisRun[region] += 1;
+          }
+        }
+        if (regions.includes('middle_east')) worldMiddleEastThisRun += 1;
+        if (isUsDiplomacyTopic(text)) worldUsDiplomacyThisRun += 1;
       }
       created.push({
         slug,
@@ -946,6 +1942,28 @@ module.exports = async (req, res) => {
       sectionTargets: SECTION_DAILY_TARGETS,
       runTargets,
       remainingBySection,
+      tennisDailyCap,
+      tennisCreatedToday,
+      tennisCreatedThisRun,
+      businessLocalDailyMin: BUSINESS_LOCAL_DAILY_MIN,
+      businessLocalCreatedToday,
+      businessLocalCreatedThisRun,
+      businessDailyMarketUpdateMax: BUSINESS_DAILY_MARKET_UPDATE_MAX,
+      businessMarketUpdateCreatedToday,
+      businessMarketUpdateCreatedThisRun,
+      nationalStateDailyCap,
+      nationalStatesUsedToday: Array.from(nationalStatesUsedToday),
+      nationalStatesUsedThisRun: Array.from(nationalStatesUsedThisRun),
+      worldRequiredDailyRegions: WORLD_REQUIRED_DAILY_REGIONS,
+      worldRegionDailyCap,
+      worldUsDiplomacyDailyCap,
+      worldMiddleEastDailyCap,
+      worldRegionCountsToday,
+      worldRegionCountsThisRun,
+      worldUsDiplomacyToday,
+      worldUsDiplomacyThisRun,
+      worldMiddleEastToday,
+      worldMiddleEastThisRun,
       createdBySection,
       createdCount: created.length,
       skippedCount: skipped.length,
