@@ -225,8 +225,8 @@ nav a:not(:last-child)::after {
 
 .world-news-content {
   display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.05fr);
+  gap: 1rem;
   margin-bottom: 2rem;
 }
 
@@ -341,6 +341,10 @@ nav a:not(:last-child)::after {
 }
 
 @media (min-width: 901px) {
+  .world-news-content .featured-overlay h3 {
+    padding-left: 2.1rem;
+  }
+
   .world-news-content .headlines-sidebar {
     height: 350px;
     overflow: hidden;
@@ -351,8 +355,8 @@ nav a:not(:last-child)::after {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding-top: 0.35rem;
-    padding-bottom: 0.35rem;
+    padding-top: 0.55rem;
+    padding-bottom: 0.5rem;
     overflow: visible;
   }
 
@@ -370,8 +374,8 @@ nav a:not(:last-child)::after {
 
   .world-news-content .headlines-sidebar a {
     display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
