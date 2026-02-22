@@ -4,6 +4,10 @@ const slug = params.get('slug');
 
 console.log('Article.js loaded - slug:', slug);
 
+function getArticleSlug(article) {
+  return article?.slug || article?.url || '';
+}
+
 async function loadArticle() {
   const loadingEl = document.getElementById('article-loading');
   const contentEl = document.getElementById('article-content');
@@ -12,7 +16,7 @@ async function loadArticle() {
     if (!slug) throw new Error('No article slug provided');
 
     // Fetch article from database
-    const res = await fetch(`/api/article?slug=${slug}`);
+    const res = await fetch(`/api/article?slug=${encodeURIComponent(slug)}`);
     if (!res.ok) throw new Error('Article not found');
     const data = await res.json();
     const article = data.article;
@@ -163,7 +167,7 @@ async function loadRelatedArticles(section) {
     
     // Filter articles with images, exclude current article
     let articles = data.articles
-      .filter(a => a.image && a.slug !== slug)
+      .filter(a => a.image && getArticleSlug(a) !== slug)
       .slice(0, 6);
 
     const grid = document.getElementById('related-grid');
@@ -176,8 +180,10 @@ async function loadRelatedArticles(section) {
     articles.forEach(article => {
       const card = document.createElement('div');
       card.className = 'bottom-article-card';
+      const articleSlug = getArticleSlug(article);
+      if (!articleSlug) return;
       card.innerHTML = `
-        <a href="article.html?slug=${article.slug}">
+        <a href="article.html?slug=${encodeURIComponent(articleSlug)}">
           <img src="${article.image}" alt="${article.title}" loading="lazy">
           <h4>${article.title}</h4>
           <div class="article-meta">
@@ -227,7 +233,7 @@ async function setupArticleNavigation(currentSection) {
     console.log('Current slug:', slug);
     
     // Find current article index
-    const currentIndex = articles.findIndex(a => a.slug === slug);
+    const currentIndex = articles.findIndex(a => getArticleSlug(a) === slug);
     console.log('Current index:', currentIndex);
     
     if (currentIndex === -1 || articles.length < 2) {
@@ -259,29 +265,49 @@ async function setupArticleNavigation(currentSection) {
     }
     
     if (prevBtn) {
+      prevBtn.replaceWith(prevBtn.cloneNode(true));
+    }
+    if (nextBtn) {
+      nextBtn.replaceWith(nextBtn.cloneNode(true));
+    }
+
+    const freshPrevBtn = document.getElementById('prev-article');
+    const freshNextBtn = document.getElementById('next-article');
+
+    if (freshPrevBtn) {
       if (prevArticle) {
-        prevBtn.addEventListener('click', () => {
-          console.log('Prev button clicked! Navigating to:', prevArticle.slug);
-          window.location.href = `article.html?slug=${prevArticle.slug}`;
+        const prevSlug = getArticleSlug(prevArticle);
+        if (!prevSlug) {
+          freshPrevBtn.disabled = true;
+          return;
+        }
+        freshPrevBtn.addEventListener('click', () => {
+          console.log('Prev button clicked! Navigating to:', prevSlug);
+          window.location.href = `article.html?slug=${encodeURIComponent(prevSlug)}`;
         });
-        prevBtn.disabled = false;
+        freshPrevBtn.disabled = false;
         console.log('Prev button enabled');
       } else {
-        prevBtn.disabled = true;
+        freshPrevBtn.disabled = true;
         console.log('Prev button disabled (no prev article)');
       }
     }
     
-    if (nextBtn) {
+    if (freshNextBtn) {
       if (nextArticle) {
-        nextBtn.addEventListener('click', () => {
-          console.log('Next button clicked! Navigating to:', nextArticle.slug);
-          window.location.href = `article.html?slug=${nextArticle.slug}`;
+        const nextSlug = getArticleSlug(nextArticle);
+        if (!nextSlug) {
+          freshNextBtn.disabled = true;
+          return;
+        }
+        freshNextBtn.addEventListener('click', () => {
+          console.log('Next button clicked! Navigating to:', nextSlug);
+          window.location.href = `article.html?slug=${encodeURIComponent(nextSlug)}`;
         });
-        nextBtn.disabled = false;
+        freshNextBtn.disabled = false;
         console.log('Next button enabled');
       } else {
-        nextBtn.disabled = true;
+        freshNextBtn.disabled = true;
         console.log('Next button disabled (no next article)');
       }
     }
