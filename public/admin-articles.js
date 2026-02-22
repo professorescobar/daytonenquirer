@@ -8,7 +8,9 @@ const sectionFilterInput = document.getElementById('article-section-filter');
 const limitInput = document.getElementById('article-list-limit');
 const saveTokenBtn = document.getElementById('save-token-btn');
 const loadArticlesBtn = document.getElementById('load-articles-btn');
+const showAllBtn = document.getElementById('show-all-btn');
 const articleSearchInput = document.getElementById('article-search');
+const articleTotalCountEl = document.getElementById('article-total-count');
 const messageEl = document.getElementById('admin-message');
 const listEl = document.getElementById('article-list');
 
@@ -25,6 +27,7 @@ const SECTION_OPTIONS = [
 
 let unlocked = false;
 let loadedArticles = [];
+let lastTotalCount = 0;
 const ET_TIME_ZONE = 'America/New_York';
 
 function setMessage(text) {
@@ -246,23 +249,39 @@ function applySearchFilter() {
   const q = String(articleSearchInput.value || '').trim().toLowerCase();
   if (!q) {
     renderArticles(loadedArticles);
+    articleTotalCountEl.textContent = String(lastTotalCount || loadedArticles.length);
     return;
   }
   const filtered = loadedArticles.filter((a) => articleSearchHaystack(a).includes(q));
   renderArticles(filtered);
+  articleTotalCountEl.textContent = String(lastTotalCount || loadedArticles.length);
 }
 
 async function loadArticles() {
   try {
     setMessage('Loading published articles...');
     const section = encodeURIComponent(sectionFilterInput.value || 'all');
-    const limit = encodeURIComponent(limitInput.value || '20');
+    const limit = encodeURIComponent(limitInput.value || '50');
     const data = await apiRequest(`/api/admin-articles?section=${section}&limit=${limit}`);
     loadedArticles = data.articles || [];
+    lastTotalCount = Number(data.totalCount || loadedArticles.length || 0);
+    articleTotalCountEl.textContent = String(lastTotalCount);
     applySearchFilter();
     setMessage(`Loaded ${data.count || 0} article(s).`);
   } catch (err) {
     setMessage(`Load failed: ${err.message}`);
+  }
+}
+
+async function showAllArticles() {
+  try {
+    setMessage('Loading all matching published articles...');
+    const section = encodeURIComponent(sectionFilterInput.value || 'all');
+    const total = Math.max(25, Math.min(5000, Number(lastTotalCount || 5000)));
+    limitInput.value = String(total);
+    await loadArticles();
+  } catch (err) {
+    setMessage(`Show all failed: ${err.message}`);
   }
 }
 
@@ -324,6 +343,12 @@ loadArticlesBtn.addEventListener('click', loadArticles);
 unlockAdminBtn.addEventListener('click', unlock);
 listEl.addEventListener('click', onListClick);
 articleSearchInput.addEventListener('input', applySearchFilter);
+showAllBtn.addEventListener('click', showAllArticles);
+limitInput.addEventListener('input', () => {
+  const raw = Number(limitInput.value || 50);
+  const stepped = Math.max(25, Math.min(200, Math.round(raw / 25) * 25));
+  if (stepped !== raw) limitInput.value = String(stepped);
+});
 
 loadToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked_articles') === '1');

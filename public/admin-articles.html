@@ -55,8 +55,8 @@
             Admin Token
             <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
           </label>
-          <label>
-            Section Filter
+        <label>
+          Section Filter
             <select id="article-section-filter">
               <option value="all" selected>all</option>
               <option value="local">local</option>
@@ -68,15 +68,16 @@
               <option value="entertainment">entertainment</option>
               <option value="technology">technology</option>
             </select>
-          </label>
-          <label>
-            List Limit
-            <input id="article-list-limit" type="number" min="1" max="200" value="20" />
-          </label>
-        </div>
+        </label>
+        <label>
+          List Limit (<span id="article-total-count">0</span> total)
+          <input id="article-list-limit" type="number" min="25" max="200" step="25" value="50" />
+        </label>
+      </div>
         <div class="admin-actions">
           <button id="save-token-btn" class="btn">Save Token</button>
           <button id="load-articles-btn" class="btn btn-primary">Load Published Articles</button>
+          <button id="show-all-btn" class="btn">Show All</button>
         </div>
         <div class="admin-grid single">
           <label>
