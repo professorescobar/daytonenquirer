@@ -13,6 +13,12 @@ const generateBtn = document.getElementById('generate-btn');
 const saveTokenBtn = document.getElementById('save-token-btn');
 const messageEl = document.getElementById('admin-message');
 const draftListEl = document.getElementById('draft-list');
+const usageTokensEl = document.getElementById('usage-tokens');
+const usageBudgetEl = document.getElementById('usage-budget');
+const usagePercentEl = document.getElementById('usage-percent');
+const usageDraftsEl = document.getElementById('usage-drafts');
+const usageBudgetInput = document.getElementById('usage-budget-input');
+const saveBudgetBtn = document.getElementById('save-budget-btn');
 
 const SECTION_OPTIONS = [
   'local',
@@ -191,6 +197,7 @@ async function loadDrafts() {
     const limit = encodeURIComponent(limitInput.value || '25');
     const data = await apiRequest(`/api/admin-drafts?status=${status}&limit=${limit}`);
     renderDrafts(data.drafts || []);
+    await loadUsageDashboard();
     setMessage(`Loaded ${data.count || 0} draft(s).`);
   } catch (err) {
     setMessage(`Load failed: ${err.message}`);
@@ -206,9 +213,37 @@ async function generateDrafts() {
     const url = `/api/admin-generate-drafts?count=${count}&includeSections=${includeSections}&excludeSections=${excludeSections}`;
     const data = await apiRequest(url, { method: 'POST' });
     setMessage(`Generated ${data.createdCount || 0} draft(s), skipped ${data.skippedCount || 0}.`);
+    await loadUsageDashboard();
     await loadDrafts();
   } catch (err) {
     setMessage(`Generate failed: ${err.message}`);
+  }
+}
+
+async function loadUsageDashboard() {
+  const data = await apiRequest('/api/admin-usage');
+  usageTokensEl.textContent = Number(data.tokensUsedToday || 0).toLocaleString();
+  usageBudgetEl.textContent = Number(data.dailyTokenBudget || 0).toLocaleString();
+  usagePercentEl.textContent = `${data.budgetPercent || 0}%`;
+  usageDraftsEl.textContent = Number(data.draftsToday || 0).toLocaleString();
+  usageBudgetInput.value = Number(data.dailyTokenBudget || 0);
+}
+
+async function saveBudget() {
+  try {
+    const dailyTokenBudget = Number(usageBudgetInput.value || 0);
+    if (!dailyTokenBudget || dailyTokenBudget < 1) {
+      throw new Error('Enter a valid token budget');
+    }
+    const data = await apiRequest('/api/admin-budget', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dailyTokenBudget })
+    });
+    setMessage(`Daily token budget updated to ${Number(data.dailyTokenBudget).toLocaleString()}.`);
+    await loadUsageDashboard();
+  } catch (err) {
+    setMessage(`Budget update failed: ${err.message}`);
   }
 }
 
@@ -280,6 +315,10 @@ loadDraftsBtn.addEventListener('click', loadDrafts);
 generateBtn.addEventListener('click', generateDrafts);
 draftListEl.addEventListener('click', onDraftListClick);
 unlockAdminBtn.addEventListener('click', unlockAdminUi);
+saveBudgetBtn.addEventListener('click', saveBudget);
 
 loadStoredToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked') === '1');
+if (adminUiUnlocked) {
+  loadUsageDashboard().catch((err) => setMessage(`Usage load failed: ${err.message}`));
+}

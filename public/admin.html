@@ -37,6 +37,32 @@
 
     <section id="admin-app" hidden>
     <section class="admin-panel">
+      <h3>Token Budget Dashboard</h3>
+      <div class="usage-grid">
+        <div class="usage-card">
+          <span class="usage-label">Tokens Used Today</span>
+          <strong id="usage-tokens">0</strong>
+        </div>
+        <div class="usage-card">
+          <span class="usage-label">Daily Budget</span>
+          <strong id="usage-budget">0</strong>
+          <div class="usage-edit-row">
+            <input id="usage-budget-input" type="number" min="1" step="1000" placeholder="Set budget" />
+            <button id="save-budget-btn" class="btn">Save</button>
+          </div>
+        </div>
+        <div class="usage-card">
+          <span class="usage-label">Budget Used</span>
+          <strong id="usage-percent">0%</strong>
+        </div>
+        <div class="usage-card">
+          <span class="usage-label">Drafts Today</span>
+          <strong id="usage-drafts">0</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="admin-panel">
       <h2>Draft Operations</h2>
       <p class="hint">Use your admin token to generate, review, edit, and publish AI drafts.</p>
 

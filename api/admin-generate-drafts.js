@@ -1,6 +1,7 @@
 const { neon } = require('@neondatabase/serverless');
 const Parser = require('rss-parser');
 const { requireAdmin } = require('./_admin-auth');
+const { getDailyTokenBudget } = require('./_admin-settings');
 const {
   cleanText,
   generateSlug,
@@ -45,6 +46,10 @@ const SECTION_ORDER = [
   'entertainment',
   'technology'
 ];
+
+const MIN_ARTICLE_WORDS = 600;
+const TARGET_ARTICLE_WORDS = 800;
+const DEFAULT_MAX_OUTPUT_TOKENS = 3200;
 
 const ET_TIME_ZONE = 'America/New_York';
 const MULTI_TRACK_SLOTS_ET = ['06:05', '09:05', '12:05', '15:05', '18:05', '21:05'];
@@ -161,6 +166,15 @@ function safeJsonParse(text) {
   }
 }
 
+function countWords(text) {
+  const plain = String(text || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!plain) return 0;
+  return plain.split(' ').length;
+}
+
 async function callAnthropicForDraft(candidate) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -172,6 +186,10 @@ async function callAnthropicForDraft(candidate) {
     : 'This article may cover broader non-local scope.';
 
   const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
+  const maxOutputTokens = Math.min(
+    parseInt(process.env.ANTHROPIC_MAX_OUTPUT_TOKENS || String(DEFAULT_MAX_OUTPUT_TOKENS), 10),
+    8192
+  );
   const prompt = `
 You are writing a fully original local-news publication draft for The Dayton Enquirer.
 
@@ -186,6 +204,8 @@ Requirements:
 3) title: brief, attention-grabbing newsroom headline (8-14 words preferred, no clickbait).
 4) description: concise 2-4 sentence summary.
 5) content: detailed long-form article in plain HTML-friendly text with paragraph breaks using \\n\\n.
+   - Minimum ${MIN_ARTICLE_WORDS} words.
+   - Target ${TARGET_ARTICLE_WORDS}-${TARGET_ARTICLE_WORDS + 300} words.
 6) Writing quality:
    - Open by centering the main current event in the first 1-2 paragraphs.
    - Then transition into meaningful related context readers care about (local impact, timeline, policy, business, public safety, practical implications).
@@ -207,7 +227,7 @@ Return only JSON.
     },
     body: JSON.stringify({
       model,
-      max_tokens: 2200,
+      max_tokens: maxOutputTokens,
       temperature: 0.4,
       messages: [{ role: 'user', content: prompt }]
     })
@@ -220,6 +240,10 @@ Return only JSON.
 
   const data = await response.json();
   const text = data?.content?.find((c) => c.type === 'text')?.text || '';
+  const usage = data?.usage || {};
+  const inputTokens = Number(usage.input_tokens || 0);
+  const outputTokens = Number(usage.output_tokens || 0);
+  const totalTokens = inputTokens + outputTokens;
   const parsed = safeJsonParse(text);
   if (!parsed) {
     throw new Error('Model did not return valid JSON');
@@ -230,8 +254,25 @@ Return only JSON.
     description: truncate(cleanText(parsed.description), 800),
     content: cleanText(parsed.content),
     section: normalizeSection(candidate.section),
-    model
+    model,
+    inputTokens,
+    outputTokens,
+    totalTokens
   };
+}
+
+async function buildDraftWithMinWords(candidate) {
+  let draft = await callAnthropicForDraft(candidate);
+  let words = countWords(draft.content);
+  if (words >= MIN_ARTICLE_WORDS) return { draft, words };
+
+  // Retry once with stricter length guidance.
+  draft = await callAnthropicForDraft({
+    ...candidate,
+    title: `${candidate.title} (expand with more verified context and impact details)`
+  });
+  words = countWords(draft.content);
+  return { draft, words };
 }
 
 function buildRunTargets(remainingBySection, maxForRun, activeSections) {
@@ -354,6 +395,7 @@ module.exports = async (req, res) => {
 
   const requestedCount = Math.min(parseInt(req.body?.count || req.query.count || '6', 10), 50);
   const dryRun = String(req.body?.dryRun || req.query.dryRun || 'false') === 'true';
+  const dailyTokenBudgetOverride = req.body?.dailyTokenBudget || req.query.dailyTokenBudget;
   const scheduleMode = String(req.body?.schedule || req.query.schedule || '').toLowerCase();
   const track = String(req.body?.track || req.query.track || '').toLowerCase();
   const includeSections = parseSectionList(req.body?.includeSections || req.query.includeSections);
@@ -366,6 +408,9 @@ module.exports = async (req, res) => {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const dailyTokenBudget = dailyTokenBudgetOverride
+      ? Math.max(1, Math.min(parseInt(String(dailyTokenBudgetOverride), 10), 1000000))
+      : await getDailyTokenBudget(sql);
     const etNowParts = getNowInEtParts();
     const etTime = getEtTimeKey(etNowParts);
     const etDate = getEtDateKey(etNowParts);
@@ -392,6 +437,22 @@ module.exports = async (req, res) => {
       WHERE created_at >= date_trunc('day', now())
       GROUP BY section
     `;
+
+    const todayTokensRows = await sql`
+      SELECT COALESCE(SUM(total_tokens), 0)::int AS "tokens"
+      FROM article_drafts
+      WHERE created_at >= date_trunc('day', now())
+    `;
+    const tokensUsedToday = todayTokensRows?.[0]?.tokens || 0;
+    if (!dryRun && tokensUsedToday >= dailyTokenBudget) {
+      return res.status(200).json({
+        ok: true,
+        skipped: true,
+        reason: 'Daily token budget reached',
+        dailyTokenBudget,
+        tokensUsedToday
+      });
+    }
 
     const generatedMap = {};
     for (const row of todayBySection) {
@@ -434,6 +495,7 @@ module.exports = async (req, res) => {
     const candidates = await fetchCandidates(runTargets, activeSections);
     const created = [];
     const skipped = [];
+    let runTokensConsumed = 0;
     const createdBySection = {};
     for (const section of SECTION_ORDER) createdBySection[section] = 0;
     const existingTitleRows = await sql`
@@ -447,6 +509,10 @@ module.exports = async (req, res) => {
     const runTitles = [];
 
     for (const candidate of candidates) {
+      if (!dryRun && (tokensUsedToday + runTokensConsumed) >= dailyTokenBudget) {
+        skipped.push({ reason: 'daily_token_budget_reached', title: candidate.title, url: candidate.url });
+        break;
+      }
       if (created.length >= targetCount) break;
       if (createdBySection[candidate.section] >= (runTargets[candidate.section] || 0)) {
         continue;
@@ -462,9 +528,18 @@ module.exports = async (req, res) => {
         continue;
       }
 
-      const draft = await callAnthropicForDraft(candidate);
+      const { draft, words } = await buildDraftWithMinWords(candidate);
       if (!draft.title || !draft.content) {
         skipped.push({ reason: 'rejected_non_local_or_empty', title: candidate.title, url: candidate.url });
+        continue;
+      }
+      if (words < MIN_ARTICLE_WORDS) {
+        skipped.push({
+          reason: 'below_min_word_count',
+          title: draft.title || candidate.title,
+          url: candidate.url,
+          words
+        });
         continue;
       }
       if (isNearDuplicateTitle(draft.title, existingTitles) || isNearDuplicateTitle(draft.title, runTitles)) {
@@ -486,6 +561,9 @@ module.exports = async (req, res) => {
             source_published_at,
             pub_date,
             model,
+            input_tokens,
+            output_tokens,
+            total_tokens,
             status
           )
           VALUES (
@@ -499,6 +577,9 @@ module.exports = async (req, res) => {
             ${candidate.sourcePublishedAt},
             ${new Date().toISOString()},
             ${draft.model},
+            ${draft.inputTokens || 0},
+            ${draft.outputTokens || 0},
+            ${draft.totalTokens || 0},
             'pending_review'
           )
           ON CONFLICT (slug) DO NOTHING
@@ -506,12 +587,17 @@ module.exports = async (req, res) => {
       }
 
       createdBySection[draft.section] = (createdBySection[draft.section] || 0) + 1;
+      runTokensConsumed += Number(draft.totalTokens || 0);
       runTitles.push(draft.title);
       created.push({
         slug,
         title: draft.title,
         section: draft.section,
-        sourceUrl: candidate.url
+        sourceUrl: candidate.url,
+        words,
+        inputTokens: draft.inputTokens || 0,
+        outputTokens: draft.outputTokens || 0,
+        totalTokens: draft.totalTokens || 0
       });
     }
 
@@ -519,6 +605,10 @@ module.exports = async (req, res) => {
       ok: true,
       dryRun,
       requested: requestedCount,
+      dailyTokenBudget,
+      tokensUsedToday,
+      runTokensConsumed,
+      tokensUsedAfterRun: tokensUsedToday + runTokensConsumed,
       scheduleMode,
       track,
       etDate,

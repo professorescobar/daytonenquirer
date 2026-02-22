@@ -39,11 +39,29 @@ async function setupDatabase() {
       source_published_at TIMESTAMP,
       pub_date TIMESTAMP,
       model TEXT,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      total_tokens INTEGER,
       status TEXT DEFAULT 'pending_review',
       published_article_id INTEGER REFERENCES articles(id),
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     )
+  `;
+
+  await sql`
+    ALTER TABLE article_drafts
+    ADD COLUMN IF NOT EXISTS input_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE article_drafts
+    ADD COLUMN IF NOT EXISTS output_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE article_drafts
+    ADD COLUMN IF NOT EXISTS total_tokens INTEGER
   `;
 
   await sql`
@@ -55,6 +73,14 @@ async function setupDatabase() {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_article_drafts_source_url_unique
     ON article_drafts(source_url)
     WHERE source_url IS NOT NULL
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS admin_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
   `;
   
   console.log('✅ Database tables created/verified successfully!');
