@@ -435,6 +435,7 @@ module.exports = async (req, res) => {
       SELECT section, COUNT(*)::int AS "count"
       FROM article_drafts
       WHERE created_at >= date_trunc('day', now())
+        AND created_via = 'auto'
       GROUP BY section
     `;
 
@@ -442,6 +443,7 @@ module.exports = async (req, res) => {
       SELECT COALESCE(SUM(total_tokens), 0)::int AS "tokens"
       FROM article_drafts
       WHERE created_at >= date_trunc('day', now())
+        AND created_via = 'auto'
     `;
     const tokensUsedToday = todayTokensRows?.[0]?.tokens || 0;
     if (!dryRun && tokensUsedToday >= dailyTokenBudget) {
@@ -564,6 +566,7 @@ module.exports = async (req, res) => {
             input_tokens,
             output_tokens,
             total_tokens,
+            created_via,
             status
           )
           VALUES (
@@ -580,6 +583,7 @@ module.exports = async (req, res) => {
             ${draft.inputTokens || 0},
             ${draft.outputTokens || 0},
             ${draft.totalTokens || 0},
+            'auto',
             'pending_review'
           )
           ON CONFLICT (slug) DO NOTHING

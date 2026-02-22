@@ -29,6 +29,7 @@ module.exports = async (req, res) => {
         source_published_at as "sourcePublishedAt",
         pub_date as "pubDate",
         model,
+        created_via as "createdVia",
         status,
         published_article_id as "publishedArticleId",
         created_at as "createdAt",

@@ -42,6 +42,7 @@ async function setupDatabase() {
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
+      created_via TEXT DEFAULT 'auto',
       status TEXT DEFAULT 'pending_review',
       published_article_id INTEGER REFERENCES articles(id),
       created_at TIMESTAMP DEFAULT NOW(),
@@ -62,6 +63,11 @@ async function setupDatabase() {
   await sql`
     ALTER TABLE article_drafts
     ADD COLUMN IF NOT EXISTS total_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE article_drafts
+    ADD COLUMN IF NOT EXISTS created_via TEXT DEFAULT 'auto'
   `;
 
   await sql`

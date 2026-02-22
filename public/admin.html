@@ -56,7 +56,7 @@
           <strong id="usage-percent">0%</strong>
         </div>
         <div class="usage-card">
-          <span class="usage-label">Drafts Today</span>
+          <span class="usage-label">Auto Drafts Today</span>
           <strong id="usage-drafts">0</strong>
         </div>
       </div>
@@ -109,6 +109,32 @@
       </div>
       <div class="admin-actions">
         <button id="generate-btn" class="btn btn-primary">Generate Drafts</button>
+      </div>
+    </section>
+
+    <section class="admin-panel">
+      <h3>Write Your Own Article</h3>
+      <div class="admin-grid">
+        <label>
+          Draft Title
+          <input id="manual-title" type="text" placeholder="Optional title for your new draft" />
+        </label>
+        <label>
+          Section
+          <select id="manual-section">
+            <option value="local">local</option>
+            <option value="national">national</option>
+            <option value="world">world</option>
+            <option value="business">business</option>
+            <option value="sports">sports</option>
+            <option value="health">health</option>
+            <option value="entertainment">entertainment</option>
+            <option value="technology">technology</option>
+          </select>
+        </label>
+      </div>
+      <div class="admin-actions">
+        <button id="create-draft-btn" class="btn">Create Blank Draft</button>
       </div>
     </section>
 

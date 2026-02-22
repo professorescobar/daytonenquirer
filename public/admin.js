@@ -8,8 +8,11 @@ const limitInput = document.getElementById('list-limit');
 const genCountInput = document.getElementById('gen-count');
 const genIncludeInput = document.getElementById('gen-include');
 const genExcludeInput = document.getElementById('gen-exclude');
+const manualTitleInput = document.getElementById('manual-title');
+const manualSectionInput = document.getElementById('manual-section');
 const loadDraftsBtn = document.getElementById('load-drafts-btn');
 const generateBtn = document.getElementById('generate-btn');
+const createDraftBtn = document.getElementById('create-draft-btn');
 const saveTokenBtn = document.getElementById('save-token-btn');
 const messageEl = document.getElementById('admin-message');
 const draftListEl = document.getElementById('draft-list');
@@ -138,6 +141,7 @@ function renderDrafts(drafts) {
       <p class="draft-meta">
         section: ${escapeHtml(draft.section || '')} |
         slug: ${escapeHtml(draft.slug || '')} |
+        via: ${escapeHtml(draft.createdVia || 'unknown')} |
         created: ${escapeHtml(formatDate(draft.createdAt))}
       </p>
       <p class="draft-meta">source: <a href="${escapeHtml(draft.sourceUrl || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(draft.sourceUrl || 'N/A')}</a></p>
@@ -217,6 +221,23 @@ async function generateDrafts() {
     await loadDrafts();
   } catch (err) {
     setMessage(`Generate failed: ${err.message}`);
+  }
+}
+
+async function createManualDraft() {
+  try {
+    const title = (manualTitleInput.value || '').trim();
+    const section = (manualSectionInput.value || 'local').trim();
+    const data = await apiRequest('/api/admin-create-draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, section })
+    });
+    setMessage(`Created blank draft #${data.draft?.id || ''}.`);
+    manualTitleInput.value = '';
+    await loadDrafts();
+  } catch (err) {
+    setMessage(`Create draft failed: ${err.message}`);
   }
 }
 
@@ -313,6 +334,7 @@ function saveToken() {
 saveTokenBtn.addEventListener('click', saveToken);
 loadDraftsBtn.addEventListener('click', loadDrafts);
 generateBtn.addEventListener('click', generateDrafts);
+createDraftBtn.addEventListener('click', createManualDraft);
 draftListEl.addEventListener('click', onDraftListClick);
 unlockAdminBtn.addEventListener('click', unlockAdminUi);
 saveBudgetBtn.addEventListener('click', saveBudget);

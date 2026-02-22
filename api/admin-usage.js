@@ -17,12 +17,14 @@ module.exports = async (req, res) => {
       SELECT COALESCE(SUM(total_tokens), 0)::int AS "tokensUsedToday"
       FROM article_drafts
       WHERE created_at >= date_trunc('day', now())
+        AND created_via = 'auto'
     `;
 
     const draftRows = await sql`
       SELECT COUNT(*)::int AS "draftsToday"
       FROM article_drafts
       WHERE created_at >= date_trunc('day', now())
+        AND created_via = 'auto'
     `;
 
     const tokensUsedToday = tokenRows?.[0]?.tokensUsedToday || 0;
