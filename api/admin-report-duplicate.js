@@ -66,6 +66,8 @@ module.exports = async (req, res) => {
       return res.status(404).json({ error: 'Draft not found' });
     }
 
+    await sql`DELETE FROM duplicate_reports WHERE draft_id = ${draft.id}`;
+
     const saved = await sql`
       INSERT INTO duplicate_reports (
         draft_id,
@@ -91,17 +93,6 @@ module.exports = async (req, res) => {
         'admin_ui',
         NOW()
       )
-      ON CONFLICT (draft_id) DO UPDATE
-      SET
-        draft_slug = EXCLUDED.draft_slug,
-        draft_title = EXCLUDED.draft_title,
-        section = EXCLUDED.section,
-        source_url = EXCLUDED.source_url,
-        source_title = EXCLUDED.source_title,
-        report_reason = EXCLUDED.report_reason,
-        notes = EXCLUDED.notes,
-        reported_by = EXCLUDED.reported_by,
-        reported_at = NOW()
       RETURNING id, draft_id as "draftId", draft_title as "draftTitle", source_url as "sourceUrl", reported_at as "reportedAt"
     `;
 
