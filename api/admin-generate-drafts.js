@@ -48,8 +48,9 @@ const SECTION_ORDER = [
 ];
 
 const MIN_ARTICLE_WORDS = 600;
-const TARGET_ARTICLE_WORDS = 800;
-const DEFAULT_MAX_OUTPUT_TOKENS = 3200;
+const TARGET_ARTICLE_WORDS = 700;
+const DEFAULT_MAX_OUTPUT_TOKENS = 2600;
+const RETRY_MIN_INITIAL_WORDS = 450;
 
 const ET_TIME_ZONE = 'America/New_York';
 const MULTI_TRACK_SLOTS_ET = ['06:05', '09:05', '12:05', '15:05', '18:05', '21:05'];
@@ -625,6 +626,15 @@ function countWords(text) {
   return plain.split(' ').length;
 }
 
+function getModelMaxOutputTokens() {
+  const configured = parseInt(
+    process.env.ANTHROPIC_MAX_OUTPUT_TOKENS || String(DEFAULT_MAX_OUTPUT_TOKENS),
+    10
+  );
+  if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_MAX_OUTPUT_TOKENS;
+  return Math.min(configured, 8192);
+}
+
 async function callAnthropicForDraft(candidate) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -672,10 +682,7 @@ async function callAnthropicForDraft(candidate) {
     : '';
 
   const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
-  const maxOutputTokens = Math.min(
-    parseInt(process.env.ANTHROPIC_MAX_OUTPUT_TOKENS || String(DEFAULT_MAX_OUTPUT_TOKENS), 10),
-    8192
-  );
+  const maxOutputTokens = getModelMaxOutputTokens();
   const prompt = `
 You are writing a fully original local-news publication draft for The Dayton Enquirer.
 
@@ -760,6 +767,7 @@ async function buildDraftWithMinWords(candidate) {
   let draft = await callAnthropicForDraft(candidate);
   let words = countWords(draft.content);
   if (words >= MIN_ARTICLE_WORDS) return { draft, words };
+  if (words < RETRY_MIN_INITIAL_WORDS) return { draft, words };
 
   // Retry once with stricter length guidance.
   draft = await callAnthropicForDraft({
@@ -1157,6 +1165,13 @@ function normalizeTitleForCompare(title) {
     .filter((t) => t && !stop.has(t) && t.length > 2);
 }
 
+function normalizeComparableTitle(title) {
+  return String(title || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
 function buildBigrams(tokens) {
   const out = [];
   for (let i = 0; i < tokens.length - 1; i += 1) {
@@ -1327,10 +1342,45 @@ async function alreadyExists(sql, candidate) {
   return !!rows?.[0]?.exists;
 }
 
+async function ensureDuplicateReportsTable(sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS duplicate_reports (
+      id SERIAL PRIMARY KEY,
+      draft_id INTEGER,
+      draft_slug TEXT,
+      draft_title TEXT NOT NULL,
+      section TEXT,
+      source_url TEXT,
+      source_title TEXT,
+      report_reason TEXT DEFAULT 'manual_duplicate',
+      notes TEXT,
+      reported_by TEXT DEFAULT 'admin_ui',
+      reported_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_duplicate_reports_draft_id_unique
+    ON duplicate_reports(draft_id)
+    WHERE draft_id IS NOT NULL
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_duplicate_reports_reported_at
+    ON duplicate_reports(reported_at DESC)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_duplicate_reports_source_url
+    ON duplicate_reports(source_url)
+    WHERE source_url IS NOT NULL
+  `;
+}
+
 module.exports = async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  if (req.method !== 'POST') {
+  if (!['POST', 'GET'].includes(String(req.method || '').toUpperCase())) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -1349,6 +1399,7 @@ module.exports = async (req, res) => {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    await ensureDuplicateReportsTable(sql);
     const dailyTokenBudget = dailyTokenBudgetOverride
       ? Math.max(1, Math.min(parseInt(String(dailyTokenBudgetOverride), 10), 1000000))
       : await getDailyTokenBudget(sql);
@@ -1514,6 +1565,30 @@ module.exports = async (req, res) => {
       }
     }
     const nationalStatesUsedThisRun = new Set();
+    const reportedDuplicateRows = await sql`
+      SELECT
+        section,
+        draft_title as "draftTitle",
+        source_title as "sourceTitle",
+        source_url as "sourceUrl"
+      FROM duplicate_reports
+      WHERE reported_at >= NOW() - INTERVAL '365 days'
+    `;
+    const reportedDuplicateTitles = Array.from(
+      new Set(
+        reportedDuplicateRows
+          .flatMap((row) => [row.draftTitle, row.sourceTitle])
+          .map((title) => cleanText(title))
+          .filter(Boolean)
+      )
+    );
+    const reportedDuplicateNormalizedTitles = new Set(
+      reportedDuplicateTitles.map((title) => normalizeComparableTitle(title)).filter(Boolean)
+    );
+    const reportedDuplicateSourceUrls = new Set(
+      reportedDuplicateRows.map((row) => cleanText(row.sourceUrl)).filter(Boolean)
+    );
+
     const existingTitleRows = await sql`
       SELECT section, title AS compare_text FROM articles
       WHERE pub_date >= NOW() - INTERVAL '30 days'
@@ -1528,8 +1603,11 @@ module.exports = async (req, res) => {
     `;
     const existingTitles = Array.from(
       new Set(
-        existingTitleRows
-          .map((r) => cleanText(r.compare_text))
+        [
+          ...existingTitleRows.map((r) => cleanText(r.compare_text)),
+          ...reportedDuplicateTitles
+        ]
+          .map((t) => cleanText(t))
           .filter(Boolean)
       )
     );
@@ -1649,6 +1727,20 @@ module.exports = async (req, res) => {
         continue;
       }
 
+      const normalizedCandidateTitle = normalizeComparableTitle(candidate.title);
+      if (normalizedCandidateTitle && reportedDuplicateNormalizedTitles.has(normalizedCandidateTitle)) {
+        skipped.push({ reason: 'reported_duplicate_exact_title', title: candidate.title, url: candidate.url });
+        continue;
+      }
+      if (candidate.url && reportedDuplicateSourceUrls.has(candidate.url)) {
+        skipped.push({ reason: 'reported_duplicate_source', title: candidate.title, url: candidate.url });
+        continue;
+      }
+      if (isNearDuplicateTitle(candidate.title, reportedDuplicateTitles)) {
+        skipped.push({ reason: 'reported_duplicate_near_title', title: candidate.title, url: candidate.url });
+        continue;
+      }
+
       const exists = await alreadyExists(sql, candidate);
       if (exists) {
         skipped.push({ reason: 'duplicate', title: candidate.title, url: candidate.url });
@@ -1711,6 +1803,15 @@ module.exports = async (req, res) => {
       }
       if (isNearDuplicateTitle(draft.title, existingTitles) || isNearDuplicateTitle(draft.title, runTitles)) {
         skipped.push({ reason: 'near_duplicate_draft_title', title: draft.title, url: candidate.url });
+        continue;
+      }
+      const normalizedDraftTitle = normalizeComparableTitle(draft.title);
+      if (normalizedDraftTitle && reportedDuplicateNormalizedTitles.has(normalizedDraftTitle)) {
+        skipped.push({ reason: 'reported_duplicate_exact_draft_title', title: draft.title, url: candidate.url });
+        continue;
+      }
+      if (isNearDuplicateTitle(draft.title, reportedDuplicateTitles)) {
+        skipped.push({ reason: 'reported_duplicate_near_draft_title', title: draft.title, url: candidate.url });
         continue;
       }
       if (isLikelyPoliticalTopic(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`) &&
@@ -1833,7 +1934,7 @@ module.exports = async (req, res) => {
       const slug = generateSlug(draft.title);
 
       if (!dryRun) {
-        await sql`
+        const inserted = await sql`
           INSERT INTO article_drafts (
             slug,
             title,
@@ -1869,7 +1970,12 @@ module.exports = async (req, res) => {
             'pending_review'
           )
           ON CONFLICT (slug) DO NOTHING
+          RETURNING id
         `;
+        if (!inserted?.length) {
+          skipped.push({ reason: 'duplicate_slug_conflict', title: draft.title, url: candidate.url });
+          continue;
+        }
       }
 
       createdBySection[draft.section] = (createdBySection[draft.section] || 0) + 1;
@@ -1939,6 +2045,12 @@ module.exports = async (req, res) => {
       excludeSections,
       activeSections,
       targetCount,
+      minArticleWords: MIN_ARTICLE_WORDS,
+      targetArticleWords: TARGET_ARTICLE_WORDS,
+      modelMaxOutputTokens: getModelMaxOutputTokens(),
+      retryMinInitialWords: RETRY_MIN_INITIAL_WORDS,
+      reportedDuplicateCount: reportedDuplicateRows.length,
+      reportedDuplicateSourceCount: reportedDuplicateSourceUrls.size,
       sectionTargets: SECTION_DAILY_TARGETS,
       runTargets,
       remainingBySection,

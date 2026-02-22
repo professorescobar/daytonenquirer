@@ -22,6 +22,9 @@ const usagePercentEl = document.getElementById('usage-percent');
 const usageDraftsEl = document.getElementById('usage-drafts');
 const usageBudgetInput = document.getElementById('usage-budget-input');
 const saveBudgetBtn = document.getElementById('save-budget-btn');
+const duplicateLimitInput = document.getElementById('duplicate-limit');
+const loadDuplicatesBtn = document.getElementById('load-duplicates-btn');
+const duplicateListEl = document.getElementById('duplicate-list');
 
 const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
 const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
@@ -102,6 +105,7 @@ async function unlockAdminUi() {
     sessionStorage.setItem('de_admin_unlocked', '1');
     setLockState(true);
     setMessage('Admin unlocked.');
+    loadDuplicateReports().catch((err) => setMessage(`Load duplicate reports failed: ${err.message}`));
   } catch (err) {
     setMessage(`Unlock failed: ${err.message}`);
   }
@@ -209,7 +213,35 @@ function renderDrafts(drafts) {
       <div class="draft-actions">
         <button class="btn btn-save">Save Draft</button>
         <button class="btn btn-primary btn-publish">Publish Draft</button>
+        <button class="btn btn-warning btn-report-duplicate">Report Duplicate</button>
         <button class="btn btn-danger btn-delete">Delete Draft</button>
+      </div>
+    </article>
+  `).join('');
+}
+
+function renderDuplicateReports(reports) {
+  if (!duplicateListEl) return;
+  if (!Array.isArray(reports) || reports.length === 0) {
+    duplicateListEl.innerHTML = '<p>No duplicate reports found.</p>';
+    return;
+  }
+
+  duplicateListEl.innerHTML = reports.map((report) => `
+    <article class="draft-card" data-report-id="${report.id}">
+      <div class="draft-header">
+        <strong>#${report.id} - ${escapeHtml(report.draftTitle || '')}</strong>
+        <span class="draft-meta">section: ${escapeHtml(report.section || 'n/a')}</span>
+      </div>
+      <p class="draft-meta">
+        source title: ${escapeHtml(report.sourceTitle || 'N/A')} |
+        reported: ${escapeHtml(formatDate(report.reportedAt))}
+      </p>
+      <p class="draft-meta">source url:
+        <a href="${escapeHtml(report.sourceUrl || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(report.sourceUrl || 'N/A')}</a>
+      </p>
+      <div class="draft-actions">
+        <button class="btn btn-danger btn-remove-duplicate-report">Remove From Duplicate List</button>
       </div>
     </article>
   `).join('');
@@ -340,6 +372,26 @@ async function loadUsageDashboard() {
   usageBudgetInput.value = Number(data.dailyTokenBudget || 0);
 }
 
+async function loadDuplicateReports() {
+  try {
+    setMessage('Loading duplicate reports...');
+    const limit = encodeURIComponent(duplicateLimitInput?.value || '50');
+    const data = await apiRequest(`/api/admin-duplicate-reports?limit=${limit}`);
+    renderDuplicateReports(data.reports || []);
+    setMessage(`Loaded ${data.count || 0} duplicate report(s).`);
+  } catch (err) {
+    setMessage(`Load duplicate reports failed: ${err.message}`);
+  }
+}
+
+async function removeDuplicateReport(id) {
+  await apiRequest('/api/admin-remove-duplicate-report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+}
+
 async function saveBudget() {
   try {
     const dailyTokenBudget = Number(usageBudgetInput.value || 0);
@@ -398,6 +450,18 @@ async function deleteDraft(card) {
   });
 }
 
+async function reportDuplicateDraft(card) {
+  const id = Number(card.dataset.id);
+  await apiRequest('/api/admin-report-duplicate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id,
+      reason: 'manual_duplicate'
+    })
+  });
+}
+
 function onDraftListClick(event) {
   const button = event.target.closest('button');
   if (!button) return;
@@ -433,10 +497,44 @@ function onDraftListClick(event) {
       .catch((err) => setMessage(`Delete failed: ${err.message}`));
   }
 
+  if (button.classList.contains('btn-report-duplicate')) {
+    const ok = window.confirm(
+      `Report draft #${card.dataset.id} as duplicate and remove it from drafts?`
+    );
+    if (!ok) return;
+
+    reportDuplicateDraft(card)
+      .then(async () => {
+        setMessage(`Draft #${card.dataset.id} reported as duplicate and removed.`);
+        await loadDrafts();
+        await loadDuplicateReports();
+      })
+      .catch((err) => setMessage(`Report duplicate failed: ${err.message}`));
+  }
+
   if (button.classList.contains('upload-dropzone')) {
     const fileInput = card.querySelector('.file-image');
     if (fileInput) fileInput.click();
   }
+}
+
+function onDuplicateListClick(event) {
+  const button = event.target.closest('button');
+  if (!button || !button.classList.contains('btn-remove-duplicate-report')) return;
+  const card = event.target.closest('[data-report-id]');
+  if (!card) return;
+
+  const reportId = Number(card.dataset.reportId || 0);
+  if (!reportId) return;
+  const ok = window.confirm(`Remove duplicate report #${reportId}?`);
+  if (!ok) return;
+
+  removeDuplicateReport(reportId)
+    .then(async () => {
+      setMessage(`Duplicate report #${reportId} removed.`);
+      await loadDuplicateReports();
+    })
+    .catch((err) => setMessage(`Remove duplicate report failed: ${err.message}`));
 }
 
 function onDraftListChange(event) {
@@ -488,7 +586,9 @@ saveTokenBtn.addEventListener('click', saveToken);
 loadDraftsBtn.addEventListener('click', loadDrafts);
 generateBtn.addEventListener('click', generateDrafts);
 createDraftBtn.addEventListener('click', createManualDraft);
+if (loadDuplicatesBtn) loadDuplicatesBtn.addEventListener('click', loadDuplicateReports);
 draftListEl.addEventListener('click', onDraftListClick);
+if (duplicateListEl) duplicateListEl.addEventListener('click', onDuplicateListClick);
 draftListEl.addEventListener('change', onDraftListChange);
 draftListEl.addEventListener('dragover', onDraftListDragOver);
 draftListEl.addEventListener('dragleave', onDraftListDragLeave);
@@ -500,4 +600,5 @@ loadStoredToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked') === '1');
 if (adminUiUnlocked) {
   loadUsageDashboard().catch((err) => setMessage(`Usage load failed: ${err.message}`));
+  loadDuplicateReports().catch((err) => setMessage(`Load duplicate reports failed: ${err.message}`));
 }

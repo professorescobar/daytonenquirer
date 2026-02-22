@@ -144,6 +144,21 @@
       <div id="draft-list" class="draft-list"></div>
     </section>
 
+    <section class="admin-panel">
+      <h3>Duplicate Reports</h3>
+      <p class="hint">Review duplicate memory used by auto-generation. Remove entries if reported by mistake.</p>
+      <div class="admin-grid single">
+        <label>
+          Duplicate List Limit
+          <input id="duplicate-limit" type="number" min="1" max="500" value="50" />
+        </label>
+      </div>
+      <div class="admin-actions">
+        <button id="load-duplicates-btn" class="btn">Load Duplicate Reports</button>
+      </div>
+      <div id="duplicate-list" class="duplicate-list"></div>
+    </section>
+
     </section>
   </main>
 

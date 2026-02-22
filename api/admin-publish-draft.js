@@ -4,6 +4,13 @@ const { generateSlug } = require('./_draft-utils');
 
 const ET_TIME_ZONE = 'America/New_York';
 
+function normalizeComparableTitle(title) {
+  return String(title || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
 function getEtPartsFromDate(date) {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone: ET_TIME_ZONE,
@@ -103,6 +110,23 @@ module.exports = async (req, res) => {
     if (!draft) return res.status(404).json({ error: 'Draft not found' });
     if (draft.status === 'published') {
       return res.status(400).json({ error: 'Draft already published' });
+    }
+
+    const normalizedTitle = normalizeComparableTitle(draft.title);
+    if (normalizedTitle) {
+      const duplicateTitle = await sql`
+        SELECT id, slug
+        FROM articles
+        WHERE lower(regexp_replace(trim(title), '\s+', ' ', 'g')) = ${normalizedTitle}
+        LIMIT 1
+      `;
+      if (duplicateTitle.length > 0) {
+        return res.status(409).json({
+          error: 'A published article already uses this headline',
+          articleId: duplicateTitle[0].id,
+          slug: duplicateTitle[0].slug
+        });
+      }
     }
 
     let slug = draft.slug || generateSlug(draft.title);
