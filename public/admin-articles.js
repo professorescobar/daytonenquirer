@@ -28,6 +28,7 @@ const SECTION_OPTIONS = [
 let unlocked = false;
 let loadedArticles = [];
 let lastTotalCount = 0;
+let totalAllArticles = 0;
 const ET_TIME_ZONE = 'America/New_York';
 
 function setMessage(text) {
@@ -61,6 +62,9 @@ async function unlock() {
     sessionStorage.setItem('de_admin_unlocked_articles', '1');
     setLockState(true);
     setMessage('Editor unlocked.');
+    if (getToken()) {
+      await loadArticles();
+    }
   } catch (err) {
     setMessage(`Unlock failed: ${err.message}`);
   }
@@ -249,12 +253,12 @@ function applySearchFilter() {
   const q = String(articleSearchInput.value || '').trim().toLowerCase();
   if (!q) {
     renderArticles(loadedArticles);
-    articleTotalCountEl.textContent = String(lastTotalCount || loadedArticles.length);
+    articleTotalCountEl.textContent = String(totalAllArticles || lastTotalCount || loadedArticles.length);
     return;
   }
   const filtered = loadedArticles.filter((a) => articleSearchHaystack(a).includes(q));
   renderArticles(filtered);
-  articleTotalCountEl.textContent = String(lastTotalCount || loadedArticles.length);
+  articleTotalCountEl.textContent = String(totalAllArticles || lastTotalCount || loadedArticles.length);
 }
 
 async function loadArticles() {
@@ -265,9 +269,10 @@ async function loadArticles() {
     const data = await apiRequest(`/api/admin-articles?section=${section}&limit=${limit}`);
     loadedArticles = data.articles || [];
     lastTotalCount = Number(data.totalCount || loadedArticles.length || 0);
-    articleTotalCountEl.textContent = String(lastTotalCount);
+    totalAllArticles = Number(data.totalAllCount || totalAllArticles || lastTotalCount);
+    articleTotalCountEl.textContent = String(totalAllArticles);
     applySearchFilter();
-    setMessage(`Loaded ${data.count || 0} article(s).`);
+    setMessage(`Loaded ${data.count || 0} article(s) from ${lastTotalCount} in section filter (${totalAllArticles} total published).`);
   } catch (err) {
     setMessage(`Load failed: ${err.message}`);
   }
@@ -352,3 +357,6 @@ limitInput.addEventListener('input', () => {
 
 loadToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked_articles') === '1');
+if (unlocked && getToken()) {
+  loadArticles().catch((err) => setMessage(`Load failed: ${err.message}`));
+}

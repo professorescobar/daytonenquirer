@@ -149,6 +149,10 @@
   background: #f0f0f0;
 }
 
+.list-limit-label {
+  white-space: nowrap;
+}
+
 .usage-label {
   color: #555;
   font-size: 0.82rem;

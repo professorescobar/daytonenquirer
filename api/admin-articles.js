@@ -41,10 +41,17 @@ module.exports = async (req, res) => {
     `;
     const totalCount = totalRows?.[0]?.totalCount || 0;
 
+    const totalAllRows = await sql`
+      SELECT COUNT(*)::int AS "totalAllCount"
+      FROM articles
+    `;
+    const totalAllCount = totalAllRows?.[0]?.totalAllCount || 0;
+
     return res.status(200).json({
       articles: rows,
       count: rows.length,
-      totalCount
+      totalCount,
+      totalAllCount
     });
   } catch (error) {
     console.error('Admin articles list error:', error);
