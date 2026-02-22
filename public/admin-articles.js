@@ -310,7 +310,7 @@ function renderArticles(articles) {
         </label>
       </div>
       <div class="draft-actions article-editor is-collapsed" hidden>
-        <button class="btn btn-primary btn-save-article">Save Article</button>
+        <button type="button" class="btn btn-primary btn-save-article">Save Article</button>
       </div>
     </article>
   `).join('');
@@ -392,9 +392,12 @@ async function saveArticle(card) {
 }
 
 function onListClick(event) {
-  const card = event.target.closest('.draft-card');
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+
+  const card = target.closest('.draft-card');
   if (!card) return;
-  const button = event.target.closest('button');
+  const button = target.closest('button');
   if (!button) return;
 
   if (button.classList.contains('draft-toggle')) {
@@ -427,7 +430,8 @@ function onListClick(event) {
 }
 
 function onListChange(event) {
-  const input = event.target;
+  const input = event.target instanceof Element ? event.target : null;
+  if (!input) return;
   if (!input.classList.contains('file-image')) return;
   const card = input.closest('.draft-card');
   if (!card) return;
@@ -436,20 +440,26 @@ function onListChange(event) {
 }
 
 function onListDragOver(event) {
-  const zone = event.target.closest('.upload-dropzone');
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+  const zone = target.closest('.upload-dropzone');
   if (!zone) return;
   event.preventDefault();
   zone.classList.add('is-drag-over');
 }
 
 function onListDragLeave(event) {
-  const zone = event.target.closest('.upload-dropzone');
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+  const zone = target.closest('.upload-dropzone');
   if (!zone) return;
   zone.classList.remove('is-drag-over');
 }
 
 function onListDrop(event) {
-  const zone = event.target.closest('.upload-dropzone');
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+  const zone = target.closest('.upload-dropzone');
   if (!zone) return;
   event.preventDefault();
   zone.classList.remove('is-drag-over');
