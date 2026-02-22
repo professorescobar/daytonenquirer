@@ -297,8 +297,11 @@ nav a:not(:last-child)::after {
   line-height: 1.4;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-  max-width: 94%;
+  width: 100%;
+  min-width: 0;
+  padding-right: 0.35rem;
   white-space: normal;
+  overflow-wrap: break-word;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -551,7 +554,7 @@ nav a:not(:last-child)::after {
   color: #ddd;
   margin-top: 0.5rem;
   display: grid;
-  grid-template-columns: 2.2rem 1fr;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
   column-gap: 0.6rem;
   align-items: stretch;
 }
