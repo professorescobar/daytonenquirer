@@ -354,18 +354,18 @@ nav a:not(:last-child)::after {
     height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
-    gap: 0.28rem;
-    padding-top: 0.5rem;
-    padding-bottom: 0.2rem;
-    padding-left: 1.05rem;
+    justify-content: space-between;
+    gap: 0.35rem;
+    padding-top: 0.3rem;
+    padding-bottom: 0.15rem;
+    padding-left: 1.25rem;
     padding-right: 0.1rem;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .world-news-content .headlines-sidebar li {
     margin-bottom: 0;
-    line-height: 1.3;
+    line-height: 1.35;
     overflow: visible;
     list-style-position: outside;
   }
@@ -376,8 +376,8 @@ nav a:not(:last-child)::after {
 
   .world-news-content .headlines-sidebar a {
     display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -385,7 +385,7 @@ nav a:not(:last-child)::after {
 
   .world-news-content .headlines-sidebar .article-meta {
     display: block;
-    margin-top: 0.05rem;
+    margin-top: 0.1rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
