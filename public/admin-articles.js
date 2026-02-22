@@ -417,7 +417,11 @@ function onListClick(event) {
 
   if (button.classList.contains('btn-save-article')) {
     saveArticle(card)
-      .then(() => setMessage(`Article #${card.dataset.id} saved.`))
+      .then(async () => {
+        await loadArticles();
+        setMessage(`Article #${card.dataset.id} saved.`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      })
       .catch((err) => setMessage(`Save failed: ${err.message}`));
     return;
   }
