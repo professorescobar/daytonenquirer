@@ -1,54 +1,57 @@
-// Get parameters from URL
+// Get slug from URL
 const params = new URLSearchParams(window.location.search);
 const slug = params.get('slug');
-const oldUrl = params.get('url');
-const oldTitle = params.get('title');
-const oldSource = params.get('source');
-const oldDate = params.get('date');
-const oldImage = params.get('image');
-const oldDesc = params.get('desc');
-const oldSection = params.get('section');
-const isCustom = params.get('custom') === 'true';
 
-// Determine if this is old format (RSS) or new format (custom article)
-const isOldFormat = !!(oldUrl && oldTitle);
+console.log('Article.js loaded - slug:', slug);
 
-console.log('Article.js loaded');
-console.log('slug:', slug);
-console.log('isOldFormat:', isOldFormat);
+function getArticleSlug(article) {
+  return article?.slug || article?.url || '';
+}
+
+function dedupeArticlesBySlug(articles) {
+  const seen = new Set();
+  const result = [];
+  for (const article of articles || []) {
+    const articleSlug = getArticleSlug(article);
+    if (!articleSlug || seen.has(articleSlug)) continue;
+    seen.add(articleSlug);
+    result.push(article);
+  }
+  return result;
+}
+
+function sortArticlesNewestFirst(articles) {
+  return [...articles].sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
+}
+
+async function fetchSectionArticles(apiUrl) {
+  const res = await fetch(apiUrl);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data.articles) ? data.articles : [];
+}
+
+async function fetchAllSectionArticles(sectionConfig) {
+  const urls = Object.values(sectionConfig);
+  const settled = await Promise.allSettled(urls.map(fetchSectionArticles));
+  const merged = settled
+    .filter(item => item.status === 'fulfilled')
+    .flatMap(item => item.value);
+  return sortArticlesNewestFirst(dedupeArticlesBySlug(merged));
+}
 
 async function loadArticle() {
-  console.log('loadArticle called');
-  
   const loadingEl = document.getElementById('article-loading');
   const contentEl = document.getElementById('article-content');
   
   try {
-    let article;
+    if (!slug) throw new Error('No article slug provided');
 
-    if (slug && !isOldFormat) {
-      // NEW FORMAT: Fetch from API using slug
-      console.log('Fetching custom article from API');
-      const res = await fetch(`/api/article?slug=${slug}`);
-      if (!res.ok) throw new Error('Article not found');
-      const data = await res.json();
-      article = data.article;
-    } else if (isOldFormat) {
-      // OLD FORMAT: Build article object from URL params
-      console.log('Using old format from URL params');
-      article = {
-        url: decodeURIComponent(oldUrl),
-        title: decodeURIComponent(oldTitle),
-        source: decodeURIComponent(oldSource),
-        pubDate: oldDate ? decodeURIComponent(oldDate) : null,
-        image: oldImage ? decodeURIComponent(oldImage) : null,
-        description: oldDesc ? decodeURIComponent(oldDesc) : '',
-        section: oldSection,
-        custom: isCustom
-      };
-    } else {
-      throw new Error('Invalid article URL');
-    }
+    // Fetch article from database
+    const res = await fetch(`/api/article?slug=${encodeURIComponent(slug)}`);
+    if (!res.ok) throw new Error('Article not found');
+    const data = await res.json();
+    const article = data.article;
 
     console.log('Article loaded:', article);
 
@@ -63,98 +66,83 @@ async function loadArticle() {
     const categoryEl = document.getElementById('article-category');
     if (categoryEl && article.section) {
       const sectionConfig = {
-        local: { title: "Local News" },
-        national: { title: "National News" },
-        world: { title: "World News" },
-        business: { title: "Business" },
-        sports: { title: "Sports" },
-        health: { title: "Health" },
-        entertainment: { title: "Entertainment" },
-        technology: { title: "Technology" }
+        local: "Local News",
+        national: "National News",
+        world: "World News",
+        business: "Business",
+        sports: "Sports",
+        health: "Health",
+        entertainment: "Entertainment",
+        technology: "Technology"
       };
-      const config = sectionConfig[article.section];
-      if (config) {
-        categoryEl.innerHTML = `<a href="/section.html?s=${article.section}">${config.title}</a>`;
+      const title = sectionConfig[article.section];
+      if (title) {
+        categoryEl.innerHTML = `<a href="/section.html?s=${article.section}">${title}</a>`;
       }
     }
 
     // Render headline
     const titleEl = document.getElementById('article-title');
-    if (titleEl) {
-      titleEl.textContent = article.title;
-    }
+    if (titleEl) titleEl.textContent = article.title;
 
-    // Render byline
-    const sourceEl = document.getElementById('article-source');
+    // Render byline with date and time
     const dateEl = document.getElementById('article-date');
-    
     if (dateEl && article.pubDate) {
       const date = new Date(article.pubDate);
       const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   
-      // Calculate time ago
       const now = new Date();
       const minutes = Math.floor((now - date) / (1000 * 60));
       const hours = Math.floor((now - date) / (1000 * 60 * 60));
   
       let timeAgo = '';
       if (minutes < 1) timeAgo = 'Just now';
-      else if (minutes < 60) timeAgo = `${minutes}m ago`;  // Now shows exact minutes
+      else if (minutes < 60) timeAgo = `${minutes}m ago`;
       else if (hours < 24) timeAgo = `${hours}h ago`;
       else if (hours < 48) timeAgo = 'Yesterday';
-      else timeAgo = '';
   
       dateEl.textContent = timeAgo ? `${dateStr} • ${timeStr} • ${timeAgo}` : `${dateStr} • ${timeStr}`;
     }
 
-    // Render image
+    // Render image with caption/credit
     const imageContainer = document.getElementById('article-image-container');
     if (imageContainer && article.image) {
-     let imageHTML = `<img src="${article.image}" alt="${article.title}" loading="lazy" />`;
+      let imageHTML = `<img src="${article.image}" alt="${article.title}" loading="lazy" />`;
   
-     // Add caption/credit if they exist
-     if (article.imageCaption || article.imageCredit) {
-      imageHTML += `<div class="image-meta">`;
-      if (article.imageCredit) {
-       imageHTML += `<span class="image-credit">${article.imageCredit}</span>`;
-     }
-     if (article.imageCaption) {
-       imageHTML += `<span class="image-caption">${article.imageCaption}</span>`;
-     }
-     imageHTML += `</div>`;
-  }
-  
-  imageContainer.innerHTML = imageHTML;
-}
+      if (article.imageCaption || article.imageCredit) {
+        imageHTML += `<div class="image-meta">`;
+        if (article.imageCredit) {
+          imageHTML += `<span class="image-credit">${article.imageCredit}</span>`;
+        }
+        if (article.imageCaption) {
+          imageHTML += `<span class="image-caption">${article.imageCaption}</span>`;
+        }
+        imageHTML += `</div>`;
+      }
+      imageContainer.innerHTML = imageHTML;
+    }
 
-    // Render description
+    // Render description/content
     const descriptionEl = document.getElementById('article-description');
-    if (descriptionEl && article.description) {
-      descriptionEl.innerHTML = `<p>${article.description.replace(/\n\n/g, '</p><p>')}</p>`;
+    if (descriptionEl) {
+      const content = article.content || article.description || '';
+      descriptionEl.innerHTML = `<p>${content.replace(/\n\n/g, '</p><p>')}</p>`;
     }
 
-    // Handle "Read Full Article" button
+    // Hide "Read Full Article" button (all articles are full custom articles now)
     const readFullBtn = document.getElementById('article-read-full');
-    const sourceNameEl = document.getElementById('article-source-name');
-    
-    if (readFullBtn) {
-      // All articles from database are "custom" - always hide the button
-      readFullBtn.setAttribute('hidden', '');
-    }
-
-    // Show related articles section
-    const relatedSection = document.getElementById('related-section');
-    if (relatedSection) {
-
-      relatedSection.removeAttribute('hidden');
-    }
+    if (readFullBtn) readFullBtn.setAttribute('hidden', '');
 
     // Load related articles
     loadRelatedArticles(article.section);
 
-     // Setup prev/next navigation
-     setupArticleNavigation(article.section);
+    // Setup prev/next navigation (prefer deterministic backend neighbors)
+    setupNavigationButtons(data.prevArticle, data.nextArticle);
+    if (!data.prevArticle && !data.nextArticle) {
+      console.log('API neighbors missing, falling back to section-based navigation');
+      setupArticleNavigation(article.section);
+    }
 
   } catch (err) {
     console.error('Article load error:', err);
@@ -162,9 +150,44 @@ async function loadArticle() {
   }
 }
 
-async function loadRelatedArticles(section) {
-  // Helper function for formatting dates
-  function formatDate(dateString) {
+function setupNavigationButtons(prevArticle, nextArticle) {
+  const prevBtn = document.getElementById('prev-article');
+  const nextBtn = document.getElementById('next-article');
+  const navSection = document.getElementById('article-navigation');
+
+  if (navSection) navSection.removeAttribute('hidden');
+  if (!prevBtn || !nextBtn) return;
+
+  const prevSlug = getArticleSlug(prevArticle);
+  const nextSlug = getArticleSlug(nextArticle);
+
+  prevBtn.type = 'button';
+  nextBtn.type = 'button';
+
+  prevBtn.disabled = !prevSlug;
+  nextBtn.disabled = !nextSlug;
+
+  prevBtn.onclick = prevSlug
+    ? () => {
+        console.log('Prev button clicked! Navigating to:', prevSlug);
+        window.location.href = `article.html?slug=${encodeURIComponent(prevSlug)}`;
+      }
+    : null;
+
+  nextBtn.onclick = nextSlug
+    ? () => {
+        console.log('Next button clicked! Navigating to:', nextSlug);
+        window.location.href = `article.html?slug=${encodeURIComponent(nextSlug)}`;
+      }
+    : null;
+
+  console.log('Navigation wired:', {
+    prevEnabled: !!prevSlug,
+    nextEnabled: !!nextSlug
+  });
+}
+
+function formatDate(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
   const now = new Date();
@@ -178,6 +201,7 @@ async function loadRelatedArticles(section) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+async function loadRelatedArticles(section) {
   try {
     const sectionConfig = {
       local: '/api/local-news',
@@ -190,7 +214,7 @@ async function loadRelatedArticles(section) {
       technology: '/api/technology-news'
     };
 
-    // Update section title to be a link
+    // Update section title link
     const sectionTitle = document.querySelector('.bottom-articles-title');
     if (sectionTitle && section) {
       const sectionNames = {
@@ -211,36 +235,28 @@ async function loadRelatedArticles(section) {
 
     const res = await fetch(apiUrl);
     if (!res.ok) return;
-
     const data = await res.json();
     
-    // Filter to ONLY custom articles with images
-    let articles = data.articles.filter(a => a.image);
-    
-    // Filter out current article
-    if (slug) {
-      articles = articles.filter(a => a.slug !== slug);
-    } else if (oldUrl) {
-      articles = articles.filter(a => a.slug !== decodeURIComponent(oldUrl));
-    }
-    
-    articles = articles.slice(0, 6);
+    // Filter articles with images, exclude current article
+    let articles = data.articles
+      .filter(a => a.image && getArticleSlug(a) !== slug)
+      .slice(0, 6);
 
     const grid = document.getElementById('related-grid');
     const relatedSection = document.getElementById('related-section');
     
     if (!grid || !articles.length) return;
-
-    // Show the section
     if (relatedSection) relatedSection.removeAttribute('hidden');
 
     grid.innerHTML = '';
     articles.forEach(article => {
       const card = document.createElement('div');
       card.className = 'bottom-article-card';
+      const articleSlug = getArticleSlug(article);
+      if (!articleSlug) return;
       card.innerHTML = `
-        <a href="article.html?slug=${article.slug}">
-          <img src="${article.image}" alt="${article.title}" class="related-card-image" loading="lazy">
+        <a href="article.html?slug=${encodeURIComponent(articleSlug)}">
+          <img src="${article.image}" alt="${article.title}" loading="lazy">
           <h4>${article.title}</h4>
           <div class="article-meta">
             ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
@@ -255,6 +271,9 @@ async function loadRelatedArticles(section) {
 }
 
 async function setupArticleNavigation(currentSection) {
+  console.log('=== NAVIGATION FUNCTION CALLED ===');
+  console.log('setupArticleNavigation called with section:', currentSection);
+  
   try {
     const sectionConfig = {
       local: '/api/local-news',
@@ -266,54 +285,44 @@ async function setupArticleNavigation(currentSection) {
       entertainment: '/api/entertainment-news',
       technology: '/api/technology-news'
     };
-
-    const apiUrl = sectionConfig[currentSection];
-    if (!apiUrl) return;
-
-    const res = await fetch(apiUrl);
-    if (!res.ok) return;
-
-    const data = await res.json();
     
-    // Get all custom articles
-   const customArticles = data.articles;
+    const apiUrl = sectionConfig[currentSection];
+    console.log('API URL:', apiUrl);
+
+    let articles = [];
+    if (apiUrl) {
+      articles = sortArticlesNewestFirst(dedupeArticlesBySlug(await fetchSectionArticles(apiUrl)));
+    }
+    if (!articles.length || currentSection === 'all') {
+      console.log('Falling back to all-sections article list');
+      articles = await fetchAllSectionArticles(sectionConfig);
+    }
+    
+    console.log('Total articles:', articles.length);
+    console.log('Current slug:', slug);
     
     // Find current article index
-    let currentIndex = -1;
-    if (slug) {
-      currentIndex = customArticles.findIndex(a => a.url === slug);
+    let currentIndex = articles.findIndex(a => getArticleSlug(a) === slug);
+    if (currentIndex === -1 && apiUrl) {
+      console.log('Article not found in section list, retrying against all sections');
+      articles = await fetchAllSectionArticles(sectionConfig);
+      currentIndex = articles.findIndex(a => getArticleSlug(a) === slug);
+    }
+    console.log('Current index:', currentIndex);
+    
+    if (currentIndex === -1 || articles.length < 2) {
+      console.log('Not enough articles or index not found');
+      return;
     }
     
-    if (currentIndex === -1 || customArticles.length < 2) return;
-
-    // Show navigation
-    const navSection = document.getElementById('article-navigation');
-    if (navSection) navSection.removeAttribute('hidden');
-
-    // Setup buttons
-    const prevBtn = document.getElementById('prev-article');
-    const nextBtn = document.getElementById('next-article');
-
-    // Previous article (newer)
-    if (currentIndex > 0) {
-      const prevArticle = customArticles[currentIndex - 1];
-      prevBtn.onclick = () => {
-        window.location.href = `/api/article?slug=${prevArticle.url}&og=true`;
-      };
-    } else {
-      prevBtn.disabled = true;
-    }
-
-    // Next article (older)
-    if (currentIndex < customArticles.length - 1) {
-      const nextArticle = customArticles[currentIndex + 1];
-      nextBtn.onclick = () => {
-        window.location.href = `/api/article?slug=${nextArticle.url}&og=true`;
-      };
-    } else {
-      nextBtn.disabled = true;
-    }
-
+    // Prev = newer (lower index), Next = older (higher index)
+    const prevArticle = currentIndex > 0 ? articles[currentIndex - 1] : null;
+    const nextArticle = currentIndex < articles.length - 1 ? articles[currentIndex + 1] : null;
+    
+    console.log('Prev article:', prevArticle?.title);
+    console.log('Next article:', nextArticle?.title);
+    
+    setupNavigationButtons(prevArticle, nextArticle);
   } catch (err) {
     console.error('Navigation setup error:', err);
   }

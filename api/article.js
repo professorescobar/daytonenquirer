@@ -1,4 +1,4 @@
-const { neon } = require('@neondatabase/serverless');
+const getCustomArticles = require('./custom-articles');
 
 module.exports = async (req, res) => {
   const { slug, og } = req.query;
@@ -7,39 +7,47 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Slug required' });
   }
 
-  try {
-    const sql = neon(process.env.DATABASE_URL);
-    
-    // Find article by slug
-    const results = await sql`
-      SELECT 
-        id,
-        slug,
-        title,
-        description,
-        content,
-        section,
-        image,
-        image_caption as "imageCaption",
-        image_credit as "imageCredit",
-        pub_date as "pubDate"
-      FROM articles
-      WHERE slug = ${slug} AND status = 'published'
-      LIMIT 1
-    `;
-    
-    if (!results || results.length === 0) {
-      return res.status(404).json({ error: 'Article not found' });
-    }
-    
-    const article = results[0];
-    
-    // Add url field for compatibility with frontend
-    article.url = article.slug;
-    
-    // If og=true, return HTML with Open Graph tags for social sharing
-    if (og === 'true') {
-      const html = `
+  const getArticleSlug = (article) => article?.slug || article?.url || '';
+
+  // Get all custom articles
+  const allCustomsRaw = [
+    ...getCustomArticles('local'),
+    ...getCustomArticles('national'),
+    ...getCustomArticles('world'),
+    ...getCustomArticles('business'),
+    ...getCustomArticles('sports'),
+    ...getCustomArticles('health'),
+    ...getCustomArticles('entertainment'),
+    ...getCustomArticles('technology'),
+    ...getCustomArticles('all')
+  ];
+
+  // De-duplicate by slug/url and sort newest first for stable prev/next behavior
+  const seen = new Set();
+  const allCustoms = allCustomsRaw
+    .filter((article) => {
+      const articleSlug = getArticleSlug(article);
+      if (!articleSlug || seen.has(articleSlug)) return false;
+      seen.add(articleSlug);
+      return true;
+    })
+    .sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
+
+  // Find article by slug
+  const currentIndex = allCustoms.findIndex((a) => getArticleSlug(a) === slug);
+  const article = currentIndex !== -1 ? allCustoms[currentIndex] : null;
+
+  if (!article) {
+    return res.status(404).json({ error: 'Article not found' });
+  }
+
+  // Prev = newer, Next = older
+  const prevArticle = currentIndex > 0 ? allCustoms[currentIndex - 1] : null;
+  const nextArticle = currentIndex < allCustoms.length - 1 ? allCustoms[currentIndex + 1] : null;
+
+  // If og=true, return HTML with Open Graph tags for social sharing
+  if (og === 'true') {
+    const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -75,19 +83,15 @@ module.exports = async (req, res) => {
   </main>
 </body>
 </html>
-      `;
-      res.setHeader('Content-Type', 'text/html');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      return res.status(200).send(html);
-    }
-    
-    // Otherwise return JSON
-    res.status(200).json({ article });
-    
-  } catch (error) {
-    console.error('Article fetch error:', error);
-    return res.status(500).json({ error: 'Failed to fetch article' });
+    `;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    return res.status(200).send(html);
   }
+
+  // Otherwise return JSON
+  res.status(200).json({ article, prevArticle, nextArticle });
 };
