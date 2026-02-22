@@ -112,6 +112,10 @@ function articleLink(article, section) {
   return `article.html?slug=${encodeURIComponent(article.slug)}`;
 }
 
+function getSidebarHeadlineCount() {
+  return window.innerWidth <= 768 ? 4 : 3;
+}
+
 // ============================
 // MARKET TICKER (TradingView)
 // ============================
@@ -194,7 +198,7 @@ async function loadWorldNews() {
     const headlinesList = document.getElementById("headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 6).forEach(article => {
+      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'world')}">${article.title}</a>
@@ -206,12 +210,12 @@ async function loadWorldNews() {
     }
 
     const moreList = document.getElementById("more-headlines-list");
-    if (moreList && articles.length > 6) {
+    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(6, maxArticles).forEach(article => {
+      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'world')}">${article.title}</a>
@@ -296,7 +300,7 @@ async function loadNationalNews() {
     const headlinesList = document.getElementById("national-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 6).forEach(article => {
+      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'national')}">${article.title}</a>
@@ -308,12 +312,12 @@ async function loadNationalNews() {
     }
 
     const moreList = document.getElementById("national-more-headlines-list");
-    if (moreList && articles.length > 6) {
+    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(6, maxArticles).forEach(article => {
+      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'national')}">${article.title}</a>
@@ -373,7 +377,7 @@ async function loadBusinessNews() {
     const headlinesList = document.getElementById("business-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 6).forEach(article => {
+      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'business')}">${article.title}</a>
@@ -385,12 +389,12 @@ async function loadBusinessNews() {
     }
 
     const moreList = document.getElementById("business-more-headlines-list");
-    if (moreList && articles.length > 6) {
+    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(6, maxArticles).forEach(article => {
+      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'business')}">${article.title}</a>
@@ -450,7 +454,7 @@ async function loadSportsNews() {
     const headlinesList = document.getElementById("sports-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 6).forEach(article => {
+      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'sports')}">${article.title}</a>
@@ -462,12 +466,12 @@ async function loadSportsNews() {
     }
 
     const moreList = document.getElementById("sports-more-headlines-list");
-    if (moreList && articles.length > 6) {
+    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(6, maxArticles).forEach(article => {
+      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'sports')}">${article.title}</a>
@@ -527,7 +531,7 @@ async function loadHealthNews() {
     const headlinesList = document.getElementById("health-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 6).forEach(article => {
+      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'health')}">${article.title}</a>
@@ -539,12 +543,12 @@ async function loadHealthNews() {
     }
 
     const moreList = document.getElementById("health-more-headlines-list");
-    if (moreList && articles.length > 6) {
+    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(6, maxArticles).forEach(article => {
+      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'health')}">${article.title}</a>
@@ -604,7 +608,7 @@ async function loadEntertainmentNews() {
     const headlinesList = document.getElementById("entertainment-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 6).forEach(article => {
+      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'entertainment')}">${article.title}</a>
@@ -616,12 +620,12 @@ async function loadEntertainmentNews() {
     }
 
     const moreList = document.getElementById("entertainment-more-headlines-list");
-    if (moreList && articles.length > 6) {
+    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(6, maxArticles).forEach(article => {
+      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'entertainment')}">${article.title}</a>
@@ -681,7 +685,7 @@ async function loadTechnologyNews() {
     const headlinesList = document.getElementById("technology-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 6).forEach(article => {
+      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'technology')}">${article.title}</a>
@@ -693,12 +697,12 @@ async function loadTechnologyNews() {
     }
 
     const moreList = document.getElementById("technology-more-headlines-list");
-    if (moreList && articles.length > 6) {
+    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(6, maxArticles).forEach(article => {
+      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'technology')}">${article.title}</a>
@@ -855,7 +859,7 @@ async function loadLocalNews() {
     const headlinesList = document.getElementById("local-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 6).forEach(article => {
+      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'local')}">${article.title}</a>
@@ -867,12 +871,12 @@ async function loadLocalNews() {
     }
 
     const moreList = document.getElementById("local-more-headlines-list");
-    if (moreList && articles.length > 6) {
+    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(6, maxArticles).forEach(article => {
+      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'local')}">${article.title}</a>

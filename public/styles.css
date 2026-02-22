@@ -325,6 +325,43 @@ nav a:not(:last-child)::after {
   text-decoration: underline;
 }
 
+@media (min-width: 901px) {
+  .world-news-content .headlines-sidebar {
+    height: 350px;
+    overflow: hidden;
+  }
+
+  .world-news-content .headlines-sidebar ul {
+    height: 100%;
+    display: grid;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .world-news-content .headlines-sidebar li {
+    margin-bottom: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .world-news-content .headlines-sidebar a {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .world-news-content .headlines-sidebar .article-meta {
+    display: block;
+    margin-top: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 /* ===============================
    MORE HEADLINES (Expandable)
 ================================ */
