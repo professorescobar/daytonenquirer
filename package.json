@@ -2,7 +2,8 @@
   "scripts": {
     "db:setup": "node scripts/setup-database.js",
     "db:migrate": "node scripts/migrate-articles.js",
-    "db:upsert": "node scripts/upsert-articles.js"
+    "db:upsert": "node scripts/upsert-articles.js",
+    "db:upsert:one": "node scripts/upsert-article-one.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
