@@ -193,6 +193,7 @@ async function loadRelatedArticles(section) {
 }
 
 async function setupArticleNavigation(currentSection) {
+  console.log('=== NAVIGATION FUNCTION CALLED ===');
   console.log('setupArticleNavigation called with section:', currentSection);
   
   try {
