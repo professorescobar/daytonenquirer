@@ -38,6 +38,82 @@
 
     <section id="settings-app" hidden>
       <section class="admin-panel">
+        <h3>Token Budget Dashboard</h3>
+        <div class="usage-grid">
+          <div class="usage-card">
+            <span class="usage-label">Auto Tokens Today</span>
+            <strong id="usage-tokens-auto">0</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Manual Tokens Today</span>
+            <strong id="usage-tokens-manual">0</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Auto Daily Budget</span>
+            <strong id="usage-budget-auto">0</strong>
+            <div class="usage-edit-row">
+              <input id="usage-budget-input-auto" type="number" min="1" step="1000" placeholder="Set auto budget" />
+            </div>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Manual Daily Budget</span>
+            <strong id="usage-budget-manual">0</strong>
+            <div class="usage-edit-row">
+              <input id="usage-budget-input-manual" type="number" min="1" step="1000" placeholder="Set manual budget" />
+            </div>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Auto Budget Used</span>
+            <strong id="usage-percent-auto">0%</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Manual Budget Used</span>
+            <strong id="usage-percent-manual">0%</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Auto Drafts Today</span>
+            <strong id="usage-drafts-auto">0</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Manual Drafts Today</span>
+            <strong id="usage-drafts-manual">0</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Set Budgets</span>
+            <button id="save-budget-btn" class="btn">Save Budgets</button>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Total Rejected</span>
+            <strong id="usage-rejected-total">0</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Rejected (Duplicate)</span>
+            <strong id="usage-rejected-duplicate">0</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Rejected (Stale)</span>
+            <strong id="usage-rejected-stale">0</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Rejected (Thin)</span>
+            <strong id="usage-rejected-thin">0</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Rejected (Style)</span>
+            <strong id="usage-rejected-style">0</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Rejected (User Error)</span>
+            <strong id="usage-rejected-user-error">0</strong>
+          </div>
+          <div class="usage-card">
+            <span class="usage-label">Bad Tokens Burned</span>
+            <strong id="usage-bad-tokens">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-panel">
         <h2>Settings</h2>
         <p class="hint">Manage duplicate/rejection memory and permanent deletes from one place.</p>
         <div class="admin-grid">
@@ -65,15 +141,27 @@
       </section>
 
       <section class="admin-panel">
-        <h3>Duplicate Reports</h3>
-        <p class="hint">Stored duplicate memory. Expand a row to remove an entry.</p>
-        <div id="duplicate-list" class="duplicate-list"></div>
-      </section>
+        <article class="draft-card">
+          <button class="draft-header draft-toggle btn-reset" type="button">
+            <strong>Duplicates</strong>
+            <span class="draft-meta">Expand to view and manage duplicate memory</span>
+          </button>
+          <div class="article-editor section-editor is-collapsed" hidden>
+            <p class="hint">Stored duplicate memory. Expand a row to remove an entry.</p>
+            <div id="duplicate-list" class="duplicate-list"></div>
+          </div>
+        </article>
 
-      <section class="admin-panel">
-        <h3>Rejected Drafts</h3>
-        <p class="hint">Stored rejections. Expand a row to permanently delete an entry.</p>
-        <div id="rejection-list" class="duplicate-list"></div>
+        <article class="draft-card">
+          <button class="draft-header draft-toggle btn-reset" type="button">
+            <strong>Deletions</strong>
+            <span class="draft-meta">Expand to view and manage rejected/deleted records</span>
+          </button>
+          <div class="article-editor section-editor is-collapsed" hidden>
+            <p class="hint">Stored rejections. Expand a row to permanently delete an entry.</p>
+            <div id="rejection-list" class="duplicate-list"></div>
+          </div>
+        </article>
       </section>
     </section>
   </main>

@@ -8,8 +8,14 @@ const limitInput = document.getElementById('list-limit');
 const genCountInput = document.getElementById('gen-count');
 const genIncludeInput = document.getElementById('gen-include');
 const genExcludeInput = document.getElementById('gen-exclude');
+const genTokenInput = document.getElementById('gen-admin-token');
+const saveGenTokenBtn = document.getElementById('save-gen-token-btn');
+const manualUsageTokensEl = document.getElementById('manual-usage-tokens');
+const manualUsageRemainingEl = document.getElementById('manual-usage-remaining');
 const manualTitleInput = document.getElementById('manual-title');
 const manualSectionInput = document.getElementById('manual-section');
+const manualTokenInput = document.getElementById('manual-admin-token');
+const saveManualTokenBtn = document.getElementById('save-manual-token-btn');
 const loadDraftsBtn = document.getElementById('load-drafts-btn');
 const generateBtn = document.getElementById('generate-btn');
 const createDraftBtn = document.getElementById('create-draft-btn');
@@ -60,7 +66,10 @@ let adminUiUnlocked = false;
 let rejectTargetDraftId = 0;
 
 function getToken() {
-  return (tokenInput.value || '').trim();
+  const draftOpsToken = (tokenInput?.value || '').trim();
+  const manualToken = (manualTokenInput?.value || '').trim();
+  const genToken = (genTokenInput?.value || '').trim();
+  return draftOpsToken || manualToken || genToken;
 }
 
 function setMessage(text) {
@@ -126,6 +135,7 @@ async function unlockAdminUi() {
     setLockState(true);
     setMessage('Admin unlocked.');
     loadUsageDashboard().catch((err) => setMessage(`Usage load failed: ${err.message}`));
+    loadManualUsageSummary().catch(() => {});
   } catch (err) {
     setMessage(`Unlock failed: ${err.message}`);
   }
@@ -393,6 +403,7 @@ async function generateDrafts() {
     const data = await apiRequest(url, { method: 'POST' });
     setMessage(`Generated ${data.createdCount || 0} draft(s), skipped ${data.skippedCount || 0}.`);
     await loadUsageDashboard();
+    await loadManualUsageSummary();
     await loadDrafts();
   } catch (err) {
     setMessage(`Generate failed: ${err.message}`);
@@ -410,13 +421,22 @@ async function createManualDraft() {
     });
     setMessage(`Created blank draft #${data.draft?.id || ''}.`);
     manualTitleInput.value = '';
+    await loadManualUsageSummary();
     await loadDrafts();
   } catch (err) {
     setMessage(`Create draft failed: ${err.message}`);
   }
 }
 
+async function loadManualUsageSummary() {
+  if (!manualUsageTokensEl || !manualUsageRemainingEl) return;
+  const usage = await apiRequest('/api/admin-usage?scope=manual');
+  manualUsageTokensEl.textContent = Number(usage.tokensUsedToday || 0).toLocaleString();
+  manualUsageRemainingEl.textContent = `${Number(usage.budgetRemainingPercent || 0).toFixed(1)}%`;
+}
+
 async function loadUsageDashboard() {
+  if (!usageTokensEl) return;
   const [usage, quality] = await Promise.all([
     apiRequest('/api/admin-usage'),
     apiRequest('/api/admin-quality-metrics')
@@ -668,6 +688,26 @@ function onDraftListClick(event) {
   }
 }
 
+function onAppSectionClick(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+  const button = target.closest('button');
+  if (!button || !button.classList.contains('section-toggle')) return;
+  const card = button.closest('.draft-card');
+  if (!card) return;
+  const editors = card.querySelectorAll('.section-editor');
+  const isHidden = editors[0]?.hasAttribute('hidden');
+  editors.forEach((el) => {
+    if (isHidden) {
+      el.removeAttribute('hidden');
+      el.classList.remove('is-collapsed');
+    } else {
+      el.setAttribute('hidden', '');
+      el.classList.add('is-collapsed');
+    }
+  });
+}
+
 function onDuplicateListClick(event) {
   const button = event.target.closest('button');
   if (!button || !button.classList.contains('btn-remove-duplicate-report')) return;
@@ -761,15 +801,32 @@ function onDraftListDrop(event) {
 
 function loadStoredToken() {
   const saved = localStorage.getItem('de_admin_token') || '';
-  if (saved) tokenInput.value = saved;
+  if (!saved) return;
+  if (tokenInput) tokenInput.value = saved;
+  if (manualTokenInput) manualTokenInput.value = saved;
+  if (genTokenInput) genTokenInput.value = saved;
 }
 
 function saveToken() {
-  localStorage.setItem('de_admin_token', getToken());
+  const current = getToken();
+  localStorage.setItem('de_admin_token', current);
+  if (tokenInput && !tokenInput.value) tokenInput.value = current;
+  if (manualTokenInput && !manualTokenInput.value) manualTokenInput.value = current;
+  if (genTokenInput && !genTokenInput.value) genTokenInput.value = current;
   setMessage('Token saved in this browser.');
 }
 
+function syncTokenInputs(event) {
+  const source = event?.target;
+  const value = String(source?.value || '');
+  if (tokenInput && source !== tokenInput) tokenInput.value = value;
+  if (manualTokenInput && source !== manualTokenInput) manualTokenInput.value = value;
+  if (genTokenInput && source !== genTokenInput) genTokenInput.value = value;
+}
+
 saveTokenBtn.addEventListener('click', saveToken);
+if (saveManualTokenBtn) saveManualTokenBtn.addEventListener('click', saveToken);
+if (saveGenTokenBtn) saveGenTokenBtn.addEventListener('click', saveToken);
 loadDraftsBtn.addEventListener('click', loadDrafts);
 generateBtn.addEventListener('click', generateDrafts);
 createDraftBtn.addEventListener('click', createManualDraft);
@@ -783,7 +840,11 @@ draftListEl.addEventListener('dragover', onDraftListDragOver);
 draftListEl.addEventListener('dragleave', onDraftListDragLeave);
 draftListEl.addEventListener('drop', onDraftListDrop);
 unlockAdminBtn.addEventListener('click', unlockAdminUi);
-saveBudgetBtn.addEventListener('click', saveBudget);
+if (saveBudgetBtn) saveBudgetBtn.addEventListener('click', saveBudget);
+if (appSection) appSection.addEventListener('click', onAppSectionClick);
+if (tokenInput) tokenInput.addEventListener('input', syncTokenInputs);
+if (manualTokenInput) manualTokenInput.addEventListener('input', syncTokenInputs);
+if (genTokenInput) genTokenInput.addEventListener('input', syncTokenInputs);
 if (rejectConfirmBtn) rejectConfirmBtn.addEventListener('click', onRejectModalConfirm);
 if (rejectCancelBtn) rejectCancelBtn.addEventListener('click', closeRejectModal);
 if (rejectModalEl) {
@@ -799,4 +860,5 @@ loadStoredToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked') === '1');
 if (adminUiUnlocked) {
   loadUsageDashboard().catch((err) => setMessage(`Usage load failed: ${err.message}`));
+  loadManualUsageSummary().catch(() => {});
 }

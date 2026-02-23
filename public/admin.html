@@ -37,141 +37,124 @@
     </section>
 
     <section id="admin-app" hidden>
-    <section class="admin-panel">
-      <h3>Token Budget Dashboard</h3>
-      <div class="usage-grid">
-        <div class="usage-card">
-          <span class="usage-label">Tokens Used Today</span>
-          <strong id="usage-tokens">0</strong>
-        </div>
-        <div class="usage-card">
-          <span class="usage-label">Daily Budget</span>
-          <strong id="usage-budget">0</strong>
-          <div class="usage-edit-row">
-            <input id="usage-budget-input" type="number" min="1" step="1000" placeholder="Set budget" />
-            <button id="save-budget-btn" class="btn">Save</button>
+      <section class="admin-panel">
+        <article class="draft-card">
+          <button class="draft-header section-toggle btn-reset" type="button">
+            <strong>Write Your Own Article</strong>
+            <span class="draft-meta">Create a blank draft in your selected section</span>
+          </button>
+          <div class="article-editor is-collapsed section-editor" hidden>
+            <div class="admin-grid">
+              <label>
+                Admin Token
+                <input id="manual-admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
+              </label>
+            </div>
+            <div class="admin-actions">
+              <button id="save-manual-token-btn" class="btn">Save Token</button>
+            </div>
+            <div class="admin-grid">
+              <label>
+                Draft Title
+                <input id="manual-title" type="text" placeholder="Optional title for your new draft" />
+              </label>
+              <label>
+                Section
+                <select id="manual-section">
+                  <option value="local">local</option>
+                  <option value="national">national</option>
+                  <option value="world">world</option>
+                  <option value="business">business</option>
+                  <option value="sports">sports</option>
+                  <option value="health">health</option>
+                  <option value="entertainment">entertainment</option>
+                  <option value="technology">technology</option>
+                </select>
+              </label>
+            </div>
+            <div class="admin-actions">
+              <button id="create-draft-btn" class="btn">Create Blank Draft</button>
+            </div>
           </div>
-        </div>
-        <div class="usage-card">
-          <span class="usage-label">Budget Used</span>
-          <strong id="usage-percent">0%</strong>
-        </div>
-        <div class="usage-card">
-          <span class="usage-label">Auto Drafts Today</span>
-          <strong id="usage-drafts">0</strong>
-        </div>
-        <div class="usage-card">
-          <span class="usage-label">Total Rejected</span>
-          <strong id="usage-rejected-total">0</strong>
-        </div>
-        <div class="usage-card">
-          <span class="usage-label">Rejected (Duplicate)</span>
-          <strong id="usage-rejected-duplicate">0</strong>
-        </div>
-        <div class="usage-card">
-          <span class="usage-label">Rejected (Stale)</span>
-          <strong id="usage-rejected-stale">0</strong>
-        </div>
-        <div class="usage-card">
-          <span class="usage-label">Rejected (Thin)</span>
-          <strong id="usage-rejected-thin">0</strong>
-        </div>
-        <div class="usage-card">
-          <span class="usage-label">Rejected (Style)</span>
-          <strong id="usage-rejected-style">0</strong>
-        </div>
-        <div class="usage-card">
-          <span class="usage-label">Rejected (User Error)</span>
-          <strong id="usage-rejected-user-error">0</strong>
-        </div>
-        <div class="usage-card">
-          <span class="usage-label">Bad Tokens Burned</span>
-          <strong id="usage-bad-tokens">0</strong>
-        </div>
-      </div>
-    </section>
+        </article>
 
-    <section class="admin-panel">
-      <h2>Draft Operations</h2>
-      <p class="hint">Use your admin token to generate, review, edit, and publish AI drafts.</p>
+        <article class="draft-card">
+          <button class="draft-header section-toggle btn-reset" type="button">
+            <strong>Manual Draft Generation</strong>
+            <span class="draft-meta">Generate drafts by count and optional section filters</span>
+          </button>
+          <div class="article-editor is-collapsed section-editor" hidden>
+            <div class="admin-grid">
+              <label>
+                Admin Token
+                <input id="gen-admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
+              </label>
+            </div>
+            <div class="admin-actions">
+              <button id="save-gen-token-btn" class="btn">Save Token</button>
+            </div>
+            <div class="admin-grid">
+              <label>
+                Count
+                <input id="gen-count" type="number" min="1" max="20" value="3" />
+              </label>
+              <label>
+                Include Sections (comma list)
+                <input id="gen-include" type="text" placeholder="local,national,world" />
+              </label>
+              <label>
+                Exclude Sections (comma list)
+                <input id="gen-exclude" type="text" placeholder="health,entertainment,technology" />
+              </label>
+            </div>
+            <div class="admin-actions">
+              <button id="generate-btn" class="btn btn-primary">Generate Drafts</button>
+            </div>
+            <p class="draft-meta">
+              Manual tokens used today:
+              <strong id="manual-usage-tokens">0</strong>
+              |
+              Manual budget remaining:
+              <strong id="manual-usage-remaining">100%</strong>
+            </p>
+          </div>
+        </article>
 
-      <div class="admin-grid">
-        <label>
-          Admin Token
-          <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
-        </label>
-        <label>
-          Status Filter
-          <select id="status-filter">
-            <option value="pending_review" selected>pending_review</option>
-            <option value="published">published</option>
-            <option value="all">all</option>
-          </select>
-        </label>
-        <label>
-          List Limit
-          <input id="list-limit" type="number" min="1" max="200" value="25" />
-        </label>
-      </div>
+        <article class="draft-card">
+          <button class="draft-header section-toggle btn-reset" type="button">
+            <strong>Draft Operations</strong>
+            <span class="draft-meta">Load, review, edit, publish, reject, or report duplicates</span>
+          </button>
+          <div class="article-editor is-collapsed section-editor" hidden>
+            <div class="admin-grid">
+              <label>
+                Admin Token
+                <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
+              </label>
+              <label>
+                Status Filter
+                <select id="status-filter">
+                  <option value="pending_review" selected>pending_review</option>
+                  <option value="published">published</option>
+                  <option value="all">all</option>
+                </select>
+              </label>
+              <label>
+                List Limit
+                <input id="list-limit" type="number" min="1" max="200" value="25" />
+              </label>
+            </div>
 
-      <div class="admin-actions">
-        <button id="save-token-btn" class="btn">Save Token</button>
-        <button id="load-drafts-btn" class="btn">Load Drafts</button>
-      </div>
-    </section>
+            <div class="admin-actions">
+              <button id="save-token-btn" class="btn">Save Token</button>
+              <button id="load-drafts-btn" class="btn">Load Drafts</button>
+            </div>
 
-    <section class="admin-panel">
-      <h3>Manual Draft Generation</h3>
-      <div class="admin-grid">
-        <label>
-          Count
-          <input id="gen-count" type="number" min="1" max="20" value="3" />
-        </label>
-        <label>
-          Include Sections (comma list)
-          <input id="gen-include" type="text" placeholder="local,national,world" />
-        </label>
-        <label>
-          Exclude Sections (comma list)
-          <input id="gen-exclude" type="text" placeholder="health,entertainment,technology" />
-        </label>
-      </div>
-      <div class="admin-actions">
-        <button id="generate-btn" class="btn btn-primary">Generate Drafts</button>
-      </div>
-    </section>
-
-    <section class="admin-panel">
-      <h3>Write Your Own Article</h3>
-      <div class="admin-grid">
-        <label>
-          Draft Title
-          <input id="manual-title" type="text" placeholder="Optional title for your new draft" />
-        </label>
-        <label>
-          Section
-          <select id="manual-section">
-            <option value="local">local</option>
-            <option value="national">national</option>
-            <option value="world">world</option>
-            <option value="business">business</option>
-            <option value="sports">sports</option>
-            <option value="health">health</option>
-            <option value="entertainment">entertainment</option>
-            <option value="technology">technology</option>
-          </select>
-        </label>
-      </div>
-      <div class="admin-actions">
-        <button id="create-draft-btn" class="btn">Create Blank Draft</button>
-      </div>
-    </section>
-
-    <section class="admin-panel">
-      <h3>Draft Queue</h3>
-      <div id="admin-message" class="message" hidden></div>
-      <div id="draft-list" class="draft-list"></div>
-    </section>
+            <div id="admin-message" class="message" hidden></div>
+            <div id="draft-list" class="draft-list"></div>
+          </div>
+        </article>
+      </section>
 
     <div id="reject-modal" class="admin-modal" hidden>
       <div class="admin-modal-backdrop"></div>

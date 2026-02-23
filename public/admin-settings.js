@@ -11,6 +11,24 @@ const loadAllBtn = document.getElementById('load-all-btn');
 const messageEl = document.getElementById('settings-message');
 const duplicateListEl = document.getElementById('duplicate-list');
 const rejectionListEl = document.getElementById('rejection-list');
+const usageTokensAutoEl = document.getElementById('usage-tokens-auto');
+const usageTokensManualEl = document.getElementById('usage-tokens-manual');
+const usageBudgetAutoEl = document.getElementById('usage-budget-auto');
+const usageBudgetManualEl = document.getElementById('usage-budget-manual');
+const usagePercentAutoEl = document.getElementById('usage-percent-auto');
+const usagePercentManualEl = document.getElementById('usage-percent-manual');
+const usageDraftsAutoEl = document.getElementById('usage-drafts-auto');
+const usageDraftsManualEl = document.getElementById('usage-drafts-manual');
+const usageBudgetInputAuto = document.getElementById('usage-budget-input-auto');
+const usageBudgetInputManual = document.getElementById('usage-budget-input-manual');
+const saveBudgetBtn = document.getElementById('save-budget-btn');
+const usageRejectedTotalEl = document.getElementById('usage-rejected-total');
+const usageRejectedDuplicateEl = document.getElementById('usage-rejected-duplicate');
+const usageRejectedStaleEl = document.getElementById('usage-rejected-stale');
+const usageRejectedThinEl = document.getElementById('usage-rejected-thin');
+const usageRejectedStyleEl = document.getElementById('usage-rejected-style');
+const usageRejectedUserErrorEl = document.getElementById('usage-rejected-user-error');
+const usageBadTokensEl = document.getElementById('usage-bad-tokens');
 
 let unlocked = false;
 
@@ -164,10 +182,67 @@ async function loadRejections() {
 async function loadAll() {
   try {
     setMessage('Loading settings lists...');
-    const [dupCount, rejCount] = await Promise.all([loadDuplicateReports(), loadRejections()]);
+    const [dupCount, rejCount] = await Promise.all([
+      loadDuplicateReports(),
+      loadRejections(),
+      loadUsageDashboard()
+    ]);
     setMessage(`Loaded ${dupCount} duplicate report(s) and ${rejCount} rejection record(s).`);
   } catch (err) {
     setMessage(`Load failed: ${err.message}`);
+  }
+}
+
+async function loadUsageDashboard() {
+  const [usageAuto, usageManual, quality] = await Promise.all([
+    apiRequest('/api/admin-usage?scope=auto'),
+    apiRequest('/api/admin-usage?scope=manual'),
+    apiRequest('/api/admin-quality-metrics')
+  ]);
+
+  if (!usageTokensAutoEl) return;
+  usageTokensAutoEl.textContent = Number(usageAuto.tokensUsedToday || 0).toLocaleString();
+  usageTokensManualEl.textContent = Number(usageManual.tokensUsedToday || 0).toLocaleString();
+  usageBudgetAutoEl.textContent = Number(usageAuto.dailyTokenBudget || 0).toLocaleString();
+  usageBudgetManualEl.textContent = Number(usageManual.dailyTokenBudget || 0).toLocaleString();
+  usagePercentAutoEl.textContent = `${usageAuto.budgetUsedPercent || 0}%`;
+  usagePercentManualEl.textContent = `${usageManual.budgetUsedPercent || 0}%`;
+  usageDraftsAutoEl.textContent = Number(usageAuto.draftsToday || 0).toLocaleString();
+  usageDraftsManualEl.textContent = Number(usageManual.draftsToday || 0).toLocaleString();
+  usageBudgetInputAuto.value = Number(usageAuto.dailyTokenBudget || 0);
+  usageBudgetInputManual.value = Number(usageManual.dailyTokenBudget || 0);
+
+  const byReason = quality.byReason || {};
+  usageRejectedTotalEl.textContent = Number(quality.totalRejected || 0).toLocaleString();
+  usageRejectedDuplicateEl.textContent = Number(byReason.duplicate || 0).toLocaleString();
+  usageRejectedStaleEl.textContent = Number(byReason.stale_or_not_time_relevant || 0).toLocaleString();
+  usageRejectedThinEl.textContent = Number(byReason.low_newsworthiness_or_thin || 0).toLocaleString();
+  usageRejectedStyleEl.textContent = Number(byReason.style_mismatch || 0).toLocaleString();
+  usageRejectedUserErrorEl.textContent = Number(byReason.user_error || 0).toLocaleString();
+  usageBadTokensEl.textContent = Number(quality.badTokensTotal || 0).toLocaleString();
+}
+
+async function saveBudget() {
+  try {
+    const dailyTokenBudgetAuto = Number(usageBudgetInputAuto.value || 0);
+    const dailyTokenBudgetManual = Number(usageBudgetInputManual.value || 0);
+    if (!dailyTokenBudgetAuto || dailyTokenBudgetAuto < 1) {
+      throw new Error('Enter a valid auto token budget');
+    }
+    if (!dailyTokenBudgetManual || dailyTokenBudgetManual < 1) {
+      throw new Error('Enter a valid manual token budget');
+    }
+    const data = await apiRequest('/api/admin-budget', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dailyTokenBudgetAuto, dailyTokenBudgetManual })
+    });
+    setMessage(
+      `Budgets updated. Auto: ${Number(data.dailyTokenBudgetAuto).toLocaleString()} | Manual: ${Number(data.dailyTokenBudgetManual).toLocaleString()}.`
+    );
+    await loadUsageDashboard();
+  } catch (err) {
+    setMessage(`Budget update failed: ${err.message}`);
   }
 }
 
@@ -197,7 +272,7 @@ function onListClick(event) {
   if (!button) return;
 
   if (button.classList.contains('draft-toggle')) {
-    const editors = card.querySelectorAll('.article-editor');
+    const editors = card.querySelectorAll(':scope > .section-editor, :scope > .article-editor');
     const isHidden = editors[0]?.hasAttribute('hidden');
     editors.forEach((el) => {
       if (isHidden) {
@@ -248,8 +323,8 @@ function loadToken() {
 if (unlockAdminBtn) unlockAdminBtn.addEventListener('click', unlock);
 if (saveTokenBtn) saveTokenBtn.addEventListener('click', saveToken);
 if (loadAllBtn) loadAllBtn.addEventListener('click', loadAll);
-if (duplicateListEl) duplicateListEl.addEventListener('click', onListClick);
-if (rejectionListEl) rejectionListEl.addEventListener('click', onListClick);
+if (saveBudgetBtn) saveBudgetBtn.addEventListener('click', saveBudget);
+if (appSection) appSection.addEventListener('click', onListClick);
 
 loadToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked_settings') === '1');
