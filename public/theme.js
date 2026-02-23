@@ -1,5 +1,7 @@
 (() => {
   const STORAGE_KEY = 'de_theme';
+  const MOBILE_HIDE_DELAY_MS = 3500;
+  const MOBILE_BREAKPOINT = '(max-width: 768px)';
 
   const TICKER_BASE_CONFIG = {
     symbols: [
@@ -61,6 +63,44 @@
     });
   }
 
+  let mobileHideTimer = null;
+  const mobileQuery = window.matchMedia(MOBILE_BREAKPOINT);
+
+  function clearMobileHideTimer() {
+    if (mobileHideTimer) {
+      clearTimeout(mobileHideTimer);
+      mobileHideTimer = null;
+    }
+  }
+
+  function isMobileViewport() {
+    return !!(mobileQuery && mobileQuery.matches);
+  }
+
+  function setMobileToggleHidden(hidden) {
+    const root = document.documentElement;
+    root.classList.toggle('mobile-theme-toggle-hidden', hidden);
+    root.classList.toggle('mobile-theme-toggle-idle', !hidden);
+  }
+
+  function showMobileToggleTemporarily() {
+    if (!isMobileViewport()) return;
+    clearMobileHideTimer();
+    setMobileToggleHidden(false);
+    mobileHideTimer = setTimeout(() => {
+      setMobileToggleHidden(true);
+    }, MOBILE_HIDE_DELAY_MS);
+  }
+
+  function syncMobileToggleVisibility() {
+    clearMobileHideTimer();
+    if (!isMobileViewport()) {
+      document.documentElement.classList.remove('mobile-theme-toggle-hidden', 'mobile-theme-toggle-idle');
+      return;
+    }
+    showMobileToggleTemporarily();
+  }
+
   function bindToggles() {
     const toggles = document.querySelectorAll('[data-theme-toggle]');
     toggles.forEach((toggle) => {
@@ -71,6 +111,7 @@
         const current = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
         const next = current === 'dark' ? 'light' : 'dark';
         applyTheme(next, true);
+        showMobileToggleTemporarily();
       });
     });
 
@@ -113,6 +154,7 @@
 
   window.addEventListener('load', () => {
     setTimeout(() => syncTradingViewTickerTheme(true), 80);
+    syncMobileToggleVisibility();
   });
 
   window.addEventListener('de-theme-changed', () => {
@@ -127,4 +169,16 @@
       }
     });
   }
+
+  if (mobileQuery && mobileQuery.addEventListener) {
+    mobileQuery.addEventListener('change', () => {
+      syncMobileToggleVisibility();
+    });
+  }
+
+  ['touchstart', 'pointerdown', 'scroll', 'focusin'].forEach((eventName) => {
+    window.addEventListener(eventName, () => {
+      showMobileToggleTemporarily();
+    }, { passive: true });
+  });
 })();
