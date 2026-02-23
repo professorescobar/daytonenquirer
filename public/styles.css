@@ -72,11 +72,11 @@ nav {
 
 nav a {
   text-decoration: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: 1px solid transparent;
   display: inline-flex;
   align-items: center;
   position: relative;
-  padding: 0 0 1px 0;
+  padding: 0 0 0.5px 0;
   font-weight: bold;
   color: #000;
 }
