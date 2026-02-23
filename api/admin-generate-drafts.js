@@ -44,8 +44,23 @@ const DEFAULT_MAX_OUTPUT_TOKENS = 2600;
 const RETRY_MIN_INITIAL_WORDS = 450;
 
 const ET_TIME_ZONE = 'America/New_York';
-const MULTI_TRACK_SLOTS_ET = ['06:05', '09:05', '12:05', '15:05', '18:05', '21:05'];
-const SINGLE_TRACK_SLOTS_ET = ['05:05'];
+const MULTI_TRACK_SLOTS_ET = ['06:05', '08:05', '10:05', '12:05', '14:05', '16:05', '18:05', '22:05'];
+const SINGLE_TRACK_SLOTS_ET = ['10:05', '14:05', '22:05'];
+const MULTI_TRACK_COUNT_BY_SLOT_ET = {
+  '06:05': 4,
+  '08:05': 4,
+  '10:05': 2,
+  '12:05': 2,
+  '14:05': 2,
+  '16:05': 4,
+  '18:05': 4,
+  '22:05': 2
+};
+const SINGLE_TRACK_COUNT_BY_SLOT_ET = {
+  '10:05': 1,
+  '14:05': 1,
+  '22:05': 1
+};
 const SPORTS_FOCUS_MODES = new Set(['auto', 'college_basketball', 'nba', 'baseball', 'football', 'broad']);
 const SPORTS_UPCOMING_TERMS = [
   'preview',
@@ -383,6 +398,12 @@ function shouldRunScheduledTrack(track, etTime) {
   if (track === 'single') return SINGLE_TRACK_SLOTS_ET.includes(etTime);
   if (track === 'multi') return MULTI_TRACK_SLOTS_ET.includes(etTime);
   return false;
+}
+
+function getScheduledRequestedCount(track, etTime) {
+  if (track === 'single') return SINGLE_TRACK_COUNT_BY_SLOT_ET[etTime] || null;
+  if (track === 'multi') return MULTI_TRACK_COUNT_BY_SLOT_ET[etTime] || null;
+  return null;
 }
 
 function resolveSportsFocusMode(rawMode, etNowParts) {
@@ -1457,7 +1478,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const requestedCount = Math.min(parseInt(req.body?.count || req.query.count || '6', 10), 50);
+  let requestedCount = Math.min(parseInt(req.body?.count || req.query.count || '6', 10), 50);
   const dryRun = String(req.body?.dryRun || req.query.dryRun || 'false') === 'true';
   const dailyTokenBudgetOverride = req.body?.dailyTokenBudget || req.query.dailyTokenBudget;
   const scheduleMode = String(req.body?.schedule || req.query.schedule || '').toLowerCase();
@@ -1500,6 +1521,10 @@ module.exports = async (req, res) => {
           etTime,
           track
         });
+      }
+      const scheduledCount = getScheduledRequestedCount(track, etTime);
+      if (scheduledCount && scheduledCount > 0) {
+        requestedCount = Math.min(scheduledCount, 50);
       }
     }
 
