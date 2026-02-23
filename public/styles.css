@@ -40,7 +40,7 @@ img {
 .news-header {
   background: #fff;
   border-bottom: 2px solid #ddd;
-  padding: 0 0 1rem 0;
+  padding: 0;
 }
 
 .header-inner {
@@ -72,17 +72,18 @@ nav {
 
 nav a {
   text-decoration: none;
-  border-bottom: 1px solid transparent;
+  text-underline-offset: 1px;
+  text-decoration-thickness: 1px;
   display: inline-flex;
   align-items: center;
   position: relative;
-  padding: 0 0 0.5px 0;
+  padding: 0;
   font-weight: bold;
   color: #000;
 }
 
 nav a:hover {
-  border-bottom-color: currentColor;
+  text-decoration: underline;
 }
 
 nav a + a::before {
@@ -101,6 +102,7 @@ nav a + a::before {
 .market-ticker {
   background: #f0f0f0;
   border-bottom: 1px solid #ddd;
+  margin-top: 1rem;
 }
 
 /* ===============================
