@@ -75,48 +75,96 @@ module.exports = async (req, res) => {
     const sql = neon(process.env.DATABASE_URL);
     await ensureTables(sql);
 
-    const duplicateRows = await sql`
+    const duplicateDailyRows = await sql`
       SELECT
         COUNT(*)::int AS "count",
         COALESCE(SUM(total_tokens), 0)::int AS "tokens"
       FROM duplicate_reports
+      WHERE reported_at >= date_trunc('day', now())
     `;
 
-    const rejectionRows = await sql`
+    const duplicateMonthlyRows = await sql`
+      SELECT
+        COUNT(*)::int AS "count",
+        COALESCE(SUM(total_tokens), 0)::int AS "tokens"
+      FROM duplicate_reports
+      WHERE reported_at >= date_trunc('month', now())
+    `;
+
+    const rejectionDailyRows = await sql`
       SELECT
         reject_reason as reason,
         COUNT(*)::int AS "count",
         COALESCE(SUM(total_tokens), 0)::int AS "tokens"
       FROM editorial_rejections
+      WHERE rejected_at >= date_trunc('day', now())
       GROUP BY reject_reason
     `;
 
-    const byReason = {};
-    const tokensByReason = {};
+    const rejectionMonthlyRows = await sql`
+      SELECT
+        reject_reason as reason,
+        COUNT(*)::int AS "count",
+        COALESCE(SUM(total_tokens), 0)::int AS "tokens"
+      FROM editorial_rejections
+      WHERE rejected_at >= date_trunc('month', now())
+      GROUP BY reject_reason
+    `;
+
+    const byReasonDaily = {};
+    const tokensByReasonDaily = {};
+    const byReasonMonthly = {};
+    const tokensByReasonMonthly = {};
     for (const reason of REASONS) {
-      byReason[reason] = 0;
-      tokensByReason[reason] = 0;
+      byReasonDaily[reason] = 0;
+      tokensByReasonDaily[reason] = 0;
+      byReasonMonthly[reason] = 0;
+      tokensByReasonMonthly[reason] = 0;
     }
 
-    byReason.duplicate = duplicateRows?.[0]?.count || 0;
-    tokensByReason.duplicate = duplicateRows?.[0]?.tokens || 0;
+    byReasonDaily.duplicate = duplicateDailyRows?.[0]?.count || 0;
+    tokensByReasonDaily.duplicate = duplicateDailyRows?.[0]?.tokens || 0;
+    byReasonMonthly.duplicate = duplicateMonthlyRows?.[0]?.count || 0;
+    tokensByReasonMonthly.duplicate = duplicateMonthlyRows?.[0]?.tokens || 0;
 
-    for (const row of rejectionRows) {
+    for (const row of rejectionDailyRows) {
       const key = String(row.reason || '').trim();
       if (!key) continue;
-      byReason[key] = Number(row.count || 0);
-      tokensByReason[key] = Number(row.tokens || 0);
+      byReasonDaily[key] = Number(row.count || 0);
+      tokensByReasonDaily[key] = Number(row.tokens || 0);
+    }
+    for (const row of rejectionMonthlyRows) {
+      const key = String(row.reason || '').trim();
+      if (!key) continue;
+      byReasonMonthly[key] = Number(row.count || 0);
+      tokensByReasonMonthly[key] = Number(row.tokens || 0);
     }
 
-    const totalRejected = Object.values(byReason).reduce((sum, v) => sum + Number(v || 0), 0);
-    const badTokensTotal = Object.values(tokensByReason).reduce((sum, v) => sum + Number(v || 0), 0);
+    const totalRejectedDaily = Object.values(byReasonDaily).reduce((sum, v) => sum + Number(v || 0), 0);
+    const badTokensTotalDaily = Object.values(tokensByReasonDaily).reduce((sum, v) => sum + Number(v || 0), 0);
+
+    const totalRejectedMonthly = Object.values(byReasonMonthly).reduce((sum, v) => sum + Number(v || 0), 0);
+    const badTokensTotalMonthly = Object.values(tokensByReasonMonthly).reduce((sum, v) => sum + Number(v || 0), 0);
 
     return res.status(200).json({
       ok: true,
-      totalRejected,
-      byReason,
-      tokensByReason,
-      badTokensTotal
+      daily: {
+        totalRejected: totalRejectedDaily,
+        byReason: byReasonDaily,
+        tokensByReason: tokensByReasonDaily,
+        badTokensTotal: badTokensTotalDaily
+      },
+      monthly: {
+        totalRejected: totalRejectedMonthly,
+        byReason: byReasonMonthly,
+        tokensByReason: tokensByReasonMonthly,
+        badTokensTotal: badTokensTotalMonthly
+      },
+      // Backward-compatible aliases
+      totalRejected: totalRejectedDaily,
+      byReason: byReasonDaily,
+      tokensByReason: tokensByReasonDaily,
+      badTokensTotal: badTokensTotalDaily
     });
   } catch (error) {
     console.error('Quality metrics error:', error);

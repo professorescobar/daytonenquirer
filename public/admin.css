@@ -128,6 +128,10 @@
   gap: 0.6rem;
 }
 
+.usage-grid-budgets {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
 .usage-card {
   border: 1px solid #d9d9d9;
   background: #f8f8f8;
@@ -135,6 +139,50 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.budget-card h4 {
+  margin: 0 0 0.35rem 0;
+}
+
+.usage-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0.15rem 0;
+  font-size: 0.92rem;
+}
+
+.usage-row span {
+  color: #444;
+}
+
+.usage-progress {
+  height: 8px;
+  border: 1px solid #d0d0d0;
+  background: #efefef;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.2rem 0 0.5rem 0;
+}
+
+.usage-progress-bar {
+  height: 100%;
+  width: 0%;
+  transition: width 180ms ease;
+}
+
+.usage-progress-good {
+  background: #2f8f2f;
+}
+
+.usage-progress-warn {
+  background: #cc8a00;
+}
+
+.usage-progress-danger {
+  background: #b3261e;
 }
 
 .usage-edit-row {

@@ -39,77 +39,61 @@
     <section id="settings-app" hidden>
       <section class="admin-panel">
         <h3>Token Budget Dashboard</h3>
-        <div class="usage-grid">
-          <div class="usage-card">
-            <span class="usage-label">Auto Tokens Today</span>
-            <strong id="usage-tokens-auto">0</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Manual Tokens Today</span>
-            <strong id="usage-tokens-manual">0</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Auto Daily Budget</span>
-            <strong id="usage-budget-auto">0</strong>
-            <div class="usage-edit-row">
-              <input id="usage-budget-input-auto" type="number" min="1" step="1000" placeholder="Set auto budget" />
+        <div class="usage-grid usage-grid-budgets">
+          <article class="usage-card budget-card">
+            <h4>Auto Budget</h4>
+            <p class="usage-row"><span>Used Today</span><strong id="usage-auto-daily-used">0</strong></p>
+            <p class="usage-row"><span>Daily Budget</span><strong id="usage-auto-daily-budget">0</strong></p>
+            <p class="usage-row"><span>Remaining</span><strong id="usage-auto-daily-remaining">0</strong></p>
+            <p class="usage-row"><span>Used %</span><strong id="usage-auto-daily-used-percent">0%</strong></p>
+            <div class="usage-progress"><div id="usage-auto-progress" class="usage-progress-bar"></div></div>
+            <p class="usage-row"><span>Drafts Today</span><strong id="usage-auto-drafts-today">0</strong></p>
+            <p class="usage-row"><span>Used This Month</span><strong id="usage-auto-monthly-used">0</strong></p>
+            <p class="usage-row"><span>Drafts This Month</span><strong id="usage-auto-monthly-drafts">0</strong></p>
+          </article>
+
+          <article class="usage-card budget-card">
+            <h4>Manual Budget</h4>
+            <p class="usage-row"><span>Used Today</span><strong id="usage-manual-daily-used">0</strong></p>
+            <p class="usage-row"><span>Daily Budget</span><strong id="usage-manual-daily-budget">0</strong></p>
+            <p class="usage-row"><span>Remaining</span><strong id="usage-manual-daily-remaining">0</strong></p>
+            <p class="usage-row"><span>Used %</span><strong id="usage-manual-daily-used-percent">0%</strong></p>
+            <div class="usage-progress"><div id="usage-manual-progress" class="usage-progress-bar"></div></div>
+            <p class="usage-row"><span>Drafts Today</span><strong id="usage-manual-drafts-today">0</strong></p>
+            <p class="usage-row"><span>Used This Month</span><strong id="usage-manual-monthly-used">0</strong></p>
+            <p class="usage-row"><span>Drafts This Month</span><strong id="usage-manual-monthly-drafts">0</strong></p>
+          </article>
+
+          <article class="usage-card budget-card">
+            <h4>Quality Cost</h4>
+            <p class="usage-row"><span>Rejected Today</span><strong id="usage-rejected-daily">0</strong></p>
+            <p class="usage-row"><span>Rejected This Month</span><strong id="usage-rejected-monthly">0</strong></p>
+            <p class="usage-row"><span>Bad Tokens Today</span><strong id="usage-bad-tokens-daily">0</strong></p>
+            <p class="usage-row"><span>Bad Tokens This Month</span><strong id="usage-bad-tokens-monthly">0</strong></p>
+            <div class="admin-actions">
+              <button id="quality-breakdown-toggle" class="btn">Show Breakdown</button>
             </div>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Manual Daily Budget</span>
-            <strong id="usage-budget-manual">0</strong>
-            <div class="usage-edit-row">
-              <input id="usage-budget-input-manual" type="number" min="1" step="1000" placeholder="Set manual budget" />
+            <div id="quality-breakdown" hidden>
+              <p class="usage-row"><span>Daily Duplicate</span><strong id="usage-rejected-duplicate-daily">0</strong></p>
+              <p class="usage-row"><span>Daily Stale</span><strong id="usage-rejected-stale-daily">0</strong></p>
+              <p class="usage-row"><span>Daily Thin</span><strong id="usage-rejected-thin-daily">0</strong></p>
+              <p class="usage-row"><span>Daily Style</span><strong id="usage-rejected-style-daily">0</strong></p>
+              <p class="usage-row"><span>Daily User Error</span><strong id="usage-rejected-user-error-daily">0</strong></p>
             </div>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Auto Budget Used</span>
-            <strong id="usage-percent-auto">0%</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Manual Budget Used</span>
-            <strong id="usage-percent-manual">0%</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Auto Drafts Today</span>
-            <strong id="usage-drafts-auto">0</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Manual Drafts Today</span>
-            <strong id="usage-drafts-manual">0</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Set Budgets</span>
-            <button id="save-budget-btn" class="btn">Save Budgets</button>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Total Rejected</span>
-            <strong id="usage-rejected-total">0</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Rejected (Duplicate)</span>
-            <strong id="usage-rejected-duplicate">0</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Rejected (Stale)</span>
-            <strong id="usage-rejected-stale">0</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Rejected (Thin)</span>
-            <strong id="usage-rejected-thin">0</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Rejected (Style)</span>
-            <strong id="usage-rejected-style">0</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Rejected (User Error)</span>
-            <strong id="usage-rejected-user-error">0</strong>
-          </div>
-          <div class="usage-card">
-            <span class="usage-label">Bad Tokens Burned</span>
-            <strong id="usage-bad-tokens">0</strong>
-          </div>
+          </article>
+        </div>
+        <div class="admin-grid">
+          <label>
+            Auto Daily Budget
+            <input id="usage-budget-input-auto" type="number" min="1" step="1000" placeholder="Set auto budget" />
+          </label>
+          <label>
+            Manual Daily Budget
+            <input id="usage-budget-input-manual" type="number" min="1" step="1000" placeholder="Set manual budget" />
+          </label>
+        </div>
+        <div class="admin-actions">
+          <button id="save-budget-btn" class="btn">Save Budgets</button>
         </div>
       </section>
 

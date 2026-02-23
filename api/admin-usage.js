@@ -18,22 +18,27 @@ module.exports = async (req, res) => {
       ? budgets.manual
       : (normalizedScope === 'auto' ? budgets.auto : (budgets.auto + budgets.manual));
 
-    const tokenRows = await sql`
+    const dailyRows = await sql`
       SELECT COALESCE(SUM(total_tokens), 0)::int AS "tokensUsedToday"
+      , COUNT(*)::int AS "draftsToday"
       FROM article_drafts
       WHERE created_at >= date_trunc('day', now())
         AND (${normalizedScope} = 'all' OR created_via = ${normalizedScope})
     `;
 
-    const draftRows = await sql`
-      SELECT COUNT(*)::int AS "draftsToday"
+    const monthlyRows = await sql`
+      SELECT
+        COALESCE(SUM(total_tokens), 0)::int AS "tokensUsedMonth",
+        COUNT(*)::int AS "draftsMonth"
       FROM article_drafts
-      WHERE created_at >= date_trunc('day', now())
+      WHERE created_at >= date_trunc('month', now())
         AND (${normalizedScope} = 'all' OR created_via = ${normalizedScope})
     `;
 
-    const tokensUsedToday = tokenRows?.[0]?.tokensUsedToday || 0;
-    const draftsToday = draftRows?.[0]?.draftsToday || 0;
+    const tokensUsedToday = dailyRows?.[0]?.tokensUsedToday || 0;
+    const draftsToday = dailyRows?.[0]?.draftsToday || 0;
+    const tokensUsedMonth = monthlyRows?.[0]?.tokensUsedMonth || 0;
+    const draftsMonth = monthlyRows?.[0]?.draftsMonth || 0;
     const budgetUsedPercent = dailyTokenBudget > 0
       ? Math.min((tokensUsedToday / dailyTokenBudget) * 100, 100)
       : 0;
@@ -51,7 +56,11 @@ module.exports = async (req, res) => {
       // Backward-compatible alias used by existing UI.
       budgetPercent: Number(budgetUsedPercent.toFixed(1)),
       draftsToday,
-      tokensRemainingToday: Math.max(0, dailyTokenBudget - tokensUsedToday)
+      tokensRemainingToday: Math.max(0, dailyTokenBudget - tokensUsedToday),
+      dailyTokensUsed: tokensUsedToday,
+      dailyDrafts: draftsToday,
+      monthlyTokensUsed: tokensUsedMonth,
+      monthlyDrafts: draftsMonth
     });
   } catch (error) {
     console.error('Admin usage error:', error);

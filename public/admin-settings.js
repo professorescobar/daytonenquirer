@@ -11,24 +11,36 @@ const loadAllBtn = document.getElementById('load-all-btn');
 const messageEl = document.getElementById('settings-message');
 const duplicateListEl = document.getElementById('duplicate-list');
 const rejectionListEl = document.getElementById('rejection-list');
-const usageTokensAutoEl = document.getElementById('usage-tokens-auto');
-const usageTokensManualEl = document.getElementById('usage-tokens-manual');
-const usageBudgetAutoEl = document.getElementById('usage-budget-auto');
-const usageBudgetManualEl = document.getElementById('usage-budget-manual');
-const usagePercentAutoEl = document.getElementById('usage-percent-auto');
-const usagePercentManualEl = document.getElementById('usage-percent-manual');
-const usageDraftsAutoEl = document.getElementById('usage-drafts-auto');
-const usageDraftsManualEl = document.getElementById('usage-drafts-manual');
+const usageAutoDailyUsedEl = document.getElementById('usage-auto-daily-used');
+const usageAutoDailyBudgetEl = document.getElementById('usage-auto-daily-budget');
+const usageAutoDailyRemainingEl = document.getElementById('usage-auto-daily-remaining');
+const usageAutoDailyUsedPercentEl = document.getElementById('usage-auto-daily-used-percent');
+const usageAutoProgressEl = document.getElementById('usage-auto-progress');
+const usageAutoDraftsTodayEl = document.getElementById('usage-auto-drafts-today');
+const usageAutoMonthlyUsedEl = document.getElementById('usage-auto-monthly-used');
+const usageAutoMonthlyDraftsEl = document.getElementById('usage-auto-monthly-drafts');
+const usageManualDailyUsedEl = document.getElementById('usage-manual-daily-used');
+const usageManualDailyBudgetEl = document.getElementById('usage-manual-daily-budget');
+const usageManualDailyRemainingEl = document.getElementById('usage-manual-daily-remaining');
+const usageManualDailyUsedPercentEl = document.getElementById('usage-manual-daily-used-percent');
+const usageManualProgressEl = document.getElementById('usage-manual-progress');
+const usageManualDraftsTodayEl = document.getElementById('usage-manual-drafts-today');
+const usageManualMonthlyUsedEl = document.getElementById('usage-manual-monthly-used');
+const usageManualMonthlyDraftsEl = document.getElementById('usage-manual-monthly-drafts');
 const usageBudgetInputAuto = document.getElementById('usage-budget-input-auto');
 const usageBudgetInputManual = document.getElementById('usage-budget-input-manual');
 const saveBudgetBtn = document.getElementById('save-budget-btn');
-const usageRejectedTotalEl = document.getElementById('usage-rejected-total');
-const usageRejectedDuplicateEl = document.getElementById('usage-rejected-duplicate');
-const usageRejectedStaleEl = document.getElementById('usage-rejected-stale');
-const usageRejectedThinEl = document.getElementById('usage-rejected-thin');
-const usageRejectedStyleEl = document.getElementById('usage-rejected-style');
-const usageRejectedUserErrorEl = document.getElementById('usage-rejected-user-error');
-const usageBadTokensEl = document.getElementById('usage-bad-tokens');
+const usageRejectedDailyEl = document.getElementById('usage-rejected-daily');
+const usageRejectedMonthlyEl = document.getElementById('usage-rejected-monthly');
+const usageBadTokensDailyEl = document.getElementById('usage-bad-tokens-daily');
+const usageBadTokensMonthlyEl = document.getElementById('usage-bad-tokens-monthly');
+const usageRejectedDuplicateDailyEl = document.getElementById('usage-rejected-duplicate-daily');
+const usageRejectedStaleDailyEl = document.getElementById('usage-rejected-stale-daily');
+const usageRejectedThinDailyEl = document.getElementById('usage-rejected-thin-daily');
+const usageRejectedStyleDailyEl = document.getElementById('usage-rejected-style-daily');
+const usageRejectedUserErrorDailyEl = document.getElementById('usage-rejected-user-error-daily');
+const qualityBreakdownToggleBtn = document.getElementById('quality-breakdown-toggle');
+const qualityBreakdownEl = document.getElementById('quality-breakdown');
 
 let unlocked = false;
 
@@ -200,26 +212,54 @@ async function loadUsageDashboard() {
     apiRequest('/api/admin-quality-metrics')
   ]);
 
-  if (!usageTokensAutoEl) return;
-  usageTokensAutoEl.textContent = Number(usageAuto.tokensUsedToday || 0).toLocaleString();
-  usageTokensManualEl.textContent = Number(usageManual.tokensUsedToday || 0).toLocaleString();
-  usageBudgetAutoEl.textContent = Number(usageAuto.dailyTokenBudget || 0).toLocaleString();
-  usageBudgetManualEl.textContent = Number(usageManual.dailyTokenBudget || 0).toLocaleString();
-  usagePercentAutoEl.textContent = `${usageAuto.budgetUsedPercent || 0}%`;
-  usagePercentManualEl.textContent = `${usageManual.budgetUsedPercent || 0}%`;
-  usageDraftsAutoEl.textContent = Number(usageAuto.draftsToday || 0).toLocaleString();
-  usageDraftsManualEl.textContent = Number(usageManual.draftsToday || 0).toLocaleString();
+  if (!usageAutoDailyUsedEl) return;
+  usageAutoDailyUsedEl.textContent = Number(usageAuto.dailyTokensUsed || 0).toLocaleString();
+  usageAutoDailyBudgetEl.textContent = Number(usageAuto.dailyTokenBudget || 0).toLocaleString();
+  usageAutoDailyRemainingEl.textContent = Number(usageAuto.tokensRemainingToday || 0).toLocaleString();
+  usageAutoDailyUsedPercentEl.textContent = `${usageAuto.budgetUsedPercent || 0}%`;
+  usageAutoDraftsTodayEl.textContent = Number(usageAuto.dailyDrafts || 0).toLocaleString();
+  usageAutoMonthlyUsedEl.textContent = Number(usageAuto.monthlyTokensUsed || 0).toLocaleString();
+  usageAutoMonthlyDraftsEl.textContent = Number(usageAuto.monthlyDrafts || 0).toLocaleString();
+  paintUsageBar(usageAutoProgressEl, Number(usageAuto.budgetUsedPercent || 0));
+
+  usageManualDailyUsedEl.textContent = Number(usageManual.dailyTokensUsed || 0).toLocaleString();
+  usageManualDailyBudgetEl.textContent = Number(usageManual.dailyTokenBudget || 0).toLocaleString();
+  usageManualDailyRemainingEl.textContent = Number(usageManual.tokensRemainingToday || 0).toLocaleString();
+  usageManualDailyUsedPercentEl.textContent = `${usageManual.budgetUsedPercent || 0}%`;
+  usageManualDraftsTodayEl.textContent = Number(usageManual.dailyDrafts || 0).toLocaleString();
+  usageManualMonthlyUsedEl.textContent = Number(usageManual.monthlyTokensUsed || 0).toLocaleString();
+  usageManualMonthlyDraftsEl.textContent = Number(usageManual.monthlyDrafts || 0).toLocaleString();
+  paintUsageBar(usageManualProgressEl, Number(usageManual.budgetUsedPercent || 0));
+
   usageBudgetInputAuto.value = Number(usageAuto.dailyTokenBudget || 0);
   usageBudgetInputManual.value = Number(usageManual.dailyTokenBudget || 0);
 
-  const byReason = quality.byReason || {};
-  usageRejectedTotalEl.textContent = Number(quality.totalRejected || 0).toLocaleString();
-  usageRejectedDuplicateEl.textContent = Number(byReason.duplicate || 0).toLocaleString();
-  usageRejectedStaleEl.textContent = Number(byReason.stale_or_not_time_relevant || 0).toLocaleString();
-  usageRejectedThinEl.textContent = Number(byReason.low_newsworthiness_or_thin || 0).toLocaleString();
-  usageRejectedStyleEl.textContent = Number(byReason.style_mismatch || 0).toLocaleString();
-  usageRejectedUserErrorEl.textContent = Number(byReason.user_error || 0).toLocaleString();
-  usageBadTokensEl.textContent = Number(quality.badTokensTotal || 0).toLocaleString();
+  const daily = quality.daily || {};
+  const monthly = quality.monthly || {};
+  const dailyByReason = daily.byReason || {};
+  usageRejectedDailyEl.textContent = Number(daily.totalRejected || 0).toLocaleString();
+  usageRejectedMonthlyEl.textContent = Number(monthly.totalRejected || 0).toLocaleString();
+  usageBadTokensDailyEl.textContent = Number(daily.badTokensTotal || 0).toLocaleString();
+  usageBadTokensMonthlyEl.textContent = Number(monthly.badTokensTotal || 0).toLocaleString();
+  usageRejectedDuplicateDailyEl.textContent = Number(dailyByReason.duplicate || 0).toLocaleString();
+  usageRejectedStaleDailyEl.textContent = Number(dailyByReason.stale_or_not_time_relevant || 0).toLocaleString();
+  usageRejectedThinDailyEl.textContent = Number(dailyByReason.low_newsworthiness_or_thin || 0).toLocaleString();
+  usageRejectedStyleDailyEl.textContent = Number(dailyByReason.style_mismatch || 0).toLocaleString();
+  usageRejectedUserErrorDailyEl.textContent = Number(dailyByReason.user_error || 0).toLocaleString();
+}
+
+function paintUsageBar(barEl, usedPercent) {
+  if (!barEl) return;
+  const clamped = Math.max(0, Math.min(100, Number(usedPercent || 0)));
+  barEl.style.width = `${clamped}%`;
+  barEl.classList.remove('usage-progress-good', 'usage-progress-warn', 'usage-progress-danger');
+  if (clamped >= 85) {
+    barEl.classList.add('usage-progress-danger');
+  } else if (clamped >= 60) {
+    barEl.classList.add('usage-progress-warn');
+  } else {
+    barEl.classList.add('usage-progress-good');
+  }
 }
 
 async function saveBudget() {
@@ -324,6 +364,18 @@ if (unlockAdminBtn) unlockAdminBtn.addEventListener('click', unlock);
 if (saveTokenBtn) saveTokenBtn.addEventListener('click', saveToken);
 if (loadAllBtn) loadAllBtn.addEventListener('click', loadAll);
 if (saveBudgetBtn) saveBudgetBtn.addEventListener('click', saveBudget);
+if (qualityBreakdownToggleBtn && qualityBreakdownEl) {
+  qualityBreakdownToggleBtn.addEventListener('click', () => {
+    const nextHidden = !qualityBreakdownEl.hasAttribute('hidden');
+    if (nextHidden) {
+      qualityBreakdownEl.setAttribute('hidden', '');
+      qualityBreakdownToggleBtn.textContent = 'Show Breakdown';
+    } else {
+      qualityBreakdownEl.removeAttribute('hidden');
+      qualityBreakdownToggleBtn.textContent = 'Hide Breakdown';
+    }
+  });
+}
 if (appSection) appSection.addEventListener('click', onListClick);
 
 loadToken();
