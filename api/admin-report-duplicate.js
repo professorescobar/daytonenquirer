@@ -11,6 +11,9 @@ async function ensureDuplicateReportsTable(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      total_tokens INTEGER,
       report_reason TEXT DEFAULT 'manual_duplicate',
       notes TEXT,
       reported_by TEXT DEFAULT 'admin_ui',
@@ -34,6 +37,21 @@ async function ensureDuplicateReportsTable(sql) {
     ON duplicate_reports(source_url)
     WHERE source_url IS NOT NULL
   `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS input_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS output_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS total_tokens INTEGER
+  `;
 }
 
 module.exports = async (req, res) => {
@@ -56,7 +74,16 @@ module.exports = async (req, res) => {
     }
 
     const rows = await sql`
-      SELECT id, slug, title, section, source_url as "sourceUrl", source_title as "sourceTitle"
+      SELECT
+        id,
+        slug,
+        title,
+        section,
+        source_url as "sourceUrl",
+        source_title as "sourceTitle",
+        input_tokens as "inputTokens",
+        output_tokens as "outputTokens",
+        total_tokens as "totalTokens"
       FROM article_drafts
       WHERE id = ${id}
       LIMIT 1
@@ -76,6 +103,9 @@ module.exports = async (req, res) => {
         section,
         source_url,
         source_title,
+        input_tokens,
+        output_tokens,
+        total_tokens,
         report_reason,
         notes,
         reported_by,
@@ -88,6 +118,9 @@ module.exports = async (req, res) => {
         ${draft.section || ''},
         ${draft.sourceUrl || null},
         ${draft.sourceTitle || null},
+        ${Number(draft.inputTokens || 0)},
+        ${Number(draft.outputTokens || 0)},
+        ${Number(draft.totalTokens || 0)},
         ${reason},
         ${notes || null},
         'admin_ui',

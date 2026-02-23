@@ -22,9 +22,23 @@ const usagePercentEl = document.getElementById('usage-percent');
 const usageDraftsEl = document.getElementById('usage-drafts');
 const usageBudgetInput = document.getElementById('usage-budget-input');
 const saveBudgetBtn = document.getElementById('save-budget-btn');
+const usageRejectedTotalEl = document.getElementById('usage-rejected-total');
+const usageRejectedDuplicateEl = document.getElementById('usage-rejected-duplicate');
+const usageRejectedStaleEl = document.getElementById('usage-rejected-stale');
+const usageRejectedThinEl = document.getElementById('usage-rejected-thin');
+const usageRejectedStyleEl = document.getElementById('usage-rejected-style');
+const usageBadTokensEl = document.getElementById('usage-bad-tokens');
 const duplicateLimitInput = document.getElementById('duplicate-limit');
 const loadDuplicatesBtn = document.getElementById('load-duplicates-btn');
 const duplicateListEl = document.getElementById('duplicate-list');
+const rejectedLimitInput = document.getElementById('rejected-limit');
+const loadRejectionsBtn = document.getElementById('load-rejections-btn');
+const rejectionListEl = document.getElementById('rejection-list');
+const rejectModalEl = document.getElementById('reject-modal');
+const rejectReasonInput = document.getElementById('reject-reason');
+const rejectNotesInput = document.getElementById('reject-notes');
+const rejectConfirmBtn = document.getElementById('reject-confirm-btn');
+const rejectCancelBtn = document.getElementById('reject-cancel-btn');
 
 const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
 const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
@@ -42,6 +56,7 @@ const SECTION_OPTIONS = [
 ];
 
 let adminUiUnlocked = false;
+let rejectTargetDraftId = 0;
 
 function getToken() {
   return (tokenInput.value || '').trim();
@@ -105,7 +120,9 @@ async function unlockAdminUi() {
     sessionStorage.setItem('de_admin_unlocked', '1');
     setLockState(true);
     setMessage('Admin unlocked.');
+    loadUsageDashboard().catch((err) => setMessage(`Usage load failed: ${err.message}`));
     loadDuplicateReports().catch((err) => setMessage(`Load duplicate reports failed: ${err.message}`));
+    loadRejections().catch((err) => setMessage(`Load rejections failed: ${err.message}`));
   } catch (err) {
     setMessage(`Unlock failed: ${err.message}`);
   }
@@ -213,8 +230,8 @@ function renderDrafts(drafts) {
       <div class="draft-actions">
         <button class="btn btn-save">Save Draft</button>
         <button class="btn btn-primary btn-publish">Publish Draft</button>
+        <button class="btn btn-warning btn-reject">Reject Draft</button>
         <button class="btn btn-warning btn-report-duplicate">Report Duplicate</button>
-        <button class="btn btn-danger btn-delete">Delete Draft</button>
       </div>
     </article>
   `).join('');
@@ -242,6 +259,35 @@ function renderDuplicateReports(reports) {
       </p>
       <div class="draft-actions">
         <button class="btn btn-danger btn-remove-duplicate-report">Remove From Duplicate List</button>
+      </div>
+    </article>
+  `).join('');
+}
+
+function renderRejections(rejections) {
+  if (!rejectionListEl) return;
+  if (!Array.isArray(rejections) || rejections.length === 0) {
+    rejectionListEl.innerHTML = '<p>No rejected drafts found.</p>';
+    return;
+  }
+
+  rejectionListEl.innerHTML = rejections.map((item) => `
+    <article class="draft-card" data-rejection-id="${item.id}">
+      <div class="draft-header">
+        <strong>#${item.id} - ${escapeHtml(item.draftTitle || '')}</strong>
+        <span class="draft-meta">reason: ${escapeHtml(item.rejectReason || 'n/a')}</span>
+      </div>
+      <p class="draft-meta">
+        section: ${escapeHtml(item.section || 'n/a')} |
+        tokens: ${Number(item.totalTokens || 0).toLocaleString()} |
+        rejected: ${escapeHtml(formatDate(item.rejectedAt))}
+      </p>
+      <p class="draft-meta">source:
+        <a href="${escapeHtml(item.sourceUrl || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.sourceUrl || 'N/A')}</a>
+      </p>
+      <p class="draft-meta">notes: ${escapeHtml(item.notes || 'none')}</p>
+      <div class="draft-actions">
+        <button class="btn btn-danger btn-delete-rejection">Permanently Delete Record</button>
       </div>
     </article>
   `).join('');
@@ -364,12 +410,24 @@ async function createManualDraft() {
 }
 
 async function loadUsageDashboard() {
-  const data = await apiRequest('/api/admin-usage');
-  usageTokensEl.textContent = Number(data.tokensUsedToday || 0).toLocaleString();
-  usageBudgetEl.textContent = Number(data.dailyTokenBudget || 0).toLocaleString();
-  usagePercentEl.textContent = `${data.budgetPercent || 0}%`;
-  usageDraftsEl.textContent = Number(data.draftsToday || 0).toLocaleString();
-  usageBudgetInput.value = Number(data.dailyTokenBudget || 0);
+  const [usage, quality] = await Promise.all([
+    apiRequest('/api/admin-usage'),
+    apiRequest('/api/admin-quality-metrics')
+  ]);
+
+  usageTokensEl.textContent = Number(usage.tokensUsedToday || 0).toLocaleString();
+  usageBudgetEl.textContent = Number(usage.dailyTokenBudget || 0).toLocaleString();
+  usagePercentEl.textContent = `${usage.budgetPercent || 0}%`;
+  usageDraftsEl.textContent = Number(usage.draftsToday || 0).toLocaleString();
+  usageBudgetInput.value = Number(usage.dailyTokenBudget || 0);
+
+  const byReason = quality.byReason || {};
+  usageRejectedTotalEl.textContent = Number(quality.totalRejected || 0).toLocaleString();
+  usageRejectedDuplicateEl.textContent = Number(byReason.duplicate || 0).toLocaleString();
+  usageRejectedStaleEl.textContent = Number(byReason.stale_or_not_time_relevant || 0).toLocaleString();
+  usageRejectedThinEl.textContent = Number(byReason.low_newsworthiness_or_thin || 0).toLocaleString();
+  usageRejectedStyleEl.textContent = Number(byReason.style_mismatch || 0).toLocaleString();
+  usageBadTokensEl.textContent = Number(quality.badTokensTotal || 0).toLocaleString();
 }
 
 async function loadDuplicateReports() {
@@ -389,6 +447,57 @@ async function removeDuplicateReport(id) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id })
+  });
+}
+
+async function loadRejections() {
+  try {
+    setMessage('Loading rejected drafts...');
+    const limit = encodeURIComponent(rejectedLimitInput?.value || '50');
+    const data = await apiRequest(`/api/admin-rejections?limit=${limit}`);
+    renderRejections(data.rejections || []);
+    setMessage(`Loaded ${data.count || 0} rejected draft record(s).`);
+  } catch (err) {
+    setMessage(`Load rejections failed: ${err.message}`);
+  }
+}
+
+async function deleteRejection(id) {
+  await apiRequest('/api/admin-delete-rejection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+}
+
+function openRejectModal(draftId) {
+  rejectTargetDraftId = Number(draftId || 0);
+  if (!rejectTargetDraftId || !rejectModalEl) return;
+  rejectReasonInput.value = '';
+  rejectNotesInput.value = '';
+  rejectModalEl.hidden = false;
+}
+
+function closeRejectModal() {
+  rejectTargetDraftId = 0;
+  if (!rejectModalEl) return;
+  rejectModalEl.hidden = true;
+}
+
+async function confirmRejectDraft() {
+  const reason = String(rejectReasonInput?.value || '').trim();
+  const notes = String(rejectNotesInput?.value || '').trim();
+  if (!rejectTargetDraftId) throw new Error('Missing reject target draft');
+  if (!reason) throw new Error('Select a rejection reason');
+
+  await apiRequest('/api/admin-reject-draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: rejectTargetDraftId,
+      reason,
+      notes
+    })
   });
 }
 
@@ -441,15 +550,6 @@ async function publishDraft(card) {
   });
 }
 
-async function deleteDraft(card) {
-  const id = Number(card.dataset.id);
-  await apiRequest('/api/admin-delete-draft', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id })
-  });
-}
-
 async function reportDuplicateDraft(card) {
   const id = Number(card.dataset.id);
   await apiRequest('/api/admin-report-duplicate', {
@@ -485,16 +585,8 @@ function onDraftListClick(event) {
       .catch((err) => setMessage(`Publish failed: ${err.message}`));
   }
 
-  if (button.classList.contains('btn-delete')) {
-    const ok = window.confirm(`Delete draft #${card.dataset.id}? This cannot be undone.`);
-    if (!ok) return;
-
-    deleteDraft(card)
-      .then(async () => {
-        setMessage(`Draft #${card.dataset.id} deleted.`);
-        await loadDrafts();
-      })
-      .catch((err) => setMessage(`Delete failed: ${err.message}`));
+  if (button.classList.contains('btn-reject')) {
+    openRejectModal(card.dataset.id);
   }
 
   if (button.classList.contains('btn-report-duplicate')) {
@@ -508,6 +600,7 @@ function onDraftListClick(event) {
         setMessage(`Draft #${card.dataset.id} reported as duplicate and removed.`);
         await loadDrafts();
         await loadDuplicateReports();
+        await loadUsageDashboard();
       })
       .catch((err) => setMessage(`Report duplicate failed: ${err.message}`));
   }
@@ -533,8 +626,42 @@ function onDuplicateListClick(event) {
     .then(async () => {
       setMessage(`Duplicate report #${reportId} removed.`);
       await loadDuplicateReports();
+      await loadUsageDashboard();
     })
     .catch((err) => setMessage(`Remove duplicate report failed: ${err.message}`));
+}
+
+function onRejectionListClick(event) {
+  const button = event.target.closest('button');
+  if (!button || !button.classList.contains('btn-delete-rejection')) return;
+  const card = event.target.closest('[data-rejection-id]');
+  if (!card) return;
+
+  const rejectionId = Number(card.dataset.rejectionId || 0);
+  if (!rejectionId) return;
+  const ok = window.confirm(`Permanently delete rejection record #${rejectionId}?`);
+  if (!ok) return;
+
+  deleteRejection(rejectionId)
+    .then(async () => {
+      setMessage(`Rejection record #${rejectionId} deleted.`);
+      await loadRejections();
+      await loadUsageDashboard();
+    })
+    .catch((err) => setMessage(`Delete rejection failed: ${err.message}`));
+}
+
+function onRejectModalConfirm() {
+  confirmRejectDraft()
+    .then(async () => {
+      const draftId = rejectTargetDraftId;
+      closeRejectModal();
+      setMessage(`Draft #${draftId} rejected and moved to rejected list.`);
+      await loadDrafts();
+      await loadRejections();
+      await loadUsageDashboard();
+    })
+    .catch((err) => setMessage(`Reject failed: ${err.message}`));
 }
 
 function onDraftListChange(event) {
@@ -587,18 +714,31 @@ loadDraftsBtn.addEventListener('click', loadDrafts);
 generateBtn.addEventListener('click', generateDrafts);
 createDraftBtn.addEventListener('click', createManualDraft);
 if (loadDuplicatesBtn) loadDuplicatesBtn.addEventListener('click', loadDuplicateReports);
+if (loadRejectionsBtn) loadRejectionsBtn.addEventListener('click', loadRejections);
 draftListEl.addEventListener('click', onDraftListClick);
 if (duplicateListEl) duplicateListEl.addEventListener('click', onDuplicateListClick);
+if (rejectionListEl) rejectionListEl.addEventListener('click', onRejectionListClick);
 draftListEl.addEventListener('change', onDraftListChange);
 draftListEl.addEventListener('dragover', onDraftListDragOver);
 draftListEl.addEventListener('dragleave', onDraftListDragLeave);
 draftListEl.addEventListener('drop', onDraftListDrop);
 unlockAdminBtn.addEventListener('click', unlockAdminUi);
 saveBudgetBtn.addEventListener('click', saveBudget);
+if (rejectConfirmBtn) rejectConfirmBtn.addEventListener('click', onRejectModalConfirm);
+if (rejectCancelBtn) rejectCancelBtn.addEventListener('click', closeRejectModal);
+if (rejectModalEl) {
+  rejectModalEl.addEventListener('click', (event) => {
+    const target = event.target;
+    if (target && target.classList && target.classList.contains('admin-modal-backdrop')) {
+      closeRejectModal();
+    }
+  });
+}
 
 loadStoredToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked') === '1');
 if (adminUiUnlocked) {
   loadUsageDashboard().catch((err) => setMessage(`Usage load failed: ${err.message}`));
   loadDuplicateReports().catch((err) => setMessage(`Load duplicate reports failed: ${err.message}`));
+  loadRejections().catch((err) => setMessage(`Load rejections failed: ${err.message}`));
 }

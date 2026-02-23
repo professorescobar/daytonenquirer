@@ -124,7 +124,7 @@
 
 .usage-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 0.6rem;
 }
 
@@ -312,4 +312,34 @@
   .usage-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+.admin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.admin-modal-card {
+  position: relative;
+  background: #fff;
+  border: 1px solid #ccc;
+  width: min(560px, calc(100% - 2rem));
+  padding: 1rem;
+  z-index: 1;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.admin-modal-card h4 {
+  margin: 0;
 }

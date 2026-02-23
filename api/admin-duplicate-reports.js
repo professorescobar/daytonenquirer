@@ -11,6 +11,9 @@ async function ensureDuplicateReportsTable(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      total_tokens INTEGER,
       report_reason TEXT DEFAULT 'manual_duplicate',
       notes TEXT,
       reported_by TEXT DEFAULT 'admin_ui',
@@ -21,6 +24,21 @@ async function ensureDuplicateReportsTable(sql) {
   await sql`
     CREATE INDEX IF NOT EXISTS idx_duplicate_reports_reported_at
     ON duplicate_reports(reported_at DESC)
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS input_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS output_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS total_tokens INTEGER
   `;
 }
 
@@ -43,11 +61,14 @@ module.exports = async (req, res) => {
         draft_slug as "draftSlug",
         draft_title as "draftTitle",
         section,
-        source_url as "sourceUrl",
-        source_title as "sourceTitle",
-        report_reason as "reportReason",
-        notes,
-        reported_by as "reportedBy",
+      source_url as "sourceUrl",
+      source_title as "sourceTitle",
+      input_tokens as "inputTokens",
+      output_tokens as "outputTokens",
+      total_tokens as "totalTokens",
+      report_reason as "reportReason",
+      notes,
+      reported_by as "reportedBy",
         reported_at as "reportedAt"
       FROM duplicate_reports
       ORDER BY reported_at DESC

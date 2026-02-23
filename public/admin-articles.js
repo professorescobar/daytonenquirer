@@ -13,6 +13,12 @@ const articleSearchInput = document.getElementById('article-search');
 const articleTotalCountEl = document.getElementById('article-total-count');
 const messageEl = document.getElementById('admin-message');
 const listEl = document.getElementById('article-list');
+const removeModalEl = document.getElementById('article-remove-modal');
+const removeActionInput = document.getElementById('article-remove-action');
+const removeReasonInput = document.getElementById('article-remove-reason');
+const removeNotesInput = document.getElementById('article-remove-notes');
+const removeConfirmBtn = document.getElementById('article-remove-confirm-btn');
+const removeCancelBtn = document.getElementById('article-remove-cancel-btn');
 
 const SECTION_OPTIONS = [
   'local',
@@ -29,6 +35,7 @@ let unlocked = false;
 let loadedArticles = [];
 let lastTotalCount = 0;
 let totalAllArticles = 0;
+let removeTargetArticleId = 0;
 const ET_TIME_ZONE = 'America/New_York';
 const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
 const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
@@ -311,6 +318,7 @@ function renderArticles(articles) {
       </div>
       <div class="draft-actions article-editor is-collapsed" hidden>
         <button type="button" class="btn btn-primary btn-save-article">Save Article</button>
+        <button type="button" class="btn btn-danger btn-remove-article">Remove Article</button>
       </div>
     </article>
   `).join('');
@@ -391,6 +399,41 @@ async function saveArticle(card) {
   });
 }
 
+function openRemoveModal(articleId) {
+  removeTargetArticleId = Number(articleId || 0);
+  if (!removeTargetArticleId || !removeModalEl) return;
+  removeActionInput.value = 'duplicate';
+  removeReasonInput.value = '';
+  removeNotesInput.value = '';
+  removeModalEl.hidden = false;
+}
+
+function closeRemoveModal() {
+  removeTargetArticleId = 0;
+  if (!removeModalEl) return;
+  removeModalEl.hidden = true;
+}
+
+async function removeArticle() {
+  const action = String(removeActionInput?.value || '').trim();
+  const reason = String(removeReasonInput?.value || '').trim();
+  const notes = String(removeNotesInput?.value || '').trim();
+  if (!removeTargetArticleId) throw new Error('Missing article target');
+  if (!['duplicate', 'reject'].includes(action)) throw new Error('Select a valid action');
+  if (action === 'reject' && !reason) throw new Error('Select a rejection reason');
+
+  await apiRequest('/api/admin-remove-article', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: removeTargetArticleId,
+      action,
+      reason: action === 'reject' ? reason : null,
+      notes
+    })
+  });
+}
+
 function onListClick(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
@@ -426,11 +469,28 @@ function onListClick(event) {
     return;
   }
 
+  if (button.classList.contains('btn-remove-article')) {
+    openRemoveModal(card.dataset.id);
+    return;
+  }
+
   if (button.classList.contains('upload-dropzone')) {
     const fileInput = card.querySelector('.file-image');
     if (fileInput) fileInput.click();
     return;
   }
+}
+
+function onRemoveConfirm() {
+  removeArticle()
+    .then(async () => {
+      const id = removeTargetArticleId;
+      const action = removeActionInput.value;
+      closeRemoveModal();
+      setMessage(`Article #${id} removed (${action}).`);
+      await loadArticles();
+    })
+    .catch((err) => setMessage(`Remove failed: ${err.message}`));
 }
 
 function onListChange(event) {
@@ -485,6 +545,16 @@ listEl.addEventListener('dragleave', onListDragLeave);
 listEl.addEventListener('drop', onListDrop);
 articleSearchInput.addEventListener('input', applySearchFilter);
 showAllBtn.addEventListener('click', showAllArticles);
+if (removeConfirmBtn) removeConfirmBtn.addEventListener('click', onRemoveConfirm);
+if (removeCancelBtn) removeCancelBtn.addEventListener('click', closeRemoveModal);
+if (removeModalEl) {
+  removeModalEl.addEventListener('click', (event) => {
+    const target = event.target;
+    if (target && target.classList && target.classList.contains('admin-modal-backdrop')) {
+      closeRemoveModal();
+    }
+  });
+}
 limitInput.addEventListener('input', () => {
   const raw = Number(limitInput.value || 50);
   const stepped = Math.max(25, Math.min(5000, Math.round(raw / 25) * 25));

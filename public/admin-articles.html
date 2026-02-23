@@ -80,6 +80,38 @@
         <div id="admin-message" class="message" hidden></div>
         <div id="article-list" class="draft-list"></div>
       </section>
+
+      <div id="article-remove-modal" class="admin-modal" hidden>
+        <div class="admin-modal-backdrop"></div>
+        <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="article-remove-title">
+          <h4 id="article-remove-title">Remove Published Article</h4>
+          <p class="hint">Choose how this article should be categorized before removal.</p>
+          <label>
+            Removal Type
+            <select id="article-remove-action">
+              <option value="duplicate">report duplicate</option>
+              <option value="reject">reject</option>
+            </select>
+          </label>
+          <label>
+            Reject Reason (required for reject)
+            <select id="article-remove-reason">
+              <option value="">Select a reason</option>
+              <option value="stale_or_not_time_relevant">stale_or_not_time_relevant</option>
+              <option value="low_newsworthiness_or_thin">low_newsworthiness_or_thin</option>
+              <option value="style_mismatch">style_mismatch</option>
+            </select>
+          </label>
+          <label>
+            Notes (optional)
+            <textarea id="article-remove-notes" rows="4" placeholder="Optional context"></textarea>
+          </label>
+          <div class="admin-actions">
+            <button id="article-remove-confirm-btn" class="btn btn-warning">Confirm Remove</button>
+            <button id="article-remove-cancel-btn" class="btn">Cancel</button>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 

@@ -27,15 +27,6 @@ const SECTION_DAILY_TARGETS = {
   technology: 1
 };
 
-const LOCAL_SCOPE_SECTIONS = new Set([
-  'local',
-  'business',
-  'sports',
-  'health',
-  'entertainment',
-  'technology'
-]);
-
 const SECTION_ORDER = [
   'local',
   'national',
@@ -414,177 +405,144 @@ function resolveSportsFocusMode(rawMode, etNowParts) {
 
 const BASE_FEEDS_BY_SECTION = {
   local: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+local+news+when:1d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Montgomery+County+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:daytondailynews.com+Dayton+local+news+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:wdtn.com+Dayton+local+news+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Sinclair+Community+College+Dayton+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Kettering+College+Dayton+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Central+State+University+Ohio+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Antioch+University+Midwest+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Cedarville+University+Ohio+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=SOCHE+Ohio+higher+education+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:udayton.edu+University+of+Dayton+-athletics+-basketball+-football+-baseball+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:wright.edu+Wright+State+-athletics+-basketball+-football+-baseball+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:miamioh.edu+Miami+University+Oxford+Ohio+-athletics+-basketball+-football+-baseball+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Wright-Patterson+Air+Force+Base+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Fuyao+Glass+America+Moraine+Ohio+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+International+Airport+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=2nd+Street+Market+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Food+Truck+Rally+when:30d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Oregon+District+Dayton+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Stivers+School+of+the+Arts+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=LexisNexis+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Reynolds+and+Reynolds+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Honda+Anna+Ohio+plant+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Oakwood+Kettering+Moraine+Trotwood+Huber+Heights+Beavercreek+Bellbrook+Fairborn+Xenia+Springfield+Troy+Tipp+City+Miamisburg+Centerville+Springboro+Franklin+Middletown+news+when:3d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=Dayton+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Kettering+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Beavercreek+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Centerville+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Miamisburg+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Fairborn+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Springfield+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Xenia+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Troy+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=Huber+Heights+Ohio+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en'
   ],
   national: [
-    'https://news.google.com/rss/headlines/section/topic/NATION?hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=United+States+state+news+-Ohio+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=state+government+update+United+States+-Ohio+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=state+supreme+court+decision+United+States+-Ohio+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=governor+announces+United+States+-Ohio+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=statewide+emergency+United+States+-Ohio+when:5d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=national+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=us+national+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wisconsin+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=california+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=texas+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=florida+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=new+york+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=kentucky+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=michigan+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=pennsylvania+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=indiana+breaking+news+when:1d&hl=en-US&gl=US&ceid=US:en'
   ],
   world: [
-    'https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=world+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=international+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=middle+east+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=africa+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=india+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=russia+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=uk+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=germany+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=brazil+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=argentina+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=japan+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=south+korea+news+when:2d&hl=en-US&gl=US&ceid=US:en'
   ],
   business: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+business+economy+jobs+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:bizjournals.com/dayton+Dayton+Business+Journal+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:daytondailynews.com+business+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:cnbc.com+earnings+large+cap+market+movers+when:1d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:finance.yahoo.com+earnings+large+cap+market+movers+when:1d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=S%26P+500+market+wrap+bond+yields+commodities+dollar+when:1d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=largest+market+cap+companies+earnings+when:2d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=earnings+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=stock+market+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=market+movers+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=analyst+upgrade+downgrade+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=large+cap+company+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=nasdaq+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=s%26p+500+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dow+jones+news+when:1d&hl=en-US&gl=US&ceid=US:en'
   ],
   sports: [],
   health: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+health+hospital+medical+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Children%27s+Hospital+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Kettering+Health+Dayton+when:10d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Premier+Health+Dayton+when:10d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=CareSource+Dayton+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+VA+Medical+Center+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Miami+Valley+hospital+network+healthcare+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+%26+Montgomery+County+Public+Health+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Greater+Dayton+Area+Hospital+Association+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Community+Health+Centers+of+Greater+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Ohio+Department+of+Health+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=OhioHealth+newsroom+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Daily+News+health+section+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Five+Rivers+Health+Centers+Dayton+when:21d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=health+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=breaking+health+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+health+news+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+children%27s+hospital+news+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=kettering+health+news+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=premier+health+dayton+news+when:7d&hl=en-US&gl=US&ceid=US:en'
   ],
   entertainment: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+entertainment+arts+music+events+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+things+to+do+this+weekend+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Oakwood+Kettering+Beavercreek+Centerville+Springboro+events+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Springfield+Troy+Miamisburg+Middletown+events+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Cincinnati+events+things+to+do+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Columbus+events+things+to+do+when:7d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=video+game+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=gaming+industry+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=tv+and+movie+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=film+and+television+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=music+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=art+news+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+entertainment+news+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=pop+culture+news+when:2d&hl=en-US&gl=US&ceid=US:en'
   ],
   technology: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+technology+startup+innovation+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:sinclair.edu+technology+innovation+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:udayton.edu+technology+research+innovation+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:wright.edu+technology+research+innovation+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Miami+Valley+Career+Technology+Center+technology+when:30d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Wright-Patterson+technology+contract+innovation+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:bizjournals.com/dayton+Dayton+Inno+startup+venture+capital+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Ohio+tech+news+startup+venture+capital+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:daytondailynews.com+business+technology+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:wdtn.com+technology+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=OhioX+technology+startup+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Technology+First+Dayton+when:30d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Development+Coalition+technology+when:30d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=The+Entrepreneurs+Center+Dayton+startup+when:30d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=tech+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=technology+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=science+and+technology+news+when:1d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=engineering+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=science+news+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=aerospace+news+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=space+science+news+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=drone+news+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+patt+tech+news+when:7d&hl=en-US&gl=US&ceid=US:en'
   ]
 };
 
 const SPORTS_FEEDS_BY_MODE = {
   college_basketball: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+college+basketball+when:4d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:daytonflyers.com+basketball+preview+schedule+game+notes+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:wsuraiders.com+basketball+preview+schedule+game+notes+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:miamiredhawks.com+basketball+preview+schedule+game+notes+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=University+of+Dayton+basketball+preview+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Wright+State+basketball+preview+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Miami+University+Ohio+basketball+preview+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Columbus+Blue+Jackets+preview+matchup+when:5d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Cincinnati+Cyclones+preview+matchup+when:5d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Flyers+club+hockey+preview+when:10d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Stealth+hockey+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=RAHA+Dayton+hockey+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Team+USA+Olympics+Ohio+athletes+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Cincinnati+Open+tennis+when:30d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=University+of+Dayton+tennis+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Ohio+pickleball+tournament+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Miami+RedHawks+hockey+preview+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Ohio+State+hockey+preview+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Bowling+Green+hockey+preview+when:7d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=dayton+flyers+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+raiders+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=miami+redhawks+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+ohio+high+school+sports+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+dragons+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=miami+university+hockey+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=ud+tennis+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+baseball+when:3d&hl=en-US&gl=US&ceid=US:en'
   ],
   nba: [
-    'https://news.google.com/rss/search?q=Cleveland+Cavaliers+preview+matchup+injury+report+when:4d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Indiana+Pacers+preview+matchup+injury+report+when:4d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Cavs+Pacers+playoff+race+eastern+conference+when:4d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Cavs+Pacers+when:5d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=dayton+flyers+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+raiders+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=miami+redhawks+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+ohio+high+school+sports+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+dragons+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=miami+university+hockey+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=ud+tennis+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+baseball+when:3d&hl=en-US&gl=US&ceid=US:en'
   ],
   baseball: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+baseball+Dragons+Reds+when:5d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:daytondragons.com+preview+schedule+when:10d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Cincinnati+Reds+preview+rotation+lineup+injury+report+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:mlb.com/reds+preview+schedule+when:10d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:daytonflyers.com+baseball+preview+schedule+when:10d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:wsuraiders.com+baseball+preview+schedule+when:10d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=dayton+flyers+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+raiders+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=miami+redhawks+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+ohio+high+school+sports+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+dragons+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=miami+university+hockey+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=ud+tennis+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+baseball+when:3d&hl=en-US&gl=US&ceid=US:en'
   ],
   football: [
-    'https://news.google.com/rss/search?q=Cincinnati+Bengals+preview+injury+report+matchup+when:4d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Ohio+State+Buckeyes+football+preview+injury+report+matchup+when:4d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:bengals.com+preview+game+notes+when:10d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:ohiostatebuckeyes.com+football+preview+game+notes+when:10d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Bengals+Buckeyes+football+when:5d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=dayton+flyers+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+raiders+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=miami+redhawks+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+ohio+high+school+sports+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+dragons+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=miami+university+hockey+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=ud+tennis+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+baseball+when:3d&hl=en-US&gl=US&ceid=US:en'
   ],
   broad: [
-    'https://news.google.com/rss/search?q=Dayton+Ohio+Miami+Valley+sports+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=University+of+Dayton+athletics+preview+schedule+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Wright+State+athletics+preview+schedule+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Miami+University+Ohio+athletics+preview+schedule+when:7d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Columbus+Blue+Jackets+Dayton+Ohio+when:5d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Cincinnati+Cyclones+Dayton+Ohio+when:5d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Flyers+club+hockey+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Stealth+hockey+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=RAHA+Dayton+Recreational+Amateur+Hockey+Association+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Team+USA+Olympics+when:14d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=U.S.+Olympic+trials+Ohio+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Cincinnati+Open+tennis+Ohio+when:30d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Western+%26+Southern+Open+tennis+when:30d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=site:daytonflyers.com+tennis+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Dayton+Ohio+pickleball+when:21d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=Miami+RedHawks+Ohio+State+Bowling+Green+hockey+when:7d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=dayton+flyers+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+raiders+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=miami+redhawks+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+ohio+high+school+sports+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+dragons+when:2d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=miami+university+hockey+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=ud+tennis+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+baseball+when:3d&hl=en-US&gl=US&ceid=US:en'
   ]
 };
-
-const SPORTS_LOCAL_COMMUNITY_FEEDS = [
-  'https://news.google.com/rss/search?q=Dayton+Ohio+high+school+sports+when:7d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=Miami+Valley+high+school+sports+when:7d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=Dayton+area+prep+sports+when:7d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=GWOC+sports+Dayton+when:14d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=Miami+Valley+League+sports+Ohio+when:14d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=Dayton+community+sports+league+when:14d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=Dayton+Bombers+hockey+history+Dayton+Ohio+when:30d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=Dayton+Stealth+youth+hockey+when:21d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=RAHA+Dayton+hockey+league+when:30d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=Dayton+pickleball+league+when:30d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=Miami+Valley+pickleball+when:30d&hl=en-US&gl=US&ceid=US:en',
-  'https://news.google.com/rss/search?q=Cincinnati+Open+history+oldest+tennis+tournament+US+when:60d&hl=en-US&gl=US&ceid=US:en'
-];
 
 function getFeedsBySection(sportsFocusMode) {
   const modeSports = SPORTS_FEEDS_BY_MODE[sportsFocusMode] || SPORTS_FEEDS_BY_MODE.broad;
   return {
     ...BASE_FEEDS_BY_SECTION,
-    sports: [...modeSports, ...SPORTS_LOCAL_COMMUNITY_FEEDS]
+    sports: modeSports
   };
 }
 
@@ -641,29 +599,49 @@ async function callAnthropicForDraft(candidate) {
     throw new Error('Missing ANTHROPIC_API_KEY');
   }
 
-  const localityRule = LOCAL_SCOPE_SECTIONS.has(candidate.section)
-    ? 'This article MUST be focused on Dayton, Ohio and/or the Miami Valley region. "Miami" in this context means Miami Valley or Miami University (Oxford, Ohio), not Miami, Florida. If the source is not locally relevant, reject it by returning JSON with empty title/description/content.'
-    : 'This article may cover broader non-local scope.';
+  const sectionVoice = ({
+    local: 'You are a feature reporter for a local Dayton, Ohio news publication.',
+    sports: 'You are a sports news contributor for a local Dayton, Ohio news publication.',
+    national: 'You are a contributor for a U.S. national news source.',
+    world: 'You are a contributor for an international news publication.',
+    business: 'You are the editorial desk of a financial news publication.',
+    health: 'You are a contributor for a health news publication.',
+    entertainment: 'You are a contributor for an entertainment news publication.',
+    technology: 'You are a contributor for a science and engineering publication.'
+  })[candidate.section] || 'You are a contributor for a general news publication.';
+
+  const sectionMission = ({
+    local: 'Cover local-area stories with strong time-based relevance in a thought-provoking, detail-oriented, and concise style without being overly wordy or verbose, and avoid repeat coverage of the same event unless there is a clearly new development.',
+    sports: 'Prioritize time-relevant sports coverage centered on two different story types: results for games that just happened and excitement-building previews for games about to happen, with Dayton/regional stories preferred when quality is comparable.',
+    national: 'Prioritize timely U.S.-domestic stories from states outside Ohio, focusing on substantive developments and avoiding partisan noise or commentary cycles, and avoid repeat coverage of the same event unless there is a clearly new development.',
+    world: 'Prioritize recent globally relevant stories with broad geographic spread and meaningful geopolitical context, and avoid repeat coverage of the same event unless there is a clearly new development.',
+    business: 'Prioritize recent business coverage in three formats: earnings reactions, notable price-move explanations, and high-impact company events, written in a concise analytical style without hype, always opening with the current event and then explaining why the market reacted.',
+    health: 'Prioritize recent health stories with direct practical relevance to readers, focusing on evidence-based reporting about what changed, who is affected, and why it matters now, with Dayton/regional relevance preferred when quality is comparable.',
+    entertainment: 'Prioritize recent entertainment stories with high audience interest, focusing first on video games, then TV/movies, then music, then art, and using pop culture as a secondary fallback when stronger options are limited, with Dayton/regional relevance preferred when quality is comparable.',
+    technology: 'Prioritize recent technology stories with high intellectual and audience interest, focusing on meaningful innovation, engineering breakthroughs, and scientific discoveries, with Dayton/regional relevance preferred when quality is comparable.'
+  })[candidate.section] || '';
+
+  const sharedStyleRule =
+    'Write in a thought-provoking, detail-oriented, and concise style without being overly wordy or verbose.';
+
   const localRule = candidate.section === 'local'
-    ? 'For the local section, prioritize civic/institutional/community reporting in Dayton and nearby cities. Avoid sports coverage in local section (sports belong in the sports section).'
+    ? 'For the local section, keep the story anchored to the local area and avoid routing sports-focused coverage into local.'
     : '';
   const healthRule = candidate.section === 'health'
-    ? 'For the health section, prioritize Dayton/Miami Valley healthcare coverage: hospital systems, patient care updates, public health advisories, medical research, healthcare access and policy impacts. Include Dayton Children\'s, Kettering Health, Premier Health, CareSource, and Dayton VA when relevant.'
+    ? 'For the health section, prioritize practical reader value with evidence-based framing. Explain what changed, who is affected, and why it matters now without alarmist language.'
     : '';
   const nationalRule = candidate.section === 'national'
-    ? 'For the national section, prioritize impactful stories from U.S. states outside Ohio. Avoid over-indexing on divisive political narrative content unless the story has clear broad public impact.'
+    ? 'For the national section, keep focus on U.S.-domestic developments from states outside Ohio. Deprioritize international-diplomacy framing and partisan commentary cycles.'
     : '';
   const businessRule = candidate.section === 'business'
     ? `For the business section:
-- Include at least one local business/economy story per day (Dayton/Miami Valley focus).
-- Produce one daily market update that evaluates prior trading action in individual stocks, index funds, bonds, commodities, and the U.S. dollar over 5-day, 30-day, 3-month, 6-month, and 1-year context windows.
-- No financial recommendations, no price targets, no calls to buy/sell/hold.
-- Avoid cliches like "bulls and bears" and avoid sentiment-chasing language.
-- Favor earnings, major large-cap developments, and notable market movers with clear reasons.
-- Exclude penny stocks and microcap-focused stories unless there is extraordinary broad impact.`
+- Stay inside three formats: earnings reactions, notable price-move explanations, and high-impact company events.
+- Open with the current event, then explain why the market reacted.
+- No financial recommendations, no price targets, no buy/sell/hold calls.
+- Keep tone analytical and concise; avoid hype or sentiment-chasing language.`
     : '';
   const technologyRule = candidate.section === 'technology'
-    ? 'For technology section, prioritize Dayton/Miami Valley innovation coverage: local university research, workforce-tech programs, startups, venture capital, government contracts, and regional innovation organizations (Sinclair, UD, Wright State, MVCTC, Wright-Patt, Dayton Inno, OhioX, Technology First, Dayton Development Coalition, The Entrepreneurs Center).'
+    ? 'For the technology section, focus on meaningful innovation, engineering breakthroughs, and scientific discoveries with substantive technical depth.'
     : '';
   const marketUpdateFormatRule = candidate.section === 'business' && candidate.businessMode === 'daily_market_update'
     ? `This is the required daily market structure update. Use this exact editorial approach:
@@ -676,46 +654,49 @@ async function callAnthropicForDraft(candidate) {
 - Do not repeat generic template phrases from prior days.`
     : '';
   const politicsStyleRule =
-    'If the story is political, write in a straight-news, centrist, non-inflammatory voice. Avoid partisan advocacy, ideological sloganeering, and culture-war framing. Focus on verified facts, constitutional process, rule of law, public safety, and practical impacts on everyday Americans. Do not write opinion or activist-style content.';
+    'If the story involves politics, use straight-news language focused on verified facts and practical consequences. Avoid partisan advocacy, ideological sloganeering, and opinion framing.';
   const sportsRule = candidate.section === 'sports'
-    ? `Prioritize upcoming local game coverage (previews, schedules, matchup context, stakes, and what to watch) when available. Current sports focus mode is "${candidate.sportsFocusMode || 'broad'}". Also prioritize Dayton/Miami Valley high school and community sports whenever strong local coverage is available. Avoid writing a second article on the same recent matchup unless there is clearly new and material information.`
+    ? `For sports, stay within two different story types: results for games that just happened and excitement-building previews for games about to happen. Prefer Dayton/regional coverage when quality is comparable.`
     : '';
 
   const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
   const maxOutputTokens = getModelMaxOutputTokens();
   const prompt = `
-You are writing a fully original local-news publication draft for The Dayton Enquirer.
+${sectionVoice}
+Write a fully original publication-ready draft for The Dayton Enquirer.
 
 SECTION: ${candidate.section}
 HEADLINE: ${candidate.title}
 SOURCE URL: ${candidate.url}
 SOURCE SNIPPET: ${candidate.snippet || 'N/A'}
+SECTION MISSION: ${sectionMission}
 
 Requirements:
 1) Return valid JSON only.
 2) JSON keys: title, description, content, section.
 3) title: brief, attention-grabbing newsroom headline (8-14 words preferred, no clickbait).
+   - Never copy or lightly rephrase the source headline. Write a distinctly different headline.
 4) description: concise 2-4 sentence summary.
 5) content: detailed long-form article in plain HTML-friendly text with paragraph breaks using \\n\\n.
    - Minimum ${MIN_ARTICLE_WORDS} words.
    - Target ${TARGET_ARTICLE_WORDS}-${TARGET_ARTICLE_WORDS + 300} words.
 6) Writing quality:
-   - Open by centering the main current event in the first 1-2 paragraphs.
-   - Then transition into meaningful related context readers care about (local impact, timeline, policy, business, public safety, practical implications).
-   - Make the piece thought-provoking by surfacing deeper implications and unresolved questions grounded in facts.
-   - Be thorough and specific, but concise. Do not ramble or repeat.
-   - Avoid fluff and generic filler language.
-6) section must be one of: local, national, world, business, sports, health, entertainment, technology.
-7) Do not include fake quotes or unverifiable claims. If details are uncertain, state uncertainty clearly.
-8) ${localityRule}
-9) ${sportsRule}
-10) ${localRule}
-11) ${healthRule}
-12) ${nationalRule}
-13) ${politicsStyleRule}
-14) ${businessRule}
-15) ${marketUpdateFormatRule}
-16) ${technologyRule}
+   - Open with the current event immediately: what happened, where/when it happened, and who is involved.
+   - Transition quickly to why it matters now, then support that with specific reported details.
+   - Use concrete facts, not vague generalizations; avoid generic scene-setting and empty transitions.
+   - Keep momentum and paragraph-level clarity: each paragraph should add a distinct new detail or implication.
+   - Avoid cliches, AI-sounding filler, and repetitive phrasing.
+7) ${sharedStyleRule}
+8) section must be one of: local, national, world, business, sports, health, entertainment, technology.
+9) Do not include fake quotes or unverifiable claims. If details are uncertain, state uncertainty clearly.
+10) ${sportsRule}
+11) ${localRule}
+12) ${healthRule}
+13) ${nationalRule}
+14) ${politicsStyleRule}
+15) ${businessRule}
+16) ${marketUpdateFormatRule}
+17) ${technologyRule}
 
 Return only JSON.
 `;
@@ -752,7 +733,7 @@ Return only JSON.
   }
 
   return {
-    title: cleanText(parsed.title) || cleanText(candidate.title),
+    title: cleanText(parsed.title),
     description: truncate(cleanText(parsed.description), 800),
     content: cleanText(parsed.content),
     section: normalizeSection(candidate.section),
@@ -1172,6 +1153,24 @@ function normalizeComparableTitle(title) {
     .replace(/\s+/g, ' ');
 }
 
+function isSourceHeadlineCopy(draftTitle, sourceTitle) {
+  const draftNorm = normalizeComparableTitle(draftTitle);
+  const sourceNorm = normalizeComparableTitle(sourceTitle);
+  if (!draftNorm || !sourceNorm) return false;
+  if (draftNorm === sourceNorm) return true;
+  if (draftNorm.includes(sourceNorm) || sourceNorm.includes(draftNorm)) return true;
+
+  const draftTokenList = normalizeTitleForCompare(draftNorm);
+  const sourceTokenList = normalizeTitleForCompare(sourceNorm);
+  const draftTokens = new Set(draftTokenList);
+  const sourceTokens = new Set(sourceTokenList);
+  const draftBigrams = new Set(buildBigrams(draftTokenList));
+  const sourceBigrams = new Set(buildBigrams(sourceTokenList));
+  const tokenJaccard = jaccardSimilarity(draftTokens, sourceTokens);
+  const bigramJaccard = jaccardSimilarity(draftBigrams, sourceBigrams);
+  return tokenJaccard >= 0.8 || bigramJaccard >= 0.7;
+}
+
 function buildBigrams(tokens) {
   const out = [];
   for (let i = 0; i < tokens.length - 1; i += 1) {
@@ -1352,6 +1351,9 @@ async function ensureDuplicateReportsTable(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      total_tokens INTEGER,
       report_reason TEXT DEFAULT 'manual_duplicate',
       notes TEXT,
       reported_by TEXT DEFAULT 'admin_ui',
@@ -1373,6 +1375,64 @@ async function ensureDuplicateReportsTable(sql) {
   await sql`
     CREATE INDEX IF NOT EXISTS idx_duplicate_reports_source_url
     ON duplicate_reports(source_url)
+    WHERE source_url IS NOT NULL
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS input_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS output_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS total_tokens INTEGER
+  `;
+}
+
+async function ensureEditorialRejectionsTable(sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS editorial_rejections (
+      id SERIAL PRIMARY KEY,
+      draft_id INTEGER,
+      draft_slug TEXT,
+      draft_title TEXT NOT NULL,
+      section TEXT,
+      source_url TEXT,
+      source_title TEXT,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      total_tokens INTEGER,
+      reject_reason TEXT NOT NULL,
+      notes TEXT,
+      rejected_by TEXT DEFAULT 'admin_ui',
+      rejected_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_editorial_rejections_draft_id_unique
+    ON editorial_rejections(draft_id)
+    WHERE draft_id IS NOT NULL
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_editorial_rejections_rejected_at
+    ON editorial_rejections(rejected_at DESC)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_editorial_rejections_reason
+    ON editorial_rejections(reject_reason)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_editorial_rejections_source_url
+    ON editorial_rejections(source_url)
     WHERE source_url IS NOT NULL
   `;
 }
@@ -1405,6 +1465,7 @@ module.exports = async (req, res) => {
   try {
     const sql = neon(process.env.DATABASE_URL);
     await ensureDuplicateReportsTable(sql);
+    await ensureEditorialRejectionsTable(sql);
     const dailyTokenBudget = dailyTokenBudgetOverride
       ? Math.max(1, Math.min(parseInt(String(dailyTokenBudgetOverride), 10), 1000000))
       : await getDailyTokenBudget(sql);
@@ -1603,6 +1664,35 @@ module.exports = async (req, res) => {
     const reportedDuplicateSourceUrls = new Set(
       reportedDuplicateRows.map((row) => cleanText(row.sourceUrl)).filter(Boolean)
     );
+    const editorialRejectRows = await sql`
+      SELECT
+        section,
+        draft_title as "draftTitle",
+        source_title as "sourceTitle",
+        source_url as "sourceUrl",
+        reject_reason as "rejectReason"
+      FROM editorial_rejections
+      WHERE rejected_at >= NOW() - INTERVAL '365 days'
+    `;
+    const editorialRejectedTitlesBySection = {};
+    for (const section of SECTION_ORDER) editorialRejectedTitlesBySection[section] = [];
+    const editorialRejectedSourceUrls = new Set();
+    for (const row of editorialRejectRows) {
+      const section = normalizeSection(row.section) || 'local';
+      const reason = String(row.rejectReason || '').trim();
+      if (!['stale_or_not_time_relevant', 'low_newsworthiness_or_thin', 'style_mismatch'].includes(reason)) {
+        continue;
+      }
+      const titles = [row.draftTitle, row.sourceTitle].map((v) => cleanText(v)).filter(Boolean);
+      if (titles.length) {
+        editorialRejectedTitlesBySection[section].push(...titles);
+      }
+      const sourceUrl = cleanText(row.sourceUrl);
+      if (sourceUrl) editorialRejectedSourceUrls.add(sourceUrl);
+    }
+    for (const section of SECTION_ORDER) {
+      editorialRejectedTitlesBySection[section] = Array.from(new Set(editorialRejectedTitlesBySection[section]));
+    }
 
     const existingTitleRows = await sql`
       SELECT section, title AS compare_text FROM articles
@@ -1755,6 +1845,18 @@ module.exports = async (req, res) => {
         skipped.push({ reason: 'reported_duplicate_near_title', title: candidate.title, url: candidate.url });
         continue;
       }
+      {
+        const section = normalizeSection(candidate.section) || 'local';
+        const rejectedTitles = editorialRejectedTitlesBySection[section] || [];
+        if (candidate.url && editorialRejectedSourceUrls.has(candidate.url)) {
+          skipped.push({ reason: 'editorial_reject_source_history', title: candidate.title, url: candidate.url });
+          continue;
+        }
+        if (rejectedTitles.length && isNearDuplicateTitle(candidate.title, rejectedTitles)) {
+          skipped.push({ reason: 'editorial_reject_title_history', title: candidate.title, url: candidate.url });
+          continue;
+        }
+      }
 
       const exists = await alreadyExists(sql, candidate);
       if (exists) {
@@ -1807,6 +1909,10 @@ module.exports = async (req, res) => {
         skipped.push({ reason: 'rejected_non_local_or_empty', title: candidate.title, url: candidate.url });
         continue;
       }
+      if (isSourceHeadlineCopy(draft.title, candidate.title)) {
+        skipped.push({ reason: 'source_headline_copy_draft', title: draft.title, url: candidate.url });
+        continue;
+      }
       if (words < MIN_ARTICLE_WORDS) {
         skipped.push({
           reason: 'below_min_word_count',
@@ -1828,6 +1934,14 @@ module.exports = async (req, res) => {
       if (isNearDuplicateTitle(draft.title, reportedDuplicateTitles)) {
         skipped.push({ reason: 'reported_duplicate_near_draft_title', title: draft.title, url: candidate.url });
         continue;
+      }
+      {
+        const section = normalizeSection(draft.section) || 'local';
+        const rejectedTitles = editorialRejectedTitlesBySection[section] || [];
+        if (rejectedTitles.length && isNearDuplicateTitle(draft.title, rejectedTitles)) {
+          skipped.push({ reason: 'editorial_reject_draft_title_history', title: draft.title, url: candidate.url });
+          continue;
+        }
       }
       if (isLikelyPoliticalTopic(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`) &&
           isOpinionStyleContent(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`)) {
@@ -2068,6 +2182,8 @@ module.exports = async (req, res) => {
       retryMinInitialWords: RETRY_MIN_INITIAL_WORDS,
       reportedDuplicateCount: reportedDuplicateRows.length,
       reportedDuplicateSourceCount: reportedDuplicateSourceUrls.size,
+      editorialRejectCount: editorialRejectRows.length,
+      editorialRejectSourceCount: editorialRejectedSourceUrls.size,
       sectionTargets: SECTION_DAILY_TARGETS,
       runTargets,
       remainingBySection,
