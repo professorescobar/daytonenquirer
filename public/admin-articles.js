@@ -16,6 +16,7 @@ const listEl = document.getElementById('article-list');
 const removeModalEl = document.getElementById('article-remove-modal');
 const removeActionInput = document.getElementById('article-remove-action');
 const removeReasonInput = document.getElementById('article-remove-reason');
+const removeDuplicateTypeInput = document.getElementById('article-remove-duplicate-type');
 const removeNotesInput = document.getElementById('article-remove-notes');
 const removeConfirmBtn = document.getElementById('article-remove-confirm-btn');
 const removeCancelBtn = document.getElementById('article-remove-cancel-btn');
@@ -44,6 +45,10 @@ const CLOUDINARY_WIDTH = 1600;
 function setMessage(text) {
   messageEl.hidden = !text;
   messageEl.textContent = text || '';
+}
+
+function scrollToTopStatus() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function getToken() {
@@ -407,6 +412,7 @@ function openRemoveModal(articleId) {
   if (!removeTargetArticleId || !removeModalEl) return;
   removeActionInput.value = 'duplicate';
   removeReasonInput.value = '';
+  if (removeDuplicateTypeInput) removeDuplicateTypeInput.value = 'internal';
   removeNotesInput.value = '';
   removeModalEl.hidden = false;
 }
@@ -420,10 +426,14 @@ function closeRemoveModal() {
 async function removeArticle() {
   const action = String(removeActionInput?.value || '').trim();
   const reason = String(removeReasonInput?.value || '').trim();
+  const duplicateType = String(removeDuplicateTypeInput?.value || '').trim();
   const notes = String(removeNotesInput?.value || '').trim();
   if (!removeTargetArticleId) throw new Error('Missing article target');
   if (!['duplicate', 'reject'].includes(action)) throw new Error('Select a valid action');
   if (action === 'reject' && !reason) throw new Error('Select a rejection reason');
+  if (action === 'duplicate' && !['internal', 'external'].includes(duplicateType)) {
+    throw new Error('Select a duplicate type');
+  }
 
   await apiRequest('/api/admin-remove-article', {
     method: 'POST',
@@ -431,6 +441,7 @@ async function removeArticle() {
     body: JSON.stringify({
       id: removeTargetArticleId,
       action,
+      duplicateType: action === 'duplicate' ? duplicateType : null,
       reason: action === 'reject' ? reason : null,
       notes
     })
@@ -491,9 +502,13 @@ function onRemoveConfirm() {
       const action = removeActionInput.value;
       closeRemoveModal();
       setMessage(`Article #${id} removed (${action}).`);
+      scrollToTopStatus();
       await loadArticles();
     })
-    .catch((err) => setMessage(`Remove failed: ${err.message}`));
+    .catch((err) => {
+      setMessage(`Remove failed: ${err.message}`);
+      scrollToTopStatus();
+    });
 }
 
 function onListChange(event) {

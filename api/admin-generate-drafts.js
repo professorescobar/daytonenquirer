@@ -658,6 +658,12 @@ async function callAnthropicForDraft(candidate) {
   const sportsRule = candidate.section === 'sports'
     ? `For sports, stay within two different story types: results for games that just happened and excitement-building previews for games about to happen. Prefer Dayton/regional coverage when quality is comparable.`
     : '';
+  const externalDuplicateTitles = Array.isArray(candidate.externalDuplicateTitles)
+    ? candidate.externalDuplicateTitles.filter(Boolean).slice(0, 8).map((title) => truncate(cleanText(title), 120))
+    : [];
+  const externalDuplicateRule = externalDuplicateTitles.length
+    ? `External duplicate memory (do not mirror these source story angles/headlines): ${externalDuplicateTitles.join(' | ')}`
+    : 'External duplicate memory: none for this section in current memory window.';
 
   const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
   const maxOutputTokens = getModelMaxOutputTokens();
@@ -697,6 +703,7 @@ Requirements:
 15) ${businessRule}
 16) ${marketUpdateFormatRule}
 17) ${technologyRule}
+18) ${externalDuplicateRule}
 
 Return only JSON.
 `;
@@ -1351,6 +1358,7 @@ async function ensureDuplicateReportsTable(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      duplicate_type TEXT DEFAULT 'internal',
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
@@ -1391,6 +1399,11 @@ async function ensureDuplicateReportsTable(sql) {
   await sql`
     ALTER TABLE duplicate_reports
     ADD COLUMN IF NOT EXISTS total_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS duplicate_type TEXT DEFAULT 'internal'
   `;
 }
 
@@ -1646,7 +1659,8 @@ module.exports = async (req, res) => {
         section,
         draft_title as "draftTitle",
         source_title as "sourceTitle",
-        source_url as "sourceUrl"
+        source_url as "sourceUrl",
+        COALESCE(NULLIF(TRIM(duplicate_type), ''), 'internal') as "duplicateType"
       FROM duplicate_reports
       WHERE reported_at >= NOW() - INTERVAL '365 days'
     `;
@@ -1664,6 +1678,37 @@ module.exports = async (req, res) => {
     const reportedDuplicateSourceUrls = new Set(
       reportedDuplicateRows.map((row) => cleanText(row.sourceUrl)).filter(Boolean)
     );
+    const reportedExternalDuplicateRows = reportedDuplicateRows.filter(
+      (row) => String(row.duplicateType || 'internal').toLowerCase() === 'external'
+    );
+    const reportedExternalDuplicateTitles = Array.from(
+      new Set(
+        reportedExternalDuplicateRows
+          .flatMap((row) => [row.draftTitle, row.sourceTitle])
+          .map((title) => cleanText(title))
+          .filter(Boolean)
+      )
+    );
+    const reportedExternalDuplicateNormalizedTitles = new Set(
+      reportedExternalDuplicateTitles.map((title) => normalizeComparableTitle(title)).filter(Boolean)
+    );
+    const reportedExternalDuplicateSourceUrls = new Set(
+      reportedExternalDuplicateRows.map((row) => cleanText(row.sourceUrl)).filter(Boolean)
+    );
+    const reportedExternalDuplicateTitlesBySection = {};
+    for (const section of SECTION_ORDER) reportedExternalDuplicateTitlesBySection[section] = [];
+    for (const row of reportedExternalDuplicateRows) {
+      const section = normalizeSection(row.section) || 'local';
+      const titles = [row.draftTitle, row.sourceTitle].map((v) => cleanText(v)).filter(Boolean);
+      if (titles.length) {
+        reportedExternalDuplicateTitlesBySection[section].push(...titles);
+      }
+    }
+    for (const section of SECTION_ORDER) {
+      reportedExternalDuplicateTitlesBySection[section] = Array.from(
+        new Set(reportedExternalDuplicateTitlesBySection[section])
+      );
+    }
     const editorialRejectRows = await sql`
       SELECT
         section,
@@ -1833,12 +1878,24 @@ module.exports = async (req, res) => {
       }
 
       const normalizedCandidateTitle = normalizeComparableTitle(candidate.title);
+      if (normalizedCandidateTitle && reportedExternalDuplicateNormalizedTitles.has(normalizedCandidateTitle)) {
+        skipped.push({ reason: 'external_duplicate_exact_title', title: candidate.title, url: candidate.url });
+        continue;
+      }
       if (normalizedCandidateTitle && reportedDuplicateNormalizedTitles.has(normalizedCandidateTitle)) {
         skipped.push({ reason: 'reported_duplicate_exact_title', title: candidate.title, url: candidate.url });
         continue;
       }
+      if (candidate.url && reportedExternalDuplicateSourceUrls.has(candidate.url)) {
+        skipped.push({ reason: 'external_duplicate_source', title: candidate.title, url: candidate.url });
+        continue;
+      }
       if (candidate.url && reportedDuplicateSourceUrls.has(candidate.url)) {
         skipped.push({ reason: 'reported_duplicate_source', title: candidate.title, url: candidate.url });
+        continue;
+      }
+      if (isNearDuplicateTitle(candidate.title, reportedExternalDuplicateTitles)) {
+        skipped.push({ reason: 'external_duplicate_near_title', title: candidate.title, url: candidate.url });
         continue;
       }
       if (isNearDuplicateTitle(candidate.title, reportedDuplicateTitles)) {
@@ -1904,7 +1961,11 @@ module.exports = async (req, res) => {
         }
       }
 
-      const { draft, words } = await buildDraftWithMinWords(candidate);
+      const sectionKey = normalizeSection(candidate.section) || 'local';
+      const { draft, words } = await buildDraftWithMinWords({
+        ...candidate,
+        externalDuplicateTitles: reportedExternalDuplicateTitlesBySection[sectionKey] || []
+      });
       if (!draft.title || !draft.content) {
         skipped.push({ reason: 'rejected_non_local_or_empty', title: candidate.title, url: candidate.url });
         continue;
@@ -1927,8 +1988,16 @@ module.exports = async (req, res) => {
         continue;
       }
       const normalizedDraftTitle = normalizeComparableTitle(draft.title);
+      if (normalizedDraftTitle && reportedExternalDuplicateNormalizedTitles.has(normalizedDraftTitle)) {
+        skipped.push({ reason: 'external_duplicate_exact_draft_title', title: draft.title, url: candidate.url });
+        continue;
+      }
       if (normalizedDraftTitle && reportedDuplicateNormalizedTitles.has(normalizedDraftTitle)) {
         skipped.push({ reason: 'reported_duplicate_exact_draft_title', title: draft.title, url: candidate.url });
+        continue;
+      }
+      if (isNearDuplicateTitle(draft.title, reportedExternalDuplicateTitles)) {
+        skipped.push({ reason: 'external_duplicate_near_draft_title', title: draft.title, url: candidate.url });
         continue;
       }
       if (isNearDuplicateTitle(draft.title, reportedDuplicateTitles)) {
@@ -2181,7 +2250,9 @@ module.exports = async (req, res) => {
       modelMaxOutputTokens: getModelMaxOutputTokens(),
       retryMinInitialWords: RETRY_MIN_INITIAL_WORDS,
       reportedDuplicateCount: reportedDuplicateRows.length,
+      reportedExternalDuplicateCount: reportedExternalDuplicateRows.length,
       reportedDuplicateSourceCount: reportedDuplicateSourceUrls.size,
+      reportedExternalDuplicateSourceCount: reportedExternalDuplicateSourceUrls.size,
       editorialRejectCount: editorialRejectRows.length,
       editorialRejectSourceCount: editorialRejectedSourceUrls.size,
       sectionTargets: SECTION_DAILY_TARGETS,

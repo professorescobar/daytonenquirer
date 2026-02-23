@@ -5,7 +5,8 @@ const REASONS = [
   'duplicate',
   'stale_or_not_time_relevant',
   'low_newsworthiness_or_thin',
-  'style_mismatch'
+  'style_mismatch',
+  'user_error'
 ];
 
 async function ensureTables(sql) {
@@ -18,6 +19,7 @@ async function ensureTables(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      duplicate_type TEXT DEFAULT 'internal',
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
@@ -50,6 +52,11 @@ async function ensureTables(sql) {
   await sql`
     ALTER TABLE duplicate_reports
     ADD COLUMN IF NOT EXISTS total_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS duplicate_type TEXT DEFAULT 'internal'
   `;
 
   await sql`

@@ -1,5 +1,6 @@
 const { neon } = require('@neondatabase/serverless');
 const { requireAdmin } = require('./_admin-auth');
+const ALLOWED_DUPLICATE_TYPES = new Set(['internal', 'external']);
 
 async function ensureDuplicateReportsTable(sql) {
   await sql`
@@ -11,6 +12,7 @@ async function ensureDuplicateReportsTable(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      duplicate_type TEXT DEFAULT 'internal',
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
@@ -52,6 +54,11 @@ async function ensureDuplicateReportsTable(sql) {
     ALTER TABLE duplicate_reports
     ADD COLUMN IF NOT EXISTS total_tokens INTEGER
   `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS duplicate_type TEXT DEFAULT 'internal'
+  `;
 }
 
 module.exports = async (req, res) => {
@@ -68,9 +75,13 @@ module.exports = async (req, res) => {
     const id = Number(req.body?.id || 0);
     const notes = String(req.body?.notes || '').trim();
     const reason = String(req.body?.reason || 'manual_duplicate').trim() || 'manual_duplicate';
+    const duplicateType = String(req.body?.duplicateType || 'internal').trim().toLowerCase();
 
     if (!id) {
       return res.status(400).json({ error: 'Missing draft id' });
+    }
+    if (!ALLOWED_DUPLICATE_TYPES.has(duplicateType)) {
+      return res.status(400).json({ error: 'Invalid duplicate type' });
     }
 
     const rows = await sql`
@@ -103,6 +114,7 @@ module.exports = async (req, res) => {
         section,
         source_url,
         source_title,
+        duplicate_type,
         input_tokens,
         output_tokens,
         total_tokens,
@@ -118,6 +130,7 @@ module.exports = async (req, res) => {
         ${draft.section || ''},
         ${draft.sourceUrl || null},
         ${draft.sourceTitle || null},
+        ${duplicateType},
         ${Number(draft.inputTokens || 0)},
         ${Number(draft.outputTokens || 0)},
         ${Number(draft.totalTokens || 0)},
@@ -126,7 +139,7 @@ module.exports = async (req, res) => {
         'admin_ui',
         NOW()
       )
-      RETURNING id, draft_id as "draftId", draft_title as "draftTitle", source_url as "sourceUrl", reported_at as "reportedAt"
+      RETURNING id, draft_id as "draftId", draft_title as "draftTitle", source_url as "sourceUrl", duplicate_type as "duplicateType", reported_at as "reportedAt"
     `;
 
     await sql`

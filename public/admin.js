@@ -27,6 +27,7 @@ const usageRejectedDuplicateEl = document.getElementById('usage-rejected-duplica
 const usageRejectedStaleEl = document.getElementById('usage-rejected-stale');
 const usageRejectedThinEl = document.getElementById('usage-rejected-thin');
 const usageRejectedStyleEl = document.getElementById('usage-rejected-style');
+const usageRejectedUserErrorEl = document.getElementById('usage-rejected-user-error');
 const usageBadTokensEl = document.getElementById('usage-bad-tokens');
 const duplicateLimitInput = document.getElementById('duplicate-limit');
 const loadDuplicatesBtn = document.getElementById('load-duplicates-btn');
@@ -65,6 +66,10 @@ function getToken() {
 function setMessage(text) {
   messageEl.hidden = !text;
   messageEl.textContent = text || '';
+}
+
+function scrollToTopStatus() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function apiRequest(url, options = {}) {
@@ -159,19 +164,23 @@ function renderDrafts(drafts) {
 
   draftListEl.innerHTML = drafts.map((draft) => `
     <article class="draft-card" data-id="${draft.id}">
-      <div class="draft-header">
+      <button class="draft-header draft-toggle btn-reset" type="button">
         <strong>#${draft.id} - ${escapeHtml(draft.title || '')}</strong>
-        <span class="draft-meta">status: ${escapeHtml(draft.status || '')}</span>
-      </div>
-      <p class="draft-meta">
+        <span class="draft-meta">
+          section: ${escapeHtml(draft.section || '')} |
+          pubdate: ${escapeHtml(formatDate(draft.pubDate || draft.sourcePublishedAt || draft.createdAt))} |
+          status: ${escapeHtml(draft.status || '')}
+        </span>
+      </button>
+      <p class="draft-meta article-editor is-collapsed" hidden>
         section: ${escapeHtml(draft.section || '')} |
         slug: ${escapeHtml(draft.slug || '')} |
         via: ${escapeHtml(draft.createdVia || 'unknown')} |
         created: ${escapeHtml(formatDate(draft.createdAt))}
       </p>
-      <p class="draft-meta">source: <a href="${escapeHtml(draft.sourceUrl || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(draft.sourceUrl || 'N/A')}</a></p>
+      <p class="draft-meta article-editor is-collapsed" hidden>source: <a href="${escapeHtml(draft.sourceUrl || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(draft.sourceUrl || 'N/A')}</a></p>
 
-      <div class="draft-form">
+      <div class="draft-form article-editor is-collapsed" hidden>
         <label class="full">
           Title
           <input class="field-title" type="text" value="${escapeHtml(draft.title || '')}" />
@@ -227,7 +236,7 @@ function renderDrafts(drafts) {
         </label>
       </div>
 
-      <div class="draft-actions">
+      <div class="draft-actions article-editor is-collapsed" hidden>
         <button class="btn btn-save">Save Draft</button>
         <button class="btn btn-primary btn-publish">Publish Draft</button>
         <button class="btn btn-warning btn-reject">Reject Draft</button>
@@ -248,7 +257,7 @@ function renderDuplicateReports(reports) {
     <article class="draft-card" data-report-id="${report.id}">
       <div class="draft-header">
         <strong>#${report.id} - ${escapeHtml(report.draftTitle || '')}</strong>
-        <span class="draft-meta">section: ${escapeHtml(report.section || 'n/a')}</span>
+        <span class="draft-meta">section: ${escapeHtml(report.section || 'n/a')} | type: ${escapeHtml(report.duplicateType || 'internal')}</span>
       </div>
       <p class="draft-meta">
         source title: ${escapeHtml(report.sourceTitle || 'N/A')} |
@@ -427,6 +436,9 @@ async function loadUsageDashboard() {
   usageRejectedStaleEl.textContent = Number(byReason.stale_or_not_time_relevant || 0).toLocaleString();
   usageRejectedThinEl.textContent = Number(byReason.low_newsworthiness_or_thin || 0).toLocaleString();
   usageRejectedStyleEl.textContent = Number(byReason.style_mismatch || 0).toLocaleString();
+  if (usageRejectedUserErrorEl) {
+    usageRejectedUserErrorEl.textContent = Number(byReason.user_error || 0).toLocaleString();
+  }
   usageBadTokensEl.textContent = Number(quality.badTokensTotal || 0).toLocaleString();
 }
 
@@ -552,14 +564,29 @@ async function publishDraft(card) {
 
 async function reportDuplicateDraft(card) {
   const id = Number(card.dataset.id);
+  const duplicateType = String(card.dataset.duplicateType || 'internal').trim().toLowerCase();
   await apiRequest('/api/admin-report-duplicate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       id,
-      reason: 'manual_duplicate'
+      reason: 'manual_duplicate',
+      duplicateType
     })
   });
+}
+
+function chooseDuplicateType(draftId) {
+  const answer = window.prompt(
+    `Draft #${draftId}: enter duplicate type ("internal" or "external").`,
+    'internal'
+  );
+  if (answer === null) return null;
+  const normalized = String(answer || '').trim().toLowerCase();
+  if (!['internal', 'external'].includes(normalized)) {
+    throw new Error('Duplicate type must be "internal" or "external".');
+  }
+  return normalized;
 }
 
 function onDraftListClick(event) {
@@ -568,6 +595,21 @@ function onDraftListClick(event) {
 
   const card = event.target.closest('.draft-card');
   if (!card) return;
+
+  if (button.classList.contains('draft-toggle')) {
+    const editors = card.querySelectorAll('.article-editor');
+    const isHidden = editors[0]?.hasAttribute('hidden');
+    editors.forEach((el) => {
+      if (isHidden) {
+        el.removeAttribute('hidden');
+        el.classList.remove('is-collapsed');
+      } else {
+        el.setAttribute('hidden', '');
+        el.classList.add('is-collapsed');
+      }
+    });
+    return;
+  }
 
   if (button.classList.contains('btn-save')) {
     saveDraft(card)
@@ -580,9 +622,13 @@ function onDraftListClick(event) {
       .then(() => publishDraft(card))
       .then(async () => {
         setMessage(`Draft #${card.dataset.id} published.`);
+        scrollToTopStatus();
         await loadDrafts();
       })
-      .catch((err) => setMessage(`Publish failed: ${err.message}`));
+      .catch((err) => {
+        setMessage(`Publish failed: ${err.message}`);
+        scrollToTopStatus();
+      });
   }
 
   if (button.classList.contains('btn-reject')) {
@@ -590,19 +636,33 @@ function onDraftListClick(event) {
   }
 
   if (button.classList.contains('btn-report-duplicate')) {
+    let duplicateType;
+    try {
+      duplicateType = chooseDuplicateType(card.dataset.id);
+    } catch (err) {
+      setMessage(err.message);
+      return;
+    }
+    if (!duplicateType) return;
+    card.dataset.duplicateType = duplicateType;
+
     const ok = window.confirm(
-      `Report draft #${card.dataset.id} as duplicate and remove it from drafts?`
+      `Report draft #${card.dataset.id} as ${duplicateType} duplicate and remove it from drafts?`
     );
     if (!ok) return;
 
     reportDuplicateDraft(card)
       .then(async () => {
         setMessage(`Draft #${card.dataset.id} reported as duplicate and removed.`);
+        scrollToTopStatus();
         await loadDrafts();
         await loadDuplicateReports();
         await loadUsageDashboard();
       })
-      .catch((err) => setMessage(`Report duplicate failed: ${err.message}`));
+      .catch((err) => {
+        setMessage(`Report duplicate failed: ${err.message}`);
+        scrollToTopStatus();
+      });
   }
 
   if (button.classList.contains('upload-dropzone')) {
@@ -657,11 +717,15 @@ function onRejectModalConfirm() {
       const draftId = rejectTargetDraftId;
       closeRejectModal();
       setMessage(`Draft #${draftId} rejected and moved to rejected list.`);
+      scrollToTopStatus();
       await loadDrafts();
       await loadRejections();
       await loadUsageDashboard();
     })
-    .catch((err) => setMessage(`Reject failed: ${err.message}`));
+    .catch((err) => {
+      setMessage(`Reject failed: ${err.message}`);
+      scrollToTopStatus();
+    });
 }
 
 function onDraftListChange(event) {

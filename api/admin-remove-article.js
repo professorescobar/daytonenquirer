@@ -4,8 +4,10 @@ const { requireAdmin } = require('./_admin-auth');
 const ALLOWED_REASONS = new Set([
   'stale_or_not_time_relevant',
   'low_newsworthiness_or_thin',
-  'style_mismatch'
+  'style_mismatch',
+  'user_error'
 ]);
+const ALLOWED_DUPLICATE_TYPES = new Set(['internal', 'external']);
 
 async function ensureTables(sql) {
   await sql`
@@ -17,6 +19,7 @@ async function ensureTables(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      duplicate_type TEXT DEFAULT 'internal',
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
@@ -62,6 +65,11 @@ async function ensureTables(sql) {
   `;
 
   await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS duplicate_type TEXT DEFAULT 'internal'
+  `;
+
+  await sql`
     ALTER TABLE editorial_rejections
     ADD COLUMN IF NOT EXISTS input_tokens INTEGER
   `;
@@ -90,6 +98,7 @@ module.exports = async (req, res) => {
     const id = Number(req.body?.id || 0);
     const action = String(req.body?.action || '').trim(); // duplicate | reject
     const reason = String(req.body?.reason || '').trim();
+    const duplicateType = String(req.body?.duplicateType || 'internal').trim().toLowerCase();
     const notes = String(req.body?.notes || '').trim();
 
     if (!id) return res.status(400).json({ error: 'Missing article id' });
@@ -98,6 +107,9 @@ module.exports = async (req, res) => {
     }
     if (action === 'reject' && !ALLOWED_REASONS.has(reason)) {
       return res.status(400).json({ error: 'Invalid rejection reason' });
+    }
+    if (action === 'duplicate' && !ALLOWED_DUPLICATE_TYPES.has(duplicateType)) {
+      return res.status(400).json({ error: 'Invalid duplicate type' });
     }
 
     const articleRows = await sql`
@@ -133,6 +145,7 @@ module.exports = async (req, res) => {
           section,
           source_url,
           source_title,
+          duplicate_type,
           input_tokens,
           output_tokens,
           total_tokens,
@@ -148,6 +161,7 @@ module.exports = async (req, res) => {
           ${article.section || ''},
           ${linked.sourceUrl || null},
           ${linked.sourceTitle || null},
+          ${duplicateType},
           ${Number(linked.inputTokens || 0)},
           ${Number(linked.outputTokens || 0)},
           ${Number(linked.totalTokens || 0)},

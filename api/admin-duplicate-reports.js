@@ -11,6 +11,7 @@ async function ensureDuplicateReportsTable(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      duplicate_type TEXT DEFAULT 'internal',
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
@@ -40,6 +41,11 @@ async function ensureDuplicateReportsTable(sql) {
     ALTER TABLE duplicate_reports
     ADD COLUMN IF NOT EXISTS total_tokens INTEGER
   `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS duplicate_type TEXT DEFAULT 'internal'
+  `;
 }
 
 module.exports = async (req, res) => {
@@ -63,6 +69,7 @@ module.exports = async (req, res) => {
         section,
       source_url as "sourceUrl",
       source_title as "sourceTitle",
+      COALESCE(NULLIF(TRIM(duplicate_type), ''), 'internal') as "duplicateType",
       input_tokens as "inputTokens",
       output_tokens as "outputTokens",
       total_tokens as "totalTokens",

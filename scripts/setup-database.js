@@ -98,6 +98,7 @@ async function setupDatabase() {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      duplicate_type TEXT DEFAULT 'internal',
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
@@ -126,6 +127,11 @@ async function setupDatabase() {
   `;
 
   await sql`
+    CREATE INDEX IF NOT EXISTS idx_duplicate_reports_type
+    ON duplicate_reports(duplicate_type)
+  `;
+
+  await sql`
     ALTER TABLE duplicate_reports
     ADD COLUMN IF NOT EXISTS input_tokens INTEGER
   `;
@@ -138,6 +144,11 @@ async function setupDatabase() {
   await sql`
     ALTER TABLE duplicate_reports
     ADD COLUMN IF NOT EXISTS total_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS duplicate_type TEXT DEFAULT 'internal'
   `;
 
   await sql`

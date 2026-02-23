@@ -4,7 +4,8 @@ const { requireAdmin } = require('./_admin-auth');
 const ALLOWED_REASONS = new Set([
   'stale_or_not_time_relevant',
   'low_newsworthiness_or_thin',
-  'style_mismatch'
+  'style_mismatch',
+  'user_error'
 ]);
 
 async function ensureEditorialRejectionsTable(sql) {
