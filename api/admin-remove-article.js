@@ -45,6 +45,36 @@ async function ensureTables(sql) {
       rejected_at TIMESTAMP DEFAULT NOW()
     )
   `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS input_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS output_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS total_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE editorial_rejections
+    ADD COLUMN IF NOT EXISTS input_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE editorial_rejections
+    ADD COLUMN IF NOT EXISTS output_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE editorial_rejections
+    ADD COLUMN IF NOT EXISTS total_tokens INTEGER
+  `;
 }
 
 module.exports = async (req, res) => {
@@ -162,6 +192,14 @@ module.exports = async (req, res) => {
       `;
     }
 
+    await sql`
+      UPDATE article_drafts
+      SET
+        published_article_id = NULL,
+        updated_at = NOW()
+      WHERE published_article_id = ${id}
+    `;
+
     await sql`DELETE FROM articles WHERE id = ${id}`;
 
     return res.status(200).json({
@@ -172,6 +210,6 @@ module.exports = async (req, res) => {
     });
   } catch (error) {
     console.error('Remove published article error:', error);
-    return res.status(500).json({ error: 'Failed to remove published article' });
+    return res.status(500).json({ error: 'Failed to remove published article', details: error.message });
   }
 };

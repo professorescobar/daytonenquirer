@@ -93,7 +93,10 @@ async function apiRequest(url, options = {}) {
     }
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) {
+    const message = data.error || `Request failed (${res.status})`;
+    throw new Error(data.details ? `${message}: ${data.details}` : message);
+  }
   return data;
 }
 
