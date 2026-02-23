@@ -72,12 +72,13 @@ nav {
 
 nav a {
   text-decoration: none;
+  border-bottom: 2px solid transparent;
   font-weight: bold;
   color: #000;
 }
 
 nav a:hover {
-  text-decoration: underline;
+  border-bottom-color: currentColor;
 }
 
 nav a:not(:last-child)::after {
@@ -738,6 +739,13 @@ nav a:not(:last-child)::after {
   text-decoration: underline;
 }
 
+@media (min-width: 901px) {
+  .section-page .headlines-sidebar ul {
+    list-style: none;
+    padding-left: 0.1rem;
+  }
+}
+
 /* ===============================
    PAGINATION
 ================================ */
@@ -1148,19 +1156,22 @@ html[data-theme="dark"] {
 }
 
 .theme-toggle {
+  position: fixed;
+  top: 0.55rem;
+  right: 0.8rem;
+  z-index: 1500;
   border: none;
   background: transparent;
   color: inherit;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 auto;
   width: 2rem;
   height: 2rem;
   line-height: 1;
   padding: 0;
   cursor: pointer;
-  margin-left: 0.35rem;
+  margin: 0;
   transition: color 0.2s ease, transform 0.2s ease;
 }
 
@@ -1244,6 +1255,7 @@ html[data-theme="dark"] #entertainment-more-headlines-list a,
 html[data-theme="dark"] #technology-more-headlines-list a,
 html[data-theme="dark"] .section-articles-grid a,
 html[data-theme="dark"] .bottom-article-card a,
+html[data-theme="dark"] .bottom-article-card h4,
 html[data-theme="dark"] .bottom-articles-title a,
 html[data-theme="dark"] .article-source,
 html[data-theme="dark"] .nav-arrow,
@@ -1319,4 +1331,10 @@ html[data-theme="dark"] .nav-arrow:hover {
 
 html[data-theme="dark"] .news-footer {
   background: #050608;
+}
+@media (max-width: 768px) {
+  .theme-toggle {
+    top: 0.45rem;
+    right: 0.6rem;
+  }
 }

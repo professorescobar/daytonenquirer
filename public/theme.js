@@ -1,6 +1,28 @@
 (() => {
   const STORAGE_KEY = 'de_theme';
 
+  const TICKER_BASE_CONFIG = {
+    symbols: [
+      { proName: 'DJI', title: 'Dow Jones' },
+      { proName: 'OANDA:SPX500USD', title: 'S&P 500' },
+      { proName: 'OANDA:NAS100USD', title: 'NASDAQ 100' },
+      { proName: 'NYSE:NYA', title: 'NYSE Composite' },
+      { proName: 'OANDA:US2000USD', title: 'Russell 2000' },
+      { proName: 'OANDA:EURUSD', title: 'EUR/USD' },
+      { proName: 'OANDA:USDJPY', title: 'USD/JPY' },
+      { proName: 'TVC:GOLD', title: 'Gold' },
+      { proName: 'TVC:SILVER', title: 'Silver' },
+      { proName: 'TVC:USOIL', title: 'Crude Oil' }
+    ],
+    showSymbolLogo: false,
+    showChange: true,
+    showPercentageChange: true,
+    colorTheme: 'light',
+    isTransparent: false,
+    displayMode: 'regular',
+    locale: 'en'
+  };
+
   function getSystemTheme() {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
@@ -55,35 +77,29 @@
     updateToggleState();
   }
 
-  function syncTradingViewTickerTheme() {
+  function renderTicker(container, theme) {
+    container.innerHTML = '';
+
+    const widgetRoot = document.createElement('div');
+    widgetRoot.className = 'tradingview-widget-container__widget';
+    container.appendChild(widgetRoot);
+
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js';
+    script.async = true;
+    script.innerHTML = JSON.stringify({ ...TICKER_BASE_CONFIG, colorTheme: theme });
+    container.appendChild(script);
+
+    container.dataset.tvTheme = theme;
+  }
+
+  function syncTradingViewTickerTheme(force) {
     const targetTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
     const containers = document.querySelectorAll('.tradingview-widget-container');
 
     containers.forEach((container) => {
-      const existingScript = container.querySelector('script[src*="embed-widget-ticker-tape.js"]');
-      if (!existingScript) return;
-
-      let config;
-      try {
-        config = JSON.parse(existingScript.textContent || existingScript.innerHTML || '{}');
-      } catch (_) {
-        return;
-      }
-
-      if (!config || config.colorTheme === targetTheme) return;
-
-      config.colorTheme = targetTheme;
-
-      container.innerHTML = '';
-      const widgetRoot = document.createElement('div');
-      widgetRoot.className = 'tradingview-widget-container__widget';
-      container.appendChild(widgetRoot);
-
-      const script = document.createElement('script');
-      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js';
-      script.async = true;
-      script.innerHTML = JSON.stringify(config);
-      container.appendChild(script);
+      if (!force && container.dataset.tvTheme === targetTheme) return;
+      renderTicker(container, targetTheme);
     });
   }
 
@@ -96,11 +112,11 @@
   }
 
   window.addEventListener('load', () => {
-    setTimeout(syncTradingViewTickerTheme, 80);
+    setTimeout(() => syncTradingViewTickerTheme(true), 80);
   });
 
   window.addEventListener('de-theme-changed', () => {
-    setTimeout(syncTradingViewTickerTheme, 10);
+    syncTradingViewTickerTheme(true);
   });
 
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
