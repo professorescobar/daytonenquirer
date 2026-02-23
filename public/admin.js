@@ -126,8 +126,6 @@ async function unlockAdminUi() {
     setLockState(true);
     setMessage('Admin unlocked.');
     loadUsageDashboard().catch((err) => setMessage(`Usage load failed: ${err.message}`));
-    loadDuplicateReports().catch((err) => setMessage(`Load duplicate reports failed: ${err.message}`));
-    loadRejections().catch((err) => setMessage(`Load rejections failed: ${err.message}`));
   } catch (err) {
     setMessage(`Unlock failed: ${err.message}`);
   }
@@ -656,7 +654,6 @@ function onDraftListClick(event) {
         setMessage(`Draft #${card.dataset.id} reported as duplicate and removed.`);
         scrollToTopStatus();
         await loadDrafts();
-        await loadDuplicateReports();
         await loadUsageDashboard();
       })
       .catch((err) => {
@@ -719,7 +716,6 @@ function onRejectModalConfirm() {
       setMessage(`Draft #${draftId} rejected and moved to rejected list.`);
       scrollToTopStatus();
       await loadDrafts();
-      await loadRejections();
       await loadUsageDashboard();
     })
     .catch((err) => {
@@ -803,6 +799,4 @@ loadStoredToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked') === '1');
 if (adminUiUnlocked) {
   loadUsageDashboard().catch((err) => setMessage(`Usage load failed: ${err.message}`));
-  loadDuplicateReports().catch((err) => setMessage(`Load duplicate reports failed: ${err.message}`));
-  loadRejections().catch((err) => setMessage(`Load rejections failed: ${err.message}`));
 }

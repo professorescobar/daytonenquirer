@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings | The Dayton Enquirer</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+  <header class="news-header">
+    <div class="container header-inner">
+      <div class="logo">
+        <a href="/index.html"><h1>The Dayton Enquirer</h1></a>
+      </div>
+      <nav>
+        <a href="/admin.html">Draft</a>
+        <a href="/admin-articles.html">Edit</a>
+        <a href="/admin-settings.html">Settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container admin-page">
+    <section id="settings-lock" class="admin-panel admin-lock">
+      <h2>Admin Access Required</h2>
+      <p class="hint">Enter your admin UI password to unlock this page.</p>
+      <div class="admin-grid single">
+        <label>
+          Admin UI Password
+          <input id="admin-ui-password" type="password" placeholder="Enter password" />
+        </label>
+      </div>
+      <div class="admin-actions">
+        <button id="unlock-admin-btn" class="btn btn-primary">Unlock Settings</button>
+      </div>
+    </section>
+
+    <section id="settings-app" hidden>
+      <section class="admin-panel">
+        <h2>Settings</h2>
+        <p class="hint">Manage duplicate/rejection memory and permanent deletes from one place.</p>
+        <div class="admin-grid">
+          <label>
+            Admin Token
+            <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
+          </label>
+          <label>
+            Duplicate List Limit
+            <input id="duplicate-limit" type="number" min="1" max="500" value="50" />
+          </label>
+          <label>
+            Rejected List Limit
+            <input id="rejected-limit" type="number" min="1" max="500" value="50" />
+          </label>
+        </div>
+        <div class="admin-actions">
+          <button id="save-token-btn" class="btn">Save Token</button>
+          <button id="load-all-btn" class="btn btn-primary">Load Lists</button>
+        </div>
+      </section>
+
+      <section class="admin-panel">
+        <div id="settings-message" class="message" hidden></div>
+      </section>
+
+      <section class="admin-panel">
+        <h3>Duplicate Reports</h3>
+        <p class="hint">Stored duplicate memory. Expand a row to remove an entry.</p>
+        <div id="duplicate-list" class="duplicate-list"></div>
+      </section>
+
+      <section class="admin-panel">
+        <h3>Rejected Drafts</h3>
+        <p class="hint">Stored rejections. Expand a row to permanently delete an entry.</p>
+        <div id="rejection-list" class="duplicate-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/admin-settings.js"></script>
+</body>
+</html>
