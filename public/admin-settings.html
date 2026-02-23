@@ -42,34 +42,48 @@
         <div class="usage-grid usage-grid-budgets">
           <article class="usage-card budget-card">
             <h4>Auto Budget</h4>
-            <p class="usage-row"><span>Used Today</span><strong id="usage-auto-daily-used">0</strong></p>
+            <div class="usage-progress-group">
+              <p class="usage-row"><span>Daily Usage</span><strong id="usage-auto-daily-bar-label">0%</strong></p>
+              <div class="usage-progress"><div id="usage-auto-progress-daily" class="usage-progress-bar"></div></div>
+              <p class="usage-row"><span>Weekly Usage</span><strong id="usage-auto-weekly-bar-label">0%</strong></p>
+              <div class="usage-progress"><div id="usage-auto-progress-weekly" class="usage-progress-bar"></div></div>
+              <p class="usage-row"><span>Monthly Usage</span><strong id="usage-auto-monthly-bar-label">0%</strong></p>
+              <div class="usage-progress"><div id="usage-auto-progress-monthly" class="usage-progress-bar"></div></div>
+            </div>
             <p class="usage-row"><span>Daily Budget</span><strong id="usage-auto-daily-budget">0</strong></p>
             <p class="usage-row"><span>Remaining</span><strong id="usage-auto-daily-remaining">0</strong></p>
-            <p class="usage-row"><span>Used %</span><strong id="usage-auto-daily-used-percent">0%</strong></p>
-            <div class="usage-progress"><div id="usage-auto-progress" class="usage-progress-bar"></div></div>
-            <p class="usage-row"><span>Drafts Today</span><strong id="usage-auto-drafts-today">0</strong></p>
+            <p class="usage-row"><span>Used Today</span><strong id="usage-auto-daily-used">0</strong></p>
+            <p class="usage-row"><span>Used This Week</span><strong id="usage-auto-weekly-used">0</strong></p>
             <p class="usage-row"><span>Used This Month</span><strong id="usage-auto-monthly-used">0</strong></p>
-            <p class="usage-row"><span>Drafts This Month</span><strong id="usage-auto-monthly-drafts">0</strong></p>
           </article>
 
           <article class="usage-card budget-card">
             <h4>Manual Budget</h4>
-            <p class="usage-row"><span>Used Today</span><strong id="usage-manual-daily-used">0</strong></p>
+            <div class="usage-progress-group">
+              <p class="usage-row"><span>Daily Usage</span><strong id="usage-manual-daily-bar-label">0%</strong></p>
+              <div class="usage-progress"><div id="usage-manual-progress-daily" class="usage-progress-bar"></div></div>
+              <p class="usage-row"><span>Weekly Usage</span><strong id="usage-manual-weekly-bar-label">0%</strong></p>
+              <div class="usage-progress"><div id="usage-manual-progress-weekly" class="usage-progress-bar"></div></div>
+              <p class="usage-row"><span>Monthly Usage</span><strong id="usage-manual-monthly-bar-label">0%</strong></p>
+              <div class="usage-progress"><div id="usage-manual-progress-monthly" class="usage-progress-bar"></div></div>
+            </div>
             <p class="usage-row"><span>Daily Budget</span><strong id="usage-manual-daily-budget">0</strong></p>
             <p class="usage-row"><span>Remaining</span><strong id="usage-manual-daily-remaining">0</strong></p>
-            <p class="usage-row"><span>Used %</span><strong id="usage-manual-daily-used-percent">0%</strong></p>
-            <div class="usage-progress"><div id="usage-manual-progress" class="usage-progress-bar"></div></div>
-            <p class="usage-row"><span>Drafts Today</span><strong id="usage-manual-drafts-today">0</strong></p>
+            <p class="usage-row"><span>Used Today</span><strong id="usage-manual-daily-used">0</strong></p>
+            <p class="usage-row"><span>Used This Week</span><strong id="usage-manual-weekly-used">0</strong></p>
             <p class="usage-row"><span>Used This Month</span><strong id="usage-manual-monthly-used">0</strong></p>
-            <p class="usage-row"><span>Drafts This Month</span><strong id="usage-manual-monthly-drafts">0</strong></p>
           </article>
 
           <article class="usage-card budget-card">
             <h4>Quality Cost</h4>
             <p class="usage-row"><span>Rejected Today</span><strong id="usage-rejected-daily">0</strong></p>
             <p class="usage-row"><span>Rejected This Month</span><strong id="usage-rejected-monthly">0</strong></p>
+            <p class="usage-row"><span>Rejected This Year</span><strong id="usage-rejected-annual">0</strong></p>
+            <p class="usage-row"><span>Rejected Total</span><strong id="usage-rejected-total">0</strong></p>
             <p class="usage-row"><span>Bad Tokens Today</span><strong id="usage-bad-tokens-daily">0</strong></p>
             <p class="usage-row"><span>Bad Tokens This Month</span><strong id="usage-bad-tokens-monthly">0</strong></p>
+            <p class="usage-row"><span>Bad Tokens This Year</span><strong id="usage-bad-tokens-annual">0</strong></p>
+            <p class="usage-row"><span>Bad Tokens Total</span><strong id="usage-bad-tokens-total">0</strong></p>
             <div class="admin-actions">
               <button id="quality-breakdown-toggle" class="btn">Show Breakdown</button>
             </div>

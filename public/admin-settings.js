@@ -14,26 +14,36 @@ const rejectionListEl = document.getElementById('rejection-list');
 const usageAutoDailyUsedEl = document.getElementById('usage-auto-daily-used');
 const usageAutoDailyBudgetEl = document.getElementById('usage-auto-daily-budget');
 const usageAutoDailyRemainingEl = document.getElementById('usage-auto-daily-remaining');
-const usageAutoDailyUsedPercentEl = document.getElementById('usage-auto-daily-used-percent');
-const usageAutoProgressEl = document.getElementById('usage-auto-progress');
-const usageAutoDraftsTodayEl = document.getElementById('usage-auto-drafts-today');
+const usageAutoDailyBarLabelEl = document.getElementById('usage-auto-daily-bar-label');
+const usageAutoWeeklyBarLabelEl = document.getElementById('usage-auto-weekly-bar-label');
+const usageAutoMonthlyBarLabelEl = document.getElementById('usage-auto-monthly-bar-label');
+const usageAutoProgressDailyEl = document.getElementById('usage-auto-progress-daily');
+const usageAutoProgressWeeklyEl = document.getElementById('usage-auto-progress-weekly');
+const usageAutoProgressMonthlyEl = document.getElementById('usage-auto-progress-monthly');
+const usageAutoWeeklyUsedEl = document.getElementById('usage-auto-weekly-used');
 const usageAutoMonthlyUsedEl = document.getElementById('usage-auto-monthly-used');
-const usageAutoMonthlyDraftsEl = document.getElementById('usage-auto-monthly-drafts');
 const usageManualDailyUsedEl = document.getElementById('usage-manual-daily-used');
 const usageManualDailyBudgetEl = document.getElementById('usage-manual-daily-budget');
 const usageManualDailyRemainingEl = document.getElementById('usage-manual-daily-remaining');
-const usageManualDailyUsedPercentEl = document.getElementById('usage-manual-daily-used-percent');
-const usageManualProgressEl = document.getElementById('usage-manual-progress');
-const usageManualDraftsTodayEl = document.getElementById('usage-manual-drafts-today');
+const usageManualDailyBarLabelEl = document.getElementById('usage-manual-daily-bar-label');
+const usageManualWeeklyBarLabelEl = document.getElementById('usage-manual-weekly-bar-label');
+const usageManualMonthlyBarLabelEl = document.getElementById('usage-manual-monthly-bar-label');
+const usageManualProgressDailyEl = document.getElementById('usage-manual-progress-daily');
+const usageManualProgressWeeklyEl = document.getElementById('usage-manual-progress-weekly');
+const usageManualProgressMonthlyEl = document.getElementById('usage-manual-progress-monthly');
+const usageManualWeeklyUsedEl = document.getElementById('usage-manual-weekly-used');
 const usageManualMonthlyUsedEl = document.getElementById('usage-manual-monthly-used');
-const usageManualMonthlyDraftsEl = document.getElementById('usage-manual-monthly-drafts');
 const usageBudgetInputAuto = document.getElementById('usage-budget-input-auto');
 const usageBudgetInputManual = document.getElementById('usage-budget-input-manual');
 const saveBudgetBtn = document.getElementById('save-budget-btn');
 const usageRejectedDailyEl = document.getElementById('usage-rejected-daily');
 const usageRejectedMonthlyEl = document.getElementById('usage-rejected-monthly');
+const usageRejectedAnnualEl = document.getElementById('usage-rejected-annual');
+const usageRejectedTotalEl = document.getElementById('usage-rejected-total');
 const usageBadTokensDailyEl = document.getElementById('usage-bad-tokens-daily');
 const usageBadTokensMonthlyEl = document.getElementById('usage-bad-tokens-monthly');
+const usageBadTokensAnnualEl = document.getElementById('usage-bad-tokens-annual');
+const usageBadTokensTotalEl = document.getElementById('usage-bad-tokens-total');
 const usageRejectedDuplicateDailyEl = document.getElementById('usage-rejected-duplicate-daily');
 const usageRejectedStaleDailyEl = document.getElementById('usage-rejected-stale-daily');
 const usageRejectedThinDailyEl = document.getElementById('usage-rejected-thin-daily');
@@ -73,6 +83,12 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function formatUsageLabel(percentUsed, draftCount, periodLabel) {
+  const pct = Number(percentUsed || 0).toFixed(1);
+  const drafts = Number(draftCount || 0).toLocaleString();
+  return `${pct}% (${drafts} drafts ${periodLabel})`;
 }
 
 async function unlock() {
@@ -216,31 +232,43 @@ async function loadUsageDashboard() {
   usageAutoDailyUsedEl.textContent = Number(usageAuto.dailyTokensUsed || 0).toLocaleString();
   usageAutoDailyBudgetEl.textContent = Number(usageAuto.dailyTokenBudget || 0).toLocaleString();
   usageAutoDailyRemainingEl.textContent = Number(usageAuto.tokensRemainingToday || 0).toLocaleString();
-  usageAutoDailyUsedPercentEl.textContent = `${usageAuto.budgetUsedPercent || 0}%`;
-  usageAutoDraftsTodayEl.textContent = Number(usageAuto.dailyDrafts || 0).toLocaleString();
+  usageAutoDailyBarLabelEl.textContent = formatUsageLabel(usageAuto.budgetUsedPercent, usageAuto.dailyDrafts, 'today');
+  usageAutoWeeklyBarLabelEl.textContent = formatUsageLabel(usageAuto.weeklyBudgetUsedPercent, usageAuto.weeklyDrafts, 'this week');
+  usageAutoMonthlyBarLabelEl.textContent = formatUsageLabel(usageAuto.monthlyBudgetUsedPercent, usageAuto.monthlyDrafts, 'this month');
+  usageAutoWeeklyUsedEl.textContent = Number(usageAuto.weeklyTokensUsed || 0).toLocaleString();
   usageAutoMonthlyUsedEl.textContent = Number(usageAuto.monthlyTokensUsed || 0).toLocaleString();
-  usageAutoMonthlyDraftsEl.textContent = Number(usageAuto.monthlyDrafts || 0).toLocaleString();
-  paintUsageBar(usageAutoProgressEl, Number(usageAuto.budgetUsedPercent || 0));
+  paintUsageBar(usageAutoProgressDailyEl, Number(usageAuto.budgetUsedPercent || 0));
+  paintUsageBar(usageAutoProgressWeeklyEl, Number(usageAuto.weeklyBudgetUsedPercent || 0));
+  paintUsageBar(usageAutoProgressMonthlyEl, Number(usageAuto.monthlyBudgetUsedPercent || 0));
 
   usageManualDailyUsedEl.textContent = Number(usageManual.dailyTokensUsed || 0).toLocaleString();
   usageManualDailyBudgetEl.textContent = Number(usageManual.dailyTokenBudget || 0).toLocaleString();
   usageManualDailyRemainingEl.textContent = Number(usageManual.tokensRemainingToday || 0).toLocaleString();
-  usageManualDailyUsedPercentEl.textContent = `${usageManual.budgetUsedPercent || 0}%`;
-  usageManualDraftsTodayEl.textContent = Number(usageManual.dailyDrafts || 0).toLocaleString();
+  usageManualDailyBarLabelEl.textContent = formatUsageLabel(usageManual.budgetUsedPercent, usageManual.dailyDrafts, 'today');
+  usageManualWeeklyBarLabelEl.textContent = formatUsageLabel(usageManual.weeklyBudgetUsedPercent, usageManual.weeklyDrafts, 'this week');
+  usageManualMonthlyBarLabelEl.textContent = formatUsageLabel(usageManual.monthlyBudgetUsedPercent, usageManual.monthlyDrafts, 'this month');
+  usageManualWeeklyUsedEl.textContent = Number(usageManual.weeklyTokensUsed || 0).toLocaleString();
   usageManualMonthlyUsedEl.textContent = Number(usageManual.monthlyTokensUsed || 0).toLocaleString();
-  usageManualMonthlyDraftsEl.textContent = Number(usageManual.monthlyDrafts || 0).toLocaleString();
-  paintUsageBar(usageManualProgressEl, Number(usageManual.budgetUsedPercent || 0));
+  paintUsageBar(usageManualProgressDailyEl, Number(usageManual.budgetUsedPercent || 0));
+  paintUsageBar(usageManualProgressWeeklyEl, Number(usageManual.weeklyBudgetUsedPercent || 0));
+  paintUsageBar(usageManualProgressMonthlyEl, Number(usageManual.monthlyBudgetUsedPercent || 0));
 
   usageBudgetInputAuto.value = Number(usageAuto.dailyTokenBudget || 0);
   usageBudgetInputManual.value = Number(usageManual.dailyTokenBudget || 0);
 
   const daily = quality.daily || {};
   const monthly = quality.monthly || {};
+  const annual = quality.annual || {};
+  const total = quality.total || {};
   const dailyByReason = daily.byReason || {};
   usageRejectedDailyEl.textContent = Number(daily.totalRejected || 0).toLocaleString();
   usageRejectedMonthlyEl.textContent = Number(monthly.totalRejected || 0).toLocaleString();
+  usageRejectedAnnualEl.textContent = Number(annual.totalRejected || 0).toLocaleString();
+  usageRejectedTotalEl.textContent = Number(total.totalRejected || 0).toLocaleString();
   usageBadTokensDailyEl.textContent = Number(daily.badTokensTotal || 0).toLocaleString();
   usageBadTokensMonthlyEl.textContent = Number(monthly.badTokensTotal || 0).toLocaleString();
+  usageBadTokensAnnualEl.textContent = Number(annual.badTokensTotal || 0).toLocaleString();
+  usageBadTokensTotalEl.textContent = Number(total.badTokensTotal || 0).toLocaleString();
   usageRejectedDuplicateDailyEl.textContent = Number(dailyByReason.duplicate || 0).toLocaleString();
   usageRejectedStaleDailyEl.textContent = Number(dailyByReason.stale_or_not_time_relevant || 0).toLocaleString();
   usageRejectedThinDailyEl.textContent = Number(dailyByReason.low_newsworthiness_or_thin || 0).toLocaleString();
