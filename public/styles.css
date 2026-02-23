@@ -67,16 +67,16 @@ img {
 nav {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 0.7rem;
 }
 
 nav a {
   text-decoration: none;
   border-bottom: 2px solid transparent;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   position: relative;
-  padding: 0 0.35rem 1px 0.35rem;
-  margin-right: 0;
+  padding: 0 0 1px 0;
   font-weight: bold;
   color: #000;
 }
@@ -85,12 +85,12 @@ nav a:hover {
   border-bottom-color: currentColor;
 }
 
-nav a:not(:last-of-type)::after {
+nav a + a::before {
   content: "|";
   position: absolute;
-  right: -0.05rem;
+  left: -0.35rem;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
   color: #999;
   font-weight: normal;
 }
