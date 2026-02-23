@@ -323,6 +323,10 @@
   justify-content: center;
 }
 
+.admin-modal[hidden] {
+  display: none !important;
+}
+
 .admin-modal-backdrop {
   position: absolute;
   inset: 0;
