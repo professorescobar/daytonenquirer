@@ -222,7 +222,7 @@ const NATIONAL_LOW_PRIORITY_POLITICS_TERMS = [
   'democrat vs republican', 'gop', 'dnc', 'rnc', 'culture war'
 ];
 const NATIONAL_EXCLUDED_STATE = 'ohio';
-const BUSINESS_MARKET_UPDATE_SLOT_ET = '06:05';
+const BUSINESS_MARKET_UPDATE_SLOTS_ET = ['06:05', '08:05'];
 const BUSINESS_LOCAL_DAILY_MIN = 1;
 const BUSINESS_DAILY_MARKET_UPDATE_MAX = 1;
 const BUSINESS_MARKET_UPDATE_TERMS = [
@@ -1094,6 +1094,7 @@ async function fetchCandidates(runTargets, activeSections, sportsFocusMode, etTi
   const seen = new Set();
   const activeSet = new Set(activeSections);
   const feedsBySection = getFeedsBySection(sportsFocusMode);
+  const etDateKey = getEtDateKey(getNowInEtParts());
 
   for (const section of SECTION_ORDER) {
     if (!activeSet.has(section)) continue;
@@ -1142,12 +1143,12 @@ async function fetchCandidates(runTargets, activeSections, sportsFocusMode, etTi
     } else if (section === 'entertainment') {
       sectionCandidates.sort((a, b) => scoreEntertainmentCandidate(b) - scoreEntertainmentCandidate(a));
     } else if (section === 'business') {
-      // Ensure a dependable daily market outlook candidate appears at 6:05 ET.
-      if (etTime === BUSINESS_MARKET_UPDATE_SLOT_ET) {
+      // Ensure a dependable daily market outlook candidate appears in early AM ET slots.
+      if (BUSINESS_MARKET_UPDATE_SLOTS_ET.includes(etTime)) {
         sectionCandidates.unshift({
           section: 'business',
-          title: 'U.S. Markets Daily Update: Multi-Asset Context Before Futures',
-          url: 'internal://business-daily-market-update',
+          title: `U.S. Markets Daily Update (${etDateKey}): Multi-Asset Context Before Futures`,
+          url: `internal://business-daily-market-update/${etDateKey}`,
           snippet: 'Assess prior-day patterns in stocks, major indexes, bond market, commodities, and the U.S. dollar across 5-day, 30-day, 3-month, 6-month, and 1-year contexts. No recommendations.',
           sourcePublishedAt: null,
           sportsFocusMode,
@@ -1881,13 +1882,19 @@ module.exports = async (req, res) => {
           skipped.push({ reason: 'business_small_cap_filtered', title: candidate.title, url: candidate.url });
           continue;
         }
-        if ((businessMarketUpdateCreatedToday + businessMarketUpdateCreatedThisRun) >= BUSINESS_DAILY_MARKET_UPDATE_MAX && isMarketUpdateCandidate) {
+        if (
+          runMode === 'auto' &&
+          (businessMarketUpdateCreatedToday + businessMarketUpdateCreatedThisRun) >= BUSINESS_DAILY_MARKET_UPDATE_MAX &&
+          isMarketUpdateCandidate
+        ) {
           skipped.push({ reason: 'business_daily_market_update_cap_reached', title: candidate.title, url: candidate.url });
           continue;
         }
         if (
+          runMode === 'auto' &&
           (businessLocalCreatedToday + businessLocalCreatedThisRun) < BUSINESS_LOCAL_DAILY_MIN &&
-          !isLocalBusinessCandidate
+          !isLocalBusinessCandidate &&
+          !isMarketUpdateCandidate
         ) {
           skipped.push({ reason: 'business_local_required_pending', title: candidate.title, url: candidate.url });
           continue;
@@ -2061,13 +2068,19 @@ module.exports = async (req, res) => {
           skipped.push({ reason: 'business_small_cap_filtered_draft', title: draft.title, url: candidate.url });
           continue;
         }
-        if ((businessMarketUpdateCreatedToday + businessMarketUpdateCreatedThisRun) >= BUSINESS_DAILY_MARKET_UPDATE_MAX && isMarketUpdateDraft) {
+        if (
+          runMode === 'auto' &&
+          (businessMarketUpdateCreatedToday + businessMarketUpdateCreatedThisRun) >= BUSINESS_DAILY_MARKET_UPDATE_MAX &&
+          isMarketUpdateDraft
+        ) {
           skipped.push({ reason: 'business_daily_market_update_cap_reached_draft', title: draft.title, url: candidate.url });
           continue;
         }
         if (
+          runMode === 'auto' &&
           (businessLocalCreatedToday + businessLocalCreatedThisRun) < BUSINESS_LOCAL_DAILY_MIN &&
-          !isLocalBusinessDraft
+          !isLocalBusinessDraft &&
+          !isMarketUpdateDraft
         ) {
           skipped.push({ reason: 'business_local_required_pending_draft', title: draft.title, url: candidate.url });
           continue;
