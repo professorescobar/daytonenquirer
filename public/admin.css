@@ -145,6 +145,10 @@
   margin: 0 0 0.35rem 0;
 }
 
+.usage-progress-group {
+  margin-bottom: 0.5rem;
+}
+
 .usage-row {
   display: flex;
   justify-content: space-between;
@@ -394,4 +398,118 @@
 
 .admin-modal-card h4 {
   margin: 0;
+}
+
+
+/* ===============================
+   ADMIN DARK MODE
+================================ */
+html[data-theme="dark"] .admin-panel {
+  background: #171b22;
+  border-color: #333942;
+}
+
+html[data-theme="dark"] .hint,
+html[data-theme="dark"] .usage-row span,
+html[data-theme="dark"] .usage-label,
+html[data-theme="dark"] .draft-meta,
+html[data-theme="dark"] .upload-hint,
+html[data-theme="dark"] .upload-status {
+  color: #aeb8c7;
+}
+
+html[data-theme="dark"] .admin-grid input,
+html[data-theme="dark"] .admin-grid select,
+html[data-theme="dark"] .draft-card input,
+html[data-theme="dark"] .draft-card select,
+html[data-theme="dark"] .draft-card textarea {
+  background: #0f1319;
+  color: #e8edf7;
+  border-color: #3a4250;
+}
+
+html[data-theme="dark"] .btn {
+  border-color: #e8edf7;
+  background: transparent;
+  color: #e8edf7;
+}
+
+html[data-theme="dark"] .btn:hover {
+  background: #242b36;
+}
+
+html[data-theme="dark"] .btn-primary {
+  background: #e8edf7;
+  color: #111318;
+  border-color: #e8edf7;
+}
+
+html[data-theme="dark"] .btn-primary:hover {
+  background: #c9d2e0;
+}
+
+html[data-theme="dark"] .btn-warning {
+  border-color: #f0c77c;
+  color: #f0c77c;
+}
+
+html[data-theme="dark"] .btn-warning:hover {
+  background: #3a2c13;
+}
+
+html[data-theme="dark"] .btn-danger {
+  border-color: #f39b9b;
+  color: #f39b9b;
+}
+
+html[data-theme="dark"] .btn-danger:hover {
+  background: #3a1f1f;
+}
+
+html[data-theme="dark"] .message {
+  background: #18263f;
+  border-color: #3a5b93;
+  color: #d8e6ff;
+}
+
+html[data-theme="dark"] .usage-card,
+html[data-theme="dark"] .draft-card {
+  background: #11161d;
+  border-color: #333942;
+}
+
+html[data-theme="dark"] .usage-progress {
+  border-color: #3a4250;
+  background: #0f1319;
+}
+
+html[data-theme="dark"] .admin-page-nav a {
+  border-color: #3a4250;
+  background: #11161d;
+  color: #e8edf7;
+}
+
+html[data-theme="dark"] .admin-page-nav a:hover {
+  background: #242b36;
+}
+
+html[data-theme="dark"] .image-uploader,
+html[data-theme="dark"] .upload-dropzone {
+  background: #11161d;
+  border-color: #4a5362;
+}
+
+html[data-theme="dark"] .upload-dropzone.is-drag-over {
+  background: #1d2c45;
+  border-color: #7fa6f2;
+}
+
+html[data-theme="dark"] .upload-preview img {
+  border-color: #3a4250;
+}
+
+html[data-theme="dark"] .admin-modal-card {
+  background: #171b22;
+  border-color: #3a4250;
+  color: #e8edf7;
 }

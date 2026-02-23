@@ -144,7 +144,7 @@ function getSidebarHeadlineCount() {
     showSymbolLogo: false,
     showChange: true,
     showPercentageChange: true,
-    colorTheme: "light",
+    colorTheme: document.documentElement.dataset.theme === "dark" ? "dark" : "light",
     isTransparent: false,
     displayMode: "regular",
     locale: "en"
