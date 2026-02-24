@@ -33,7 +33,9 @@ function setMobileExpanded(form, isExpanded, options = {}) {
   strip.classList.toggle('is-mobile-expanded', isExpanded);
   strip.classList.toggle('is-mobile-collapsed', !isExpanded);
   toggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
-  toggle.textContent = isExpanded ? 'Close' : 'Sign Up';
+  toggle.classList.toggle('is-close', isExpanded);
+  toggle.textContent = isExpanded ? '×' : 'Sign Up';
+  toggle.setAttribute('aria-label', isExpanded ? 'Close newsletter signup' : 'Open newsletter signup');
 
   if (isExpanded && options.focusInput) {
     const emailInput = form.querySelector('input[name="email"]');
@@ -54,19 +56,25 @@ function syncMobileSignupState(forms) {
     if (isMobileSignupLayout()) {
       if (strip.classList.contains('is-mobile-expanded')) {
         toggle.setAttribute('aria-expanded', 'true');
-        toggle.textContent = 'Close';
+        toggle.classList.add('is-close');
+        toggle.textContent = '×';
+        toggle.setAttribute('aria-label', 'Close newsletter signup');
       } else {
         strip.classList.add('is-mobile-collapsed');
         strip.classList.remove('is-mobile-expanded');
         toggle.setAttribute('aria-expanded', 'false');
+        toggle.classList.remove('is-close');
         toggle.textContent = 'Sign Up';
+        toggle.setAttribute('aria-label', 'Open newsletter signup');
       }
       return;
     }
 
     strip.classList.remove('is-mobile-collapsed', 'is-mobile-expanded');
     toggle.setAttribute('aria-expanded', 'false');
+    toggle.classList.remove('is-close');
     toggle.textContent = 'Sign Up';
+    toggle.setAttribute('aria-label', 'Open newsletter signup');
     setTurnstileVisible(form, false);
   });
 }
@@ -158,7 +166,14 @@ async function ensureTurnstileWidget(form) {
   const widgetId = window.turnstile.render(mount, {
     sitekey: siteKey,
     theme: 'auto',
-    callback: () => setTurnstileVisible(form, false)
+    callback: () => {
+      const strip = getSignupStrip(form);
+      if (isMobileSignupLayout() && strip?.classList.contains('is-mobile-expanded')) {
+        setTurnstileVisible(form, true);
+        return;
+      }
+      setTurnstileVisible(form, false);
+    }
   });
   turnstileWidgetIds.set(form, widgetId);
   return widgetId;
@@ -260,6 +275,9 @@ function bindNewsletterForms() {
         const strip = getSignupStrip(form);
         const isExpanded = !!strip?.classList.contains('is-mobile-expanded');
         setMobileExpanded(form, !isExpanded, { focusInput: !isExpanded });
+        if (!isExpanded) {
+          revealTurnstile(form).catch(() => {});
+        }
       });
     }
 

@@ -145,20 +145,35 @@ nav a + a::before {
 
 .newsletter-mobile-toggle {
   display: none;
-  border: 1px solid #000;
-  background: #000;
-  color: #fff;
+  border: 1px solid #111;
+  background: transparent;
+  color: #111;
   font-weight: bold;
   font-size: 0.82rem;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  padding: 0.35rem 0.6rem;
+  padding: 0 0.65rem;
+  height: 2rem;
+  border-radius: 999px;
+  line-height: 1;
   cursor: pointer;
   white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .newsletter-mobile-toggle:hover {
-  background: #222;
+  background: #111;
+  color: #fff;
+}
+
+.newsletter-mobile-toggle.is-close {
+  width: 2rem;
+  min-width: 2rem;
+  padding: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .newsletter-strip-form {
@@ -1317,16 +1332,16 @@ nav a + a::before {
   }
 
   .newsletter-strip.is-mobile-collapsed .newsletter-strip-inner {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto;
     align-items: center;
-    justify-content: space-between;
     gap: 0.55rem;
   }
 
   .newsletter-strip.is-mobile-collapsed .newsletter-strip-copy {
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     white-space: nowrap;
     width: 100%;
   }
@@ -1337,37 +1352,29 @@ nav a + a::before {
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-inner {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.55rem;
-    align-items: stretch;
-  }
-
-  .newsletter-strip.is-mobile-expanded .newsletter-strip-copy {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    white-space: nowrap;
-  }
-
-  .newsletter-strip.is-mobile-expanded .newsletter-strip-copy span {
-    display: none;
+    position: relative;
+    display: block;
+    padding-top: 0.45rem;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form {
+    display: flex;
     width: 100%;
     flex-wrap: wrap;
     flex-direction: row;
     align-items: center;
+    gap: 0.45rem;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form input[type="email"] {
+    order: 2;
     width: auto;
     flex: 1 1 auto;
     min-width: 0;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"] {
+    order: 3;
     width: auto;
     flex-shrink: 0;
   }
@@ -1377,10 +1384,10 @@ nav a + a::before {
     left: auto;
     right: auto;
     bottom: auto;
-    order: -1;
+    order: 1;
     flex: 0 0 100%;
     width: 100%;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.35rem;
     transform: none;
   }
 
@@ -1391,6 +1398,17 @@ nav a + a::before {
   .newsletter-strip.is-mobile-expanded .turnstile-widget {
     display: flex;
     justify-content: center;
+  }
+
+  .newsletter-strip.is-mobile-expanded .newsletter-strip-copy {
+    display: none;
+  }
+
+  .newsletter-strip.is-mobile-expanded .newsletter-mobile-toggle {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.5rem;
+    z-index: 2;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-signup-message {
@@ -1537,13 +1555,15 @@ html[data-theme="dark"] .newsletter-strip-form button:hover {
 }
 
 html[data-theme="dark"] .newsletter-mobile-toggle {
-  background: #eef2f8;
-  color: #111318;
-  border-color: #eef2f8;
+  background: transparent;
+  color: #eef2f8;
+  border-color: #808a9a;
 }
 
 html[data-theme="dark"] .newsletter-mobile-toggle:hover {
-  background: #c7d0de;
+  background: #e8edf7;
+  color: #111318;
+  border-color: #e8edf7;
 }
 
 html[data-theme="dark"] .world-news-section,
