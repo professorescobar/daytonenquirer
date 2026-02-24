@@ -61,6 +61,7 @@ const SINGLE_TRACK_COUNT_BY_SLOT_ET = {
   '14:05': 1,
   '22:05': 1
 };
+const CATCH_UP_END_HOUR_ET = 22;
 const SPORTS_FOCUS_MODES = new Set(['auto', 'college_basketball', 'nba', 'baseball', 'football', 'broad']);
 const SPORTS_UPCOMING_TERMS = [
   'preview',
@@ -298,6 +299,23 @@ const WORLD_US_DIPLOMACY_TERMS = [
   'secretary of state', 'american diplomat', 'u.s. envoy', 'us envoy', 'bilateral talks with the u.s.',
   'white house says', 'u.s. sanctions', 'us sanctions', 'u.s. foreign policy', 'us foreign policy'
 ];
+const WORLD_US_CENTRIC_TERMS = [
+  'united states',
+  'u.s.',
+  'us ',
+  'white house',
+  'washington',
+  'u.s. congress',
+  'us congress',
+  'u.s. senate',
+  'us senate',
+  'u.s. house',
+  'us house',
+  'u.s. election',
+  'us election',
+  'u.s. president',
+  'us president'
+];
 const POLITICAL_TOPIC_TERMS = [
   'election',
   'vote',
@@ -413,6 +431,12 @@ function getRemainingScheduledSlots(track, etTime) {
   const idx = slots.indexOf(etTime);
   if (idx < 0) return 0;
   return Math.max(0, slots.length - idx);
+}
+
+function shouldApplyCatchUpForEtTime(etTime) {
+  const hour = Number(String(etTime || '').split(':')[0]);
+  if (!Number.isFinite(hour)) return false;
+  return hour < CATCH_UP_END_HOUR_ET;
 }
 
 function resolveSportsFocusMode(rawMode, etNowParts) {
@@ -973,6 +997,12 @@ function isUsDiplomacyTopic(text) {
   return WORLD_US_DIPLOMACY_TERMS.some((term) => lower.includes(term));
 }
 
+function isWorldUsCentricTopic(text) {
+  const lower = String(text || '').toLowerCase();
+  if (isUsDiplomacyTopic(lower)) return true;
+  return WORLD_US_CENTRIC_TERMS.some((term) => lower.includes(term));
+}
+
 function scoreWorldCandidate(candidate) {
   const text = `${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`.toLowerCase();
   const regions = detectWorldRegions(text);
@@ -1332,6 +1362,12 @@ function isOpinionStyleContent(text) {
 function isTennisTopic(text) {
   const lower = String(text || '').toLowerCase();
   return SPORTS_TENNIS_TERMS.some((term) => lower.includes(term));
+}
+
+function isSportsTopic(text) {
+  const lower = String(text || '').toLowerCase();
+  if (detectSportsTeams(lower).length > 0) return true;
+  return LOCAL_SPORTS_NOISE_TERMS.some((term) => lower.includes(term));
 }
 
 function isNearDuplicateTitle(candidateTitle, existingTitles) {
@@ -1730,7 +1766,13 @@ module.exports = async (req, res) => {
     }
 
     let effectiveRequestedCount = requestedCount;
-    if (!dryRun && runMode === 'auto' && scheduleMode === 'auto' && ['multi', 'single'].includes(track)) {
+    if (
+      !dryRun &&
+      runMode === 'auto' &&
+      scheduleMode === 'auto' &&
+      ['multi', 'single'].includes(track) &&
+      shouldApplyCatchUpForEtTime(etTime)
+    ) {
       const slotsLeft = getRemainingScheduledSlots(track, etTime);
       if (slotsLeft > 0) {
         const catchUpCount = Math.ceil(remainingToday / slotsLeft);
@@ -2005,6 +2047,10 @@ module.exports = async (req, res) => {
         continue;
       }
       if (candidate.section === 'national') {
+        if (isSportsTopic(`${candidate.title || ''} ${candidate.snippet || ''} ${candidate.url || ''}`)) {
+          skipped.push({ reason: 'national_sports_topic_filtered', title: candidate.title, url: candidate.url });
+          continue;
+        }
         const candidateStates = detectNationalStates(`${candidate.title || ''} ${candidate.snippet || ''}`);
         const nonOhioStates = candidateStates.filter((s) => s !== NATIONAL_EXCLUDED_STATE);
         if (!nonOhioStates.length) {
@@ -2022,6 +2068,10 @@ module.exports = async (req, res) => {
       }
       if (candidate.section === 'world') {
         const candidateText = `${candidate.title || ''} ${candidate.snippet || ''}`;
+        if (isWorldUsCentricTopic(candidateText)) {
+          skipped.push({ reason: 'world_us_centric_filtered', title: candidate.title, url: candidate.url });
+          continue;
+        }
         const candidateRegions = detectWorldRegions(candidateText);
         if (!candidateRegions.length) {
           skipped.push({ reason: 'world_region_unclassified', title: candidate.title, url: candidate.url });
@@ -2275,6 +2325,10 @@ module.exports = async (req, res) => {
       }
       if (draft.section === 'world') {
         const draftText = `${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`;
+        if (isWorldUsCentricTopic(draftText)) {
+          skipped.push({ reason: 'world_us_centric_filtered_draft', title: draft.title, url: candidate.url });
+          continue;
+        }
         const draftRegions = detectWorldRegions(draftText);
         if (!draftRegions.length) {
           skipped.push({ reason: 'world_region_unclassified_draft', title: draft.title, url: candidate.url });
@@ -2316,6 +2370,10 @@ module.exports = async (req, res) => {
         continue;
       }
       if (draft.section === 'national') {
+        if (isSportsTopic(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`)) {
+          skipped.push({ reason: 'national_sports_topic_filtered_draft', title: draft.title, url: candidate.url });
+          continue;
+        }
         const draftStates = detectNationalStates(`${draft.title || ''} ${draft.description || ''} ${draft.content || ''}`);
         const nonOhioStates = draftStates.filter((s) => s !== NATIONAL_EXCLUDED_STATE);
         if (!nonOhioStates.length) {
