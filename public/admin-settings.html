@@ -62,8 +62,8 @@
     <section id="settings-app" hidden>
       <section class="admin-panel">
         <h3>Token Budget Dashboard</h3>
-        <div class="usage-grid usage-grid-budgets">
-          <article class="usage-card budget-card">
+        <div class="usage-dashboard-stack">
+          <article class="usage-card budget-card usage-card-global">
             <h4>Global System Metrics</h4>
             <p class="usage-row"><span>Daily Token Usage</span><strong id="global-daily-label">0%</strong></p>
             <div class="usage-progress"><div id="global-progress-daily" class="usage-progress-bar"></div></div>
@@ -82,11 +82,34 @@
             <p class="usage-row"><span>Turned Down Today</span><strong id="global-turned-down-today">0</strong></p>
           </article>
 
-          <article class="usage-card budget-card">
-            <h4>Model Metrics</h4>
-            <p class="hint">Each model has independent budget controls and quality metrics.</p>
-            <div id="model-metrics-list" class="duplicate-list"></div>
-          </article>
+          <div class="usage-grid usage-grid-three">
+            <article class="usage-card budget-card">
+              <h4>Model Metrics</h4>
+              <p class="hint">Each model has independent budget controls and quality metrics.</p>
+              <div id="model-metrics-list" class="duplicate-list"></div>
+            </article>
+
+            <article class="usage-card budget-card">
+              <h4>Quality Cost</h4>
+              <p class="usage-row"><span>Rejected Today</span><strong id="quality-rejected-today">0</strong></p>
+              <p class="usage-row"><span>Rejected This Month</span><strong id="quality-rejected-month">0</strong></p>
+              <p class="usage-row"><span>Bad Tokens Today</span><strong id="quality-bad-tokens-today">0</strong></p>
+              <p class="usage-row"><span>Bad Tokens This Month</span><strong id="quality-bad-tokens-month">0</strong></p>
+              <p class="usage-row"><span>Duplicate Today</span><strong id="quality-duplicate-today">0</strong></p>
+              <p class="usage-row"><span>Stale Today</span><strong id="quality-stale-today">0</strong></p>
+              <p class="usage-row"><span>Thin Today</span><strong id="quality-thin-today">0</strong></p>
+              <p class="usage-row"><span>Style Today</span><strong id="quality-style-today">0</strong></p>
+            </article>
+
+            <article class="usage-card budget-card">
+              <h4>Budget Overview</h4>
+              <p class="usage-row"><span>Total Daily Budget</span><strong id="budget-total-daily">0</strong></p>
+              <p class="usage-row"><span>Daily Used</span><strong id="budget-total-used">0</strong></p>
+              <p class="usage-row"><span>Daily Remaining</span><strong id="budget-total-remaining">0</strong></p>
+              <p class="usage-row"><span>Draft Target (Daily)</span><strong id="budget-draft-target">81</strong></p>
+              <p class="hint">Model defaults preload automatically (OpenAI 45k, Claude 35k, Gemini 35k, Grok 30k).</p>
+            </article>
+          </div>
         </div>
       </section>
 

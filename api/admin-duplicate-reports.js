@@ -94,12 +94,10 @@ async function ensureModelTrackingReset(sql) {
 
   await sql`DELETE FROM duplicate_reports`;
   await sql`DELETE FROM editorial_rejections`;
+  await sql`DELETE FROM admin_runtime_flags WHERE key = 'model_memory_reset_v1'`;
   await sql`
     INSERT INTO admin_runtime_flags (key, value, created_at, updated_at)
     VALUES ('model_memory_reset_v1', 'done', NOW(), NOW())
-    ON CONFLICT (key) DO UPDATE
-    SET value = EXCLUDED.value,
-        updated_at = NOW()
   `;
 }
 

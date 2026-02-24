@@ -30,6 +30,18 @@ const globalTokensTodayEl = document.getElementById('global-tokens-today');
 const globalDraftsTodayEl = document.getElementById('global-drafts-today');
 const globalTurnedDownTodayEl = document.getElementById('global-turned-down-today');
 const modelMetricsListEl = document.getElementById('model-metrics-list');
+const qualityRejectedTodayEl = document.getElementById('quality-rejected-today');
+const qualityRejectedMonthEl = document.getElementById('quality-rejected-month');
+const qualityBadTokensTodayEl = document.getElementById('quality-bad-tokens-today');
+const qualityBadTokensMonthEl = document.getElementById('quality-bad-tokens-month');
+const qualityDuplicateTodayEl = document.getElementById('quality-duplicate-today');
+const qualityStaleTodayEl = document.getElementById('quality-stale-today');
+const qualityThinTodayEl = document.getElementById('quality-thin-today');
+const qualityStyleTodayEl = document.getElementById('quality-style-today');
+const budgetTotalDailyEl = document.getElementById('budget-total-daily');
+const budgetTotalUsedEl = document.getElementById('budget-total-used');
+const budgetTotalRemainingEl = document.getElementById('budget-total-remaining');
+const budgetDraftTargetEl = document.getElementById('budget-draft-target');
 
 let unlocked = false;
 let generationRuns = [];
@@ -381,6 +393,22 @@ async function loadUsageDashboard() {
   paintOutcomeBar(globalProgressThroughputEl, Number(usageGlobal.throughputPercent || 0));
   paintOutcomeBar(globalProgressAcceptanceEl, Number(usageGlobal.acceptanceRatePercent || 0));
   paintLossBar(globalProgressQualityLossEl, Number(usageGlobal.qualityLossRatePercent || 0));
+
+  const dailyQuality = quality.daily || {};
+  const monthlyQuality = quality.monthly || {};
+  const dailyByReason = dailyQuality.byReason || {};
+  if (qualityRejectedTodayEl) qualityRejectedTodayEl.textContent = Number(dailyQuality.totalRejected || 0).toLocaleString();
+  if (qualityRejectedMonthEl) qualityRejectedMonthEl.textContent = Number(monthlyQuality.totalRejected || 0).toLocaleString();
+  if (qualityBadTokensTodayEl) qualityBadTokensTodayEl.textContent = Number(dailyQuality.badTokensTotal || 0).toLocaleString();
+  if (qualityBadTokensMonthEl) qualityBadTokensMonthEl.textContent = Number(monthlyQuality.badTokensTotal || 0).toLocaleString();
+  if (qualityDuplicateTodayEl) qualityDuplicateTodayEl.textContent = Number(dailyByReason.duplicate || 0).toLocaleString();
+  if (qualityStaleTodayEl) qualityStaleTodayEl.textContent = Number(dailyByReason.stale_or_not_time_relevant || 0).toLocaleString();
+  if (qualityThinTodayEl) qualityThinTodayEl.textContent = Number(dailyByReason.low_newsworthiness_or_thin || 0).toLocaleString();
+  if (qualityStyleTodayEl) qualityStyleTodayEl.textContent = Number(dailyByReason.style_mismatch || 0).toLocaleString();
+  if (budgetTotalDailyEl) budgetTotalDailyEl.textContent = Number(usageGlobal.dailyTokenBudget || 0).toLocaleString();
+  if (budgetTotalUsedEl) budgetTotalUsedEl.textContent = Number(usageGlobal.dailyTokensUsed || 0).toLocaleString();
+  if (budgetTotalRemainingEl) budgetTotalRemainingEl.textContent = Number(usageGlobal.tokensRemainingToday || 0).toLocaleString();
+  if (budgetDraftTargetEl) budgetDraftTargetEl.textContent = Number(usageGlobal.dailyDraftTarget || 81).toLocaleString();
 
   const models = Array.from(new Set((quality.modelBreakdown?.total || []).map((item) => String(item.model || '').trim()).filter(Boolean)));
   const usageByModelEntries = await Promise.all(models.map(async (model) => {

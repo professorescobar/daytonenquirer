@@ -132,6 +132,20 @@
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.usage-dashboard-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.usage-card-global {
+  width: 100%;
+}
+
+.usage-grid-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .usage-card {
   border: 1px solid #d9d9d9;
   background: #f8f8f8;
@@ -367,6 +381,10 @@
 
   .usage-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .usage-grid-three {
+    grid-template-columns: 1fr;
   }
 }
 
