@@ -145,6 +145,8 @@ nav a + a::before {
 
 .newsletter-mobile-toggle {
   display: none;
+  -webkit-appearance: none;
+  appearance: none;
   border: 1px solid #000;
   background: #000;
   color: #fff;
@@ -161,6 +163,18 @@ nav a + a::before {
 
 .newsletter-mobile-toggle:hover {
   background: #222;
+  color: #fff;
+}
+
+.newsletter-mobile-toggle:focus,
+.newsletter-mobile-toggle:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.newsletter-mobile-toggle:active {
+  background: #333;
+  border-color: #333;
   color: #fff;
 }
 
@@ -197,6 +211,8 @@ nav a + a::before {
 }
 
 .newsletter-strip-form button {
+  -webkit-appearance: none;
+  appearance: none;
   border: 1px solid #000;
   background: #000;
   color: #fff;
@@ -208,6 +224,18 @@ nav a + a::before {
 
 .newsletter-strip-form button:hover {
   background: #222;
+}
+
+.newsletter-strip-form button:focus,
+.newsletter-strip-form button:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.newsletter-strip-form button:active {
+  background: #333;
+  border-color: #333;
+  color: #fff;
 }
 
 .newsletter-strip-form button:disabled {
@@ -1551,6 +1579,12 @@ html[data-theme="dark"] .newsletter-strip-form button:hover {
   background: #c7d0de;
 }
 
+html[data-theme="dark"] .newsletter-strip-form button:active {
+  background: #aeb9ca;
+  border-color: #aeb9ca;
+  color: #111318;
+}
+
 html[data-theme="dark"] .newsletter-mobile-toggle {
   background: #eef2f8;
   color: #111318;
@@ -1561,6 +1595,12 @@ html[data-theme="dark"] .newsletter-mobile-toggle:hover {
   background: #c7d0de;
   color: #111318;
   border-color: #c7d0de;
+}
+
+html[data-theme="dark"] .newsletter-mobile-toggle:active {
+  background: #aeb9ca;
+  color: #111318;
+  border-color: #aeb9ca;
 }
 
 html[data-theme="dark"] .newsletter-mobile-toggle.is-close,
