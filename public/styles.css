@@ -1356,17 +1356,41 @@ nav a + a::before {
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form {
     width: 100%;
+    flex-wrap: wrap;
     flex-direction: row;
     align-items: center;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form input[type="email"] {
-    width: 100%;
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"] {
     width: auto;
     flex-shrink: 0;
+  }
+
+  .newsletter-strip.is-mobile-expanded .turnstile-floating {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    order: -1;
+    flex: 0 0 100%;
+    width: 100%;
+    margin-bottom: 0.3rem;
+    transform: none;
+  }
+
+  .newsletter-strip.is-mobile-expanded .turnstile-floating.is-visible {
+    transform: none;
+  }
+
+  .newsletter-strip.is-mobile-expanded .turnstile-widget {
+    display: flex;
+    justify-content: center;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-signup-message {
