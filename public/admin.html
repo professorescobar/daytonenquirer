@@ -126,14 +126,15 @@
                 <select id="gen-provider">
                   <option value="anthropic">Claude (Anthropic)</option>
                   <option value="openai">ChatGPT (OpenAI)</option>
-                  <option value="all">All (Claude + ChatGPT)</option>
+                  <option value="gemini">Gemini (Google)</option>
+                  <option value="all">All (Claude + ChatGPT + Gemini)</option>
                 </select>
               </label>
               <label>
                 All-mode Count
                 <select id="gen-all-mode">
-                  <option value="split_total">Split count across both models</option>
-                  <option value="per_provider">Apply full count to each model (2x total)</option>
+                  <option value="split_total">Split count across all selected models</option>
+                  <option value="per_provider">Apply full count to each model (3x total for All)</option>
                 </select>
               </label>
               <label>

@@ -82,6 +82,25 @@ const TRACK_SCHEDULES_BY_PROVIDER = {
       '14:25': 1,
       '22:25': 1
     }
+  },
+  gemini: {
+    multiSlots: ['06:45', '08:45', '10:45', '12:45', '14:45', '16:45', '18:45', '22:45'],
+    singleSlots: ['10:45', '14:45', '22:45'],
+    multiCountBySlot: {
+      '06:45': 4,
+      '08:45': 4,
+      '10:45': 2,
+      '12:45': 2,
+      '14:45': 2,
+      '16:45': 4,
+      '18:45': 4,
+      '22:45': 2
+    },
+    singleCountBySlot: {
+      '10:45': 1,
+      '14:45': 1,
+      '22:45': 1
+    }
   }
 };
 const CATCH_UP_END_HOUR_ET = 22;
@@ -787,7 +806,9 @@ Return only JSON.
 
 function resolveWriterProvider(raw) {
   const provider = String(raw || process.env.DRAFT_WRITER_PROVIDER || 'anthropic').trim().toLowerCase();
-  return provider === 'openai' ? 'openai' : 'anthropic';
+  if (provider === 'openai') return 'openai';
+  if (provider === 'gemini') return 'gemini';
+  return 'anthropic';
 }
 
 async function callAnthropicForDraft(candidate) {
@@ -895,9 +916,65 @@ async function callOpenAiForDraft(candidate) {
   };
 }
 
+async function callGeminiForDraft(candidate) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing GEMINI_API_KEY');
+  }
+
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+  const maxOutputTokens = getModelMaxOutputTokens();
+  const prompt = buildDraftPrompt(candidate);
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens,
+        responseMimeType: 'application/json'
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${body.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((part) => part?.text || '').join('') || '';
+  const usage = data?.usageMetadata || {};
+  const inputTokens = Number(usage.promptTokenCount || 0);
+  const outputTokens = Number(usage.candidatesTokenCount || 0);
+  const totalTokens = Number(usage.totalTokenCount || (inputTokens + outputTokens));
+  const parsed = safeJsonParse(text);
+  if (!parsed) {
+    throw new Error('Model did not return valid JSON');
+  }
+
+  return {
+    title: cleanText(parsed.title),
+    description: truncate(cleanText(parsed.description), 800),
+    content: cleanText(parsed.content),
+    section: normalizeSection(candidate.section),
+    model,
+    inputTokens,
+    outputTokens,
+    totalTokens
+  };
+}
+
 async function callWriterForDraft(candidate, writerProvider) {
   if (writerProvider === 'openai') {
     return callOpenAiForDraft(candidate);
+  }
+  if (writerProvider === 'gemini') {
+    return callGeminiForDraft(candidate);
   }
   return callAnthropicForDraft(candidate);
 }

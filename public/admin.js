@@ -414,22 +414,23 @@ async function generateDrafts() {
 
     let results = [];
     if (selectedProvider === 'all') {
-      const providers = ['anthropic', 'openai'];
+      const providers = ['anthropic', 'openai', 'gemini'];
       if (allMode === 'per_provider') {
         results = await Promise.all(providers.map(async (provider) => {
           const data = await apiRequest(buildUrl(provider, requestedCount), { method: 'POST' });
           return { provider, data };
         }));
       } else {
-        if (requestedCount < 2) {
-          throw new Error('For "All" + split mode, set Count to at least 2, or pick a single model.');
+        if (requestedCount < providers.length) {
+          throw new Error(`For "All" + split mode, set Count to at least ${providers.length}, or pick a single model.`);
         }
-        const anthropicCount = Math.floor(requestedCount / 2);
-        const openaiCount = requestedCount - anthropicCount;
-        results = await Promise.all([
-          apiRequest(buildUrl('anthropic', anthropicCount), { method: 'POST' }).then((data) => ({ provider: 'anthropic', data })),
-          apiRequest(buildUrl('openai', openaiCount), { method: 'POST' }).then((data) => ({ provider: 'openai', data }))
-        ]);
+        const baseCount = Math.floor(requestedCount / providers.length);
+        const remainder = requestedCount % providers.length;
+        results = await Promise.all(providers.map(async (provider, index) => {
+          const countForProvider = baseCount + (index < remainder ? 1 : 0);
+          const data = await apiRequest(buildUrl(provider, countForProvider), { method: 'POST' });
+          return { provider, data };
+        }));
       }
     } else {
       const data = await apiRequest(buildUrl(selectedProvider, requestedCount), { method: 'POST' });

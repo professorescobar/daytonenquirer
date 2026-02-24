@@ -15,6 +15,14 @@
     {
       "path": "/api/admin-generate-drafts?schedule=auto&track=single&provider=openai&includeSections=health,entertainment,technology",
       "schedule": "25 * * * *"
+    },
+    {
+      "path": "/api/admin-generate-drafts?schedule=auto&track=multi&provider=gemini&excludeSections=health,entertainment,technology",
+      "schedule": "45 * * * *"
+    },
+    {
+      "path": "/api/admin-generate-drafts?schedule=auto&track=single&provider=gemini&includeSections=health,entertainment,technology",
+      "schedule": "45 * * * *"
     }
   ],
   "headers": [
