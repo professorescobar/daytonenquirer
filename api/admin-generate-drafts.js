@@ -38,10 +38,10 @@ const SECTION_ORDER = [
   'technology'
 ];
 
-const MIN_ARTICLE_WORDS = 600;
+const MIN_ARTICLE_WORDS = 550;
 const TARGET_ARTICLE_WORDS = 700;
 const DEFAULT_MAX_OUTPUT_TOKENS = 2600;
-const RETRY_MIN_INITIAL_WORDS = 450;
+const RETRY_MIN_INITIAL_WORDS = 300;
 
 const ET_TIME_ZONE = 'America/New_York';
 const MULTI_TRACK_SLOTS_ET = ['06:05', '08:05', '10:05', '12:05', '14:05', '16:05', '18:05', '22:05'];
@@ -255,7 +255,7 @@ const TECHNOLOGY_LOCAL_TERMS = [
   'dayton development coalition', 'the entrepreneurs center', "entrepreneur's center",
   'startup', 'venture capital', 'government contract', 'sbir', 'tech transfer'
 ];
-const WORLD_REQUIRED_DAILY_REGIONS = ['southeast_asia', 'europe', 'south_america'];
+const WORLD_REQUIRED_DAILY_REGIONS = ['europe', 'southeast_asia'];
 const WORLD_SPREAD_REGIONS = [
   'southeast_asia',
   'europe',
@@ -406,6 +406,15 @@ function getScheduledRequestedCount(track, etTime) {
   return null;
 }
 
+function getRemainingScheduledSlots(track, etTime) {
+  const slots = track === 'single'
+    ? SINGLE_TRACK_SLOTS_ET
+    : (track === 'multi' ? MULTI_TRACK_SLOTS_ET : []);
+  const idx = slots.indexOf(etTime);
+  if (idx < 0) return 0;
+  return Math.max(0, slots.length - idx);
+}
+
 function resolveSportsFocusMode(rawMode, etNowParts) {
   const requested = String(rawMode || process.env.SPORTS_FOCUS_MODE || 'auto').trim().toLowerCase();
   const mode = SPORTS_FOCUS_MODES.has(requested) ? requested : 'auto';
@@ -484,25 +493,24 @@ const BASE_FEEDS_BY_SECTION = {
     'https://news.google.com/rss/search?q=premier+health+dayton+news+when:7d&hl=en-US&gl=US&ceid=US:en'
   ],
   entertainment: [
-    'https://news.google.com/rss/search?q=video+game+news+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=gaming+industry+news+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=tv+and+movie+news+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=film+and+television+news+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=music+news+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=art+news+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=dayton+entertainment+news+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=pop+culture+news+when:2d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=dayton+entertainment+events+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+live+events+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=schuster+center+dayton+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=victoria+theatre+dayton+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=fraze+pavilion+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=rose+music+center+huber+heights+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+art+institute+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=oregon+district+events+dayton+when:3d&hl=en-US&gl=US&ceid=US:en'
   ],
   technology: [
-    'https://news.google.com/rss/search?q=tech+news+when:1d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=technology+news+when:1d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=science+and+technology+news+when:1d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=engineering+news+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=science+news+when:2d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=aerospace+news+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=space+science+news+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=drone+news+when:3d&hl=en-US&gl=US&ceid=US:en',
-    'https://news.google.com/rss/search?q=wright+patt+tech+news+when:7d&hl=en-US&gl=US&ceid=US:en'
+    'https://news.google.com/rss/search?q=dayton+technology+news+when:3d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+patt+technology+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=afrl+dayton+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=university+of+dayton+research+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=wright+state+engineering+research+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=sinclair+community+college+technology+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=dayton+startup+funding+when:7d&hl=en-US&gl=US&ceid=US:en',
+    'https://news.google.com/rss/search?q=ohio+technology+innovation+when:3d&hl=en-US&gl=US&ceid=US:en'
   ]
 };
 
@@ -776,7 +784,6 @@ async function buildDraftWithMinWords(candidate) {
   let draft = await callAnthropicForDraft(candidate);
   let words = countWords(draft.content);
   if (words >= MIN_ARTICLE_WORDS) return { draft, words };
-  if (words < RETRY_MIN_INITIAL_WORDS) return { draft, words };
 
   // Retry once with stricter length guidance.
   draft = await callAnthropicForDraft({
@@ -1347,7 +1354,7 @@ function isNearDuplicateTitle(candidateTitle, existingTitles) {
     const overlapByMin = overlap / Math.max(1, Math.min(candSet.size, otherSet.size));
 
     // Catch same-story rewrites where headline wording changes but key entities remain.
-    if (tokenJaccard >= 0.5 || bigramJaccard >= 0.35 || (overlap >= 4 && overlapByMin >= 0.75)) {
+    if (tokenJaccard >= 0.6 || bigramJaccard >= 0.45 || (overlap >= 5 && overlapByMin >= 0.8)) {
       return true;
     }
   }
@@ -1722,9 +1729,20 @@ module.exports = async (req, res) => {
       }
     }
 
+    let effectiveRequestedCount = requestedCount;
+    if (!dryRun && runMode === 'auto' && scheduleMode === 'auto' && ['multi', 'single'].includes(track)) {
+      const slotsLeft = getRemainingScheduledSlots(track, etTime);
+      if (slotsLeft > 0) {
+        const catchUpCount = Math.ceil(remainingToday / slotsLeft);
+        if (Number.isFinite(catchUpCount) && catchUpCount > 0) {
+          effectiveRequestedCount = Math.min(50, Math.max(requestedCount, catchUpCount));
+        }
+      }
+    }
+
     const targetCount = dryRun
-      ? requestedCount
-      : (runMode === 'manual' ? requestedCount : Math.min(requestedCount, remainingToday));
+      ? effectiveRequestedCount
+      : (runMode === 'manual' ? effectiveRequestedCount : Math.min(effectiveRequestedCount, remainingToday));
 
     if (targetCount <= 0) {
       await logDraftGenerationRun(sql, {
@@ -1740,7 +1758,7 @@ module.exports = async (req, res) => {
         activeSections: activeSections.join(','),
         etDate,
         etTime,
-        requestedCount,
+        requestedCount: effectiveRequestedCount,
         targetCount,
         dailyTokenBudget,
         tokensUsedToday
@@ -1748,7 +1766,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         ok: true,
         dryRun,
-        requested: requestedCount,
+        requested: effectiveRequestedCount,
         includeSections,
         excludeSections,
         activeSections,
@@ -1804,9 +1822,9 @@ module.exports = async (req, res) => {
     ).length;
     let businessLocalCreatedThisRun = 0;
     let businessMarketUpdateCreatedThisRun = 0;
-    const worldRegionDailyCap = 1;
-    const worldUsDiplomacyDailyCap = 1;
-    const worldMiddleEastDailyCap = 1;
+    const worldRegionDailyCap = 2;
+    const worldUsDiplomacyDailyCap = 2;
+    const worldMiddleEastDailyCap = 2;
     const todayWorldTopicRows = await sql`
       SELECT title, description, content, source_title as "sourceTitle"
       FROM article_drafts
@@ -1833,7 +1851,7 @@ module.exports = async (req, res) => {
     for (const region of WORLD_SPREAD_REGIONS) worldRegionCountsThisRun[region] = 0;
     let worldUsDiplomacyThisRun = 0;
     let worldMiddleEastThisRun = 0;
-    const nationalStateDailyCap = 1;
+    const nationalStateDailyCap = 2;
     const todayNationalTopicRows = await sql`
       SELECT title, description, content, source_title as "sourceTitle"
       FROM article_drafts
@@ -2447,7 +2465,7 @@ module.exports = async (req, res) => {
       activeSections: activeSections.join(','),
       etDate,
       etTime,
-      requestedCount,
+      requestedCount: effectiveRequestedCount,
       targetCount,
       createdCount: created.length,
       skippedCount: skipped.length,
@@ -2459,7 +2477,7 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       ok: true,
       dryRun,
-      requested: requestedCount,
+      requested: effectiveRequestedCount,
       dailyTokenBudget,
       tokensUsedToday,
       runTokensConsumed,

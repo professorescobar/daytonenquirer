@@ -1,6 +1,8 @@
 const { neon } = require('@neondatabase/serverless');
 const { requireAdmin } = require('./_admin-auth');
 
+const ET_TIME_ZONE = 'America/New_York';
+
 const REASONS = [
   'duplicate',
   'stale_or_not_time_relevant',
@@ -80,7 +82,8 @@ module.exports = async (req, res) => {
         COUNT(*)::int AS "count",
         COALESCE(SUM(total_tokens), 0)::int AS "tokens"
       FROM duplicate_reports
-      WHERE reported_at >= date_trunc('day', now())
+      WHERE (reported_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date
+            = (NOW() AT TIME ZONE ${ET_TIME_ZONE})::date
     `;
 
     const duplicateMonthlyRows = await sql`
@@ -88,7 +91,8 @@ module.exports = async (req, res) => {
         COUNT(*)::int AS "count",
         COALESCE(SUM(total_tokens), 0)::int AS "tokens"
       FROM duplicate_reports
-      WHERE reported_at >= date_trunc('month', now())
+      WHERE date_trunc('month', (reported_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE}))
+            = date_trunc('month', (NOW() AT TIME ZONE ${ET_TIME_ZONE}))
     `;
 
     const rejectionDailyRows = await sql`
@@ -97,7 +101,8 @@ module.exports = async (req, res) => {
         COUNT(*)::int AS "count",
         COALESCE(SUM(total_tokens), 0)::int AS "tokens"
       FROM editorial_rejections
-      WHERE rejected_at >= date_trunc('day', now())
+      WHERE (rejected_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date
+            = (NOW() AT TIME ZONE ${ET_TIME_ZONE})::date
       GROUP BY reject_reason
     `;
 
@@ -107,7 +112,8 @@ module.exports = async (req, res) => {
         COUNT(*)::int AS "count",
         COALESCE(SUM(total_tokens), 0)::int AS "tokens"
       FROM editorial_rejections
-      WHERE rejected_at >= date_trunc('month', now())
+      WHERE date_trunc('month', (rejected_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE}))
+            = date_trunc('month', (NOW() AT TIME ZONE ${ET_TIME_ZONE}))
       GROUP BY reject_reason
     `;
 
@@ -148,6 +154,7 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
+      timezone: ET_TIME_ZONE,
       daily: {
         totalRejected: totalRejectedDaily,
         byReason: byReasonDaily,
