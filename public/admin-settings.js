@@ -455,13 +455,7 @@ function paintUsageBar(barEl, usedPercent) {
   const clamped = Math.max(0, Math.min(100, Number(usedPercent || 0)));
   barEl.style.width = `${clamped}%`;
   barEl.classList.remove('usage-progress-good', 'usage-progress-warn', 'usage-progress-danger');
-  if (clamped >= 85) {
-    barEl.classList.add('usage-progress-danger');
-  } else if (clamped >= 60) {
-    barEl.classList.add('usage-progress-warn');
-  } else {
-    barEl.classList.add('usage-progress-good');
-  }
+  barEl.classList.add('usage-progress-good');
 }
 
 function paintOutcomeBar(barEl, percentValue) {
@@ -469,13 +463,7 @@ function paintOutcomeBar(barEl, percentValue) {
   const clamped = Math.max(0, Math.min(100, Number(percentValue || 0)));
   barEl.style.width = `${clamped}%`;
   barEl.classList.remove('usage-progress-good', 'usage-progress-warn', 'usage-progress-danger');
-  if (clamped >= 75) {
-    barEl.classList.add('usage-progress-good');
-  } else if (clamped >= 45) {
-    barEl.classList.add('usage-progress-warn');
-  } else {
-    barEl.classList.add('usage-progress-danger');
-  }
+  barEl.classList.add('usage-progress-good');
 }
 
 function paintLossBar(barEl, lossPercent) {
