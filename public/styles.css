@@ -1364,6 +1364,15 @@ nav a + a::before {
     --mobile-signup-height: 2.1rem;
     --mobile-signup-min-width: 6.9rem;
     --mobile-signup-pad-x: 0.62rem;
+    --mobile-strip-pad-y: 0.32rem;
+    --mobile-strip-min-height: 3.2rem;
+  }
+
+  .newsletter-strip-inner {
+    width: 100%;
+    min-height: var(--mobile-strip-min-height);
+    padding-top: var(--mobile-strip-pad-y);
+    padding-bottom: var(--mobile-strip-pad-y);
   }
 
   .newsletter-strip .newsletter-mobile-toggle {
@@ -1403,13 +1412,11 @@ nav a + a::before {
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-inner {
     position: relative;
-    display: block;
-    padding-top: 0.32rem;
-    padding-bottom: 0.08rem;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form {
     display: grid;
+    grid-column: 1 / -1;
     grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 0.75rem;
     row-gap: 0;
