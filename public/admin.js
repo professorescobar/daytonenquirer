@@ -413,7 +413,7 @@ async function generateDrafts() {
 
     let results = [];
     if (selectedProvider === 'all') {
-      const providers = ['anthropic', 'openai', 'gemini'];
+      const providers = ['anthropic', 'openai', 'gemini', 'grok'];
       if (requestedCount < providers.length) {
         throw new Error(`For "All", set Count to at least ${providers.length}, or pick a single model.`);
       }

@@ -99,6 +99,24 @@ const TRACK_SCHEDULES_BY_PROVIDER = {
       '10:45': 1,
       '14:45': 1
     }
+  },
+  grok: {
+    multiSlots: ['06:55', '08:55', '10:55', '12:55', '14:55', '16:55', '18:55', '22:55'],
+    singleSlots: ['10:55', '14:55'],
+    multiCountBySlot: {
+      '06:55': 4,
+      '08:55': 4,
+      '10:55': 2,
+      '12:55': 2,
+      '14:55': 2,
+      '16:55': 4,
+      '18:55': 4,
+      '22:55': 1
+    },
+    singleCountBySlot: {
+      '10:55': 1,
+      '14:55': 1
+    }
   }
 };
 const CATCH_UP_END_HOUR_ET = 22;
@@ -813,12 +831,14 @@ function resolveWriterProvider(raw) {
   const provider = String(raw || process.env.DRAFT_WRITER_PROVIDER || 'anthropic').trim().toLowerCase();
   if (provider === 'openai') return 'openai';
   if (provider === 'gemini') return 'gemini';
+  if (provider === 'grok') return 'grok';
   return 'anthropic';
 }
 
 function getWriterModelForProvider(writerProvider) {
   if (writerProvider === 'openai') return process.env.OPENAI_MODEL || 'gpt-5';
   if (writerProvider === 'gemini') return process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+  if (writerProvider === 'grok') return process.env.GROK_MODEL || 'grok-4';
   return process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
 }
 
@@ -983,12 +1003,66 @@ async function callGeminiForDraft(candidate) {
   };
 }
 
+async function callGrokForDraft(candidate) {
+  const apiKey = process.env.GROK_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing GROK_API_KEY');
+  }
+
+  const model = process.env.GROK_MODEL || 'grok-4';
+  const maxOutputTokens = getModelMaxOutputTokens();
+  const prompt = buildDraftPrompt(candidate);
+  const response = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.4,
+      max_tokens: maxOutputTokens,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Grok API error ${response.status}: ${body.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content || '';
+  const usage = data?.usage || {};
+  const inputTokens = Number(usage.prompt_tokens || 0);
+  const outputTokens = Number(usage.completion_tokens || 0);
+  const totalTokens = Number(usage.total_tokens || (inputTokens + outputTokens));
+  const parsed = safeJsonParse(text);
+  if (!parsed) {
+    throw new Error('Model did not return valid JSON');
+  }
+
+  return {
+    title: cleanText(parsed.title),
+    description: truncate(cleanText(parsed.description), 800),
+    content: cleanText(parsed.content),
+    section: normalizeSection(candidate.section),
+    model,
+    inputTokens,
+    outputTokens,
+    totalTokens
+  };
+}
+
 async function callWriterForDraft(candidate, writerProvider) {
   if (writerProvider === 'openai') {
     return callOpenAiForDraft(candidate);
   }
   if (writerProvider === 'gemini') {
     return callGeminiForDraft(candidate);
+  }
+  if (writerProvider === 'grok') {
+    return callGrokForDraft(candidate);
   }
   return callAnthropicForDraft(candidate);
 }

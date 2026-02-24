@@ -23,6 +23,14 @@
     {
       "path": "/api/admin-generate-drafts?schedule=auto&track=single&provider=gemini&includeSections=health,entertainment,technology",
       "schedule": "45 10,14 * * *"
+    },
+    {
+      "path": "/api/admin-generate-drafts?schedule=auto&track=multi&provider=grok&excludeSections=health,entertainment,technology",
+      "schedule": "55 * * * *"
+    },
+    {
+      "path": "/api/admin-generate-drafts?schedule=auto&track=single&provider=grok&includeSections=health,entertainment,technology",
+      "schedule": "55 10,14 * * *"
     }
   ],
   "headers": [
