@@ -1362,14 +1362,15 @@ nav a + a::before {
 
   .newsletter-strip {
     --mobile-signup-height: 2.1rem;
-    --mobile-signup-min-width: 6.2rem;
-    --mobile-signup-pad-x: 0.5rem;
+    --mobile-signup-min-width: 5.1rem;
+    --mobile-signup-pad-x: 0.34rem;
+    --mobile-signup-font-size: 0.72rem;
     --mobile-strip-pad-y: 0.32rem;
     --mobile-strip-min-height: 3.2rem;
   }
 
   .newsletter-strip-inner {
-    width: calc(100% - 1rem);
+    width: 100%;
     margin: 0 auto;
     min-height: var(--mobile-strip-min-height);
     padding-top: var(--mobile-strip-pad-y);
@@ -1385,6 +1386,8 @@ nav a + a::before {
     min-width: var(--mobile-signup-min-width);
     padding: 0 var(--mobile-signup-pad-x);
     line-height: 1;
+    font-size: var(--mobile-signup-font-size);
+    letter-spacing: 0.01em;
   }
 
   .newsletter-strip.is-mobile-collapsed .newsletter-strip-inner,
@@ -1419,7 +1422,7 @@ nav a + a::before {
     display: grid;
     grid-column: 1 / -1;
     grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 0.75rem;
+    column-gap: 0.9rem;
     row-gap: 0;
     width: 100%;
     align-items: center;
@@ -1446,9 +1449,9 @@ nav a + a::before {
     min-height: var(--mobile-signup-height);
     height: var(--mobile-signup-height);
     padding: 0 var(--mobile-signup-pad-x);
-    font-size: 0.82rem;
+    font-size: var(--mobile-signup-font-size);
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     line-height: 1;
     border-radius: 0;
   }
