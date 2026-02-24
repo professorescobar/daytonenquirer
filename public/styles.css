@@ -1359,7 +1359,7 @@ nav a + a::before {
     position: relative;
     display: block;
     padding-top: 0.45rem;
-    padding-bottom: 0.45rem;
+    padding-bottom: 0.08rem;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form {
