@@ -107,7 +107,7 @@ nav a + a::before {
 
 .newsletter-strip {
   background: transparent;
-  border-bottom: 1px solid #d6d6d6;
+  border-bottom: 0;
 }
 
 .newsletter-strip-inner {
@@ -115,7 +115,7 @@ nav a + a::before {
   justify-content: space-between;
   gap: 0.65rem;
   align-items: center;
-  width: 100%;
+  width: calc(100% - 0.75rem);
   max-width: none;
   margin: 0 auto;
   background: #fff;
@@ -1186,7 +1186,7 @@ nav a + a::before {
   }
 
   .newsletter-strip-inner {
-    width: 100%;
+    width: calc(100% - 0.5rem);
     gap: 0.5rem;
     padding-top: 0.7rem;
     padding-bottom: 0.7rem;
@@ -1417,7 +1417,7 @@ html[data-theme="dark"] .market-ticker {
 
 html[data-theme="dark"] .newsletter-strip {
   background: transparent;
-  border-bottom-color: #333942;
+  border-bottom-color: transparent;
 }
 
 html[data-theme="dark"] .newsletter-strip-inner {
