@@ -10,6 +10,66 @@ function setSignupMessage(form, text, kind) {
 let turnstileSiteKeyPromise = null;
 let turnstileScriptPromise = null;
 const turnstileWidgetIds = new WeakMap();
+const MOBILE_BREAKPOINT = 768;
+
+function isMobileSignupLayout() {
+  return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+}
+
+function getSignupStrip(form) {
+  return form?.closest('.newsletter-strip') || null;
+}
+
+function getMobileToggle(form) {
+  const strip = getSignupStrip(form);
+  return strip?.querySelector('[data-newsletter-toggle]') || null;
+}
+
+function setMobileExpanded(form, isExpanded, options = {}) {
+  const strip = getSignupStrip(form);
+  const toggle = getMobileToggle(form);
+  if (!strip || !toggle || !isMobileSignupLayout()) return;
+
+  strip.classList.toggle('is-mobile-expanded', isExpanded);
+  strip.classList.toggle('is-mobile-collapsed', !isExpanded);
+  toggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+  toggle.textContent = isExpanded ? 'Close' : 'Sign Up';
+
+  if (isExpanded && options.focusInput) {
+    const emailInput = form.querySelector('input[name="email"]');
+    setTimeout(() => emailInput?.focus(), 0);
+  }
+
+  if (!isExpanded) {
+    setTurnstileVisible(form, false);
+  }
+}
+
+function syncMobileSignupState(forms) {
+  forms.forEach((form) => {
+    const strip = getSignupStrip(form);
+    const toggle = getMobileToggle(form);
+    if (!strip || !toggle) return;
+
+    if (isMobileSignupLayout()) {
+      if (strip.classList.contains('is-mobile-expanded')) {
+        toggle.setAttribute('aria-expanded', 'true');
+        toggle.textContent = 'Close';
+      } else {
+        strip.classList.add('is-mobile-collapsed');
+        strip.classList.remove('is-mobile-expanded');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.textContent = 'Sign Up';
+      }
+      return;
+    }
+
+    strip.classList.remove('is-mobile-collapsed', 'is-mobile-expanded');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.textContent = 'Sign Up';
+    setTurnstileVisible(form, false);
+  });
+}
 
 async function getTurnstileSiteKey() {
   if (!turnstileSiteKeyPromise) {
@@ -164,6 +224,9 @@ async function submitNewsletterForm(form) {
     if (!res.ok) throw new Error(data.error || 'Signup failed');
     setSignupMessage(form, data.alreadyExists ? 'You are already subscribed.' : 'You are subscribed. Check your inbox.', 'success');
     form.reset();
+    if (isMobileSignupLayout()) {
+      setMobileExpanded(form, false);
+    }
   } catch (error) {
     setSignupMessage(form, error.message || 'Signup failed. Please try again.', 'error');
   } finally {
@@ -179,14 +242,25 @@ async function submitNewsletterForm(form) {
 }
 
 function bindNewsletterForms() {
-  const forms = document.querySelectorAll('.newsletter-signup-form');
+  const forms = Array.from(document.querySelectorAll('.newsletter-signup-form'));
   getTurnstileSiteKey().catch(() => '');
+  syncMobileSignupState(forms);
+
   forms.forEach((form) => {
     const emailInput = form.querySelector('input[name="email"]');
     if (emailInput) {
       const openTurnstile = () => revealTurnstile(form).catch(() => {});
       emailInput.addEventListener('focus', openTurnstile);
       emailInput.addEventListener('click', openTurnstile);
+    }
+
+    const toggle = getMobileToggle(form);
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        const strip = getSignupStrip(form);
+        const isExpanded = !!strip?.classList.contains('is-mobile-expanded');
+        setMobileExpanded(form, !isExpanded, { focusInput: !isExpanded });
+      });
     }
 
     form.addEventListener('submit', (event) => {
@@ -197,10 +271,18 @@ function bindNewsletterForms() {
 
   document.addEventListener('pointerdown', (event) => {
     forms.forEach((form) => {
-      if (!form.contains(event.target)) {
+      const strip = getSignupStrip(form);
+      if (!strip?.contains(event.target)) {
         setTurnstileVisible(form, false);
+        if (strip?.classList.contains('is-mobile-expanded')) {
+          setMobileExpanded(form, false);
+        }
       }
     });
+  });
+
+  window.addEventListener('resize', () => {
+    syncMobileSignupState(forms);
   });
 }
 
