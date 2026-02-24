@@ -1359,26 +1359,24 @@ nav a + a::before {
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form {
     --mobile-submit-width: 8.75rem;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--mobile-submit-width);
+    column-gap: 0.45rem;
+    row-gap: 0.35rem;
     width: 100%;
-    flex-wrap: wrap;
-    flex-direction: row;
     align-items: center;
-    gap: 0.45rem;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form input[type="email"] {
-    order: 2;
-    width: auto;
-    flex: 1 1 auto;
+    grid-column: 1;
+    width: 100%;
     min-width: 0;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"] {
-    order: 3;
+    grid-column: 2;
     width: var(--mobile-submit-width);
     min-width: var(--mobile-submit-width);
-    flex-shrink: 0;
     height: 2rem;
     border-radius: 999px;
     border: 1px solid #111;
@@ -1402,11 +1400,9 @@ nav a + a::before {
     left: auto;
     right: auto;
     bottom: auto;
-    order: 1;
-    flex: 0 0 calc(100% - var(--mobile-submit-width) - 0.45rem);
-    width: calc(100% - var(--mobile-submit-width) - 0.45rem);
-    margin-bottom: 0.35rem;
-    margin-right: auto;
+    grid-column: 1;
+    width: 100%;
+    margin: 0;
     transform: none;
   }
 
