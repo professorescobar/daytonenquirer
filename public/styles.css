@@ -1362,8 +1362,8 @@ nav a + a::before {
 
   .newsletter-strip {
     --mobile-signup-height: 2.1rem;
-    --mobile-signup-min-width: 6.9rem;
-    --mobile-signup-pad-x: 0.62rem;
+    --mobile-signup-min-width: 6.2rem;
+    --mobile-signup-pad-x: 0.5rem;
     --mobile-strip-pad-y: 0.32rem;
     --mobile-strip-min-height: 3.2rem;
   }
