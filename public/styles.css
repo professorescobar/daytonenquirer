@@ -112,11 +112,11 @@ nav a + a::before {
 
 .newsletter-strip-inner {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   gap: 0.65rem;
   align-items: center;
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
   background: #fff;
   border: 1px solid #d6d6d6;
@@ -148,6 +148,7 @@ nav a + a::before {
   gap: 0.45rem;
   align-items: center;
   flex-wrap: nowrap;
+  position: relative;
 }
 
 .newsletter-strip-form input[type="email"] {
@@ -190,6 +191,23 @@ nav a + a::before {
 
 .newsletter-signup-message.is-error {
   color: #9a1c1c;
+}
+
+.turnstile-floating {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.4rem);
+  z-index: 30;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.turnstile-floating.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 /* ===============================
@@ -1279,6 +1297,11 @@ nav a + a::before {
     width: 100%;
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .turnstile-floating {
+    left: 0;
+    right: auto;
   }
 
   .newsletter-strip-form input[type="email"] {

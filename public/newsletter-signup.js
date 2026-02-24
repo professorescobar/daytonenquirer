@@ -46,46 +46,80 @@ async function loadTurnstileScript() {
 }
 
 function ensureTurnstileMount(form) {
-  let mount = form.querySelector('[data-turnstile]');
-  if (!mount) {
-    mount = document.createElement('div');
+  let wrapper = form.querySelector('[data-turnstile-floating]');
+  if (!wrapper) {
+    wrapper = document.createElement('div');
+    wrapper.className = 'turnstile-floating';
+    wrapper.dataset.turnstileFloating = 'true';
+    wrapper.hidden = true;
+
+    const mount = document.createElement('div');
     mount.className = 'turnstile-widget';
     mount.dataset.turnstile = 'true';
+    wrapper.appendChild(mount);
+
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) {
-      form.insertBefore(mount, submitBtn);
+      form.insertBefore(wrapper, submitBtn);
     } else {
-      form.appendChild(mount);
+      form.appendChild(wrapper);
     }
   }
-  return mount;
+  return wrapper.querySelector('[data-turnstile]');
 }
 
-async function setupTurnstile(forms) {
+function setTurnstileVisible(form, isVisible) {
+  const wrapper = form.querySelector('[data-turnstile-floating]');
+  if (!wrapper) return;
+
+  if (isVisible) {
+    wrapper.hidden = false;
+    requestAnimationFrame(() => wrapper.classList.add('is-visible'));
+    return;
+  }
+
+  wrapper.classList.remove('is-visible');
+  setTimeout(() => {
+    if (!wrapper.classList.contains('is-visible')) wrapper.hidden = true;
+  }, 160);
+}
+
+async function ensureTurnstileWidget(form) {
   const siteKey = await getTurnstileSiteKey();
-  if (!siteKey) return;
+  if (!siteKey) return null;
 
   await loadTurnstileScript();
-  if (!window.turnstile) return;
+  if (!window.turnstile) return null;
 
-  forms.forEach((form) => {
-    if (turnstileWidgetIds.has(form)) return;
-    const mount = ensureTurnstileMount(form);
-    const widgetId = window.turnstile.render(mount, {
-      sitekey: siteKey,
-      theme: 'auto'
-    });
-    turnstileWidgetIds.set(form, widgetId);
+  const existingId = turnstileWidgetIds.get(form);
+  if (existingId !== undefined) return existingId;
+
+  const mount = ensureTurnstileMount(form);
+  const widgetId = window.turnstile.render(mount, {
+    sitekey: siteKey,
+    theme: 'auto',
+    callback: () => setTurnstileVisible(form, false)
   });
+  turnstileWidgetIds.set(form, widgetId);
+  return widgetId;
+}
+
+async function revealTurnstile(form) {
+  const siteKey = await getTurnstileSiteKey();
+  if (!siteKey) return;
+  await ensureTurnstileWidget(form);
+  setTurnstileVisible(form, true);
 }
 
 async function submitNewsletterForm(form) {
   const emailInput = form.querySelector('input[name="email"]');
   const companyInput = form.querySelector('input[name="company"]');
   const submitBtn = form.querySelector('button[type="submit"]');
-  const widgetId = turnstileWidgetIds.get(form);
   const email = String(emailInput?.value || '').trim();
-  const turnstileToken = widgetId !== undefined && window.turnstile
+  const siteKey = await getTurnstileSiteKey();
+  const requiresTurnstile = !!siteKey;
+  let widgetId = turnstileWidgetIds.get(form);
+  let turnstileToken = widgetId !== undefined && window.turnstile
     ? String(window.turnstile.getResponse(widgetId) || '').trim()
     : '';
 
@@ -94,7 +128,15 @@ async function submitNewsletterForm(form) {
     return;
   }
 
-  if (widgetId !== undefined && !turnstileToken) {
+  if (requiresTurnstile && !turnstileToken) {
+    widgetId = await ensureTurnstileWidget(form);
+    turnstileToken = widgetId !== null && widgetId !== undefined && window.turnstile
+      ? String(window.turnstile.getResponse(widgetId) || '').trim()
+      : '';
+    setTurnstileVisible(form, true);
+  }
+
+  if (requiresTurnstile && !turnstileToken) {
     setSignupMessage(form, 'Please verify you are human.', 'error');
     return;
   }
@@ -127,6 +169,7 @@ async function submitNewsletterForm(form) {
   } finally {
     if (widgetId !== undefined && window.turnstile) {
       window.turnstile.reset(widgetId);
+      setTurnstileVisible(form, false);
     }
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -137,11 +180,26 @@ async function submitNewsletterForm(form) {
 
 function bindNewsletterForms() {
   const forms = document.querySelectorAll('.newsletter-signup-form');
-  setupTurnstile(forms).catch(() => {});
+  getTurnstileSiteKey().catch(() => '');
   forms.forEach((form) => {
+    const emailInput = form.querySelector('input[name="email"]');
+    if (emailInput) {
+      const openTurnstile = () => revealTurnstile(form).catch(() => {});
+      emailInput.addEventListener('focus', openTurnstile);
+      emailInput.addEventListener('click', openTurnstile);
+    }
+
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       submitNewsletterForm(form);
+    });
+  });
+
+  document.addEventListener('pointerdown', (event) => {
+    forms.forEach((form) => {
+      if (!form.contains(event.target)) {
+        setTurnstileVisible(form, false);
+      }
     });
   });
 }

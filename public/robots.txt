@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://daytonenquirer.com/sitemap.xml
+Sitemap: https://thedaytonenquirer.com/sitemap.xml
