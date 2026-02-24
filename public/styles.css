@@ -1368,12 +1368,14 @@ nav a + a::before {
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form input[type="email"] {
+    grid-row: 2;
     grid-column: 1;
     width: 100%;
     min-width: 0;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"] {
+    grid-row: 2;
     grid-column: 2;
     width: var(--mobile-submit-width);
     min-width: var(--mobile-submit-width);
@@ -1400,9 +1402,11 @@ nav a + a::before {
     left: auto;
     right: auto;
     bottom: auto;
+    grid-row: 1;
     grid-column: 1;
     width: 100%;
     margin: 0;
+    align-self: start;
     transform: none;
   }
 
@@ -1428,6 +1432,7 @@ nav a + a::before {
 
   .newsletter-strip.is-mobile-expanded .newsletter-signup-message {
     grid-column: 1 / -1;
+    grid-row: 3;
   }
 
   .turnstile-floating {
