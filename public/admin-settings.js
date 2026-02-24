@@ -28,7 +28,7 @@ const globalProgressAcceptanceEl = document.getElementById('global-progress-acce
 const globalProgressQualityLossEl = document.getElementById('global-progress-quality-loss');
 const globalTokensTodayEl = document.getElementById('global-tokens-today');
 const globalDraftsTodayEl = document.getElementById('global-drafts-today');
-const globalTurnedDownTodayEl = document.getElementById('global-turned-down-today');
+const globalQualityLossTodayValueEl = document.getElementById('global-quality-loss-today-value');
 const modelMetricsListEl = document.getElementById('model-metrics-list');
 const qualityRejectedTodayEl = document.getElementById('quality-rejected-today');
 const qualityRejectedMonthEl = document.getElementById('quality-rejected-month');
@@ -75,6 +75,17 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function formatModelLabel(model) {
+  const raw = String(model || '').trim();
+  const lower = raw.toLowerCase();
+  if (!raw) return 'Unknown';
+  if (lower.includes('gpt')) return `ChatGPT (${raw})`;
+  if (lower.includes('claude')) return `Claude (${raw})`;
+  if (lower.includes('gemini')) return `Gemini (${raw})`;
+  if (lower.includes('grok')) return `Grok (${raw})`;
+  return raw;
 }
 
 function formatTopSkipReasons(reasons) {
@@ -215,13 +226,14 @@ function renderModelMetrics(items, usageByModel) {
 
   modelMetricsListEl.innerHTML = items.map((item) => {
     const model = String(item.model || 'unknown');
+    const modelLabel = formatModelLabel(model);
     const modelUsage = usageByModel[model] || {};
     const byReason = item.byReason || {};
     const budgetValue = Number(modelUsage.dailyTokenBudget || 0);
     return `
       <article class="draft-card" data-model-name="${escapeHtml(model)}">
         <button class="draft-header draft-toggle btn-reset" type="button">
-          <strong>${escapeHtml(model)}</strong>
+          <strong class="model-title">${escapeHtml(modelLabel)}</strong>
           <span class="draft-meta">
             daily used: ${Number(modelUsage.dailyTokensUsed || 0).toLocaleString()} / ${budgetValue.toLocaleString()} |
             loss: ${Number(modelUsage.qualityLossRatePercent || 0).toFixed(1)}%
@@ -386,7 +398,9 @@ async function loadUsageDashboard() {
   globalQualityLossLabelEl.textContent = `${Number(usageGlobal.qualityLossRatePercent || 0).toFixed(1)}%`;
   globalTokensTodayEl.textContent = Number(usageGlobal.dailyTokensUsed || 0).toLocaleString();
   globalDraftsTodayEl.textContent = Number(usageGlobal.dailyDrafts || 0).toLocaleString();
-  globalTurnedDownTodayEl.textContent = Number(usageGlobal.turnedDownToday || 0).toLocaleString();
+  if (globalQualityLossTodayValueEl) {
+    globalQualityLossTodayValueEl.textContent = `${Number(usageGlobal.qualityLossRatePercent || 0).toFixed(1)}%`;
+  }
   paintUsageBar(globalProgressDailyEl, Number(usageGlobal.budgetUsedPercent || 0));
   paintUsageBar(globalProgressWeeklyEl, Number(usageGlobal.weeklyBudgetUsedPercent || 0));
   paintUsageBar(globalProgressMonthlyEl, Number(usageGlobal.monthlyBudgetUsedPercent || 0));
@@ -410,7 +424,10 @@ async function loadUsageDashboard() {
   if (budgetTotalRemainingEl) budgetTotalRemainingEl.textContent = Number(usageGlobal.tokensRemainingToday || 0).toLocaleString();
   if (budgetDraftTargetEl) budgetDraftTargetEl.textContent = Number(usageGlobal.dailyDraftTarget || 81).toLocaleString();
 
-  const models = Array.from(new Set((quality.modelBreakdown?.total || []).map((item) => String(item.model || '').trim()).filter(Boolean)));
+  const models = Array.from(new Set([
+    ...(quality.configuredModels || []).map((v) => String(v || '').trim()),
+    ...((quality.modelBreakdown?.total || []).map((item) => String(item.model || '').trim()))
+  ].filter(Boolean)));
   const usageByModelEntries = await Promise.all(models.map(async (model) => {
     const usage = await apiRequest(`/api/admin-usage?scope=all&model=${encodeURIComponent(model)}`);
     return [model, usage];

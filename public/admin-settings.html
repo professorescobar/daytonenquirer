@@ -65,21 +65,41 @@
         <div class="usage-dashboard-stack">
           <article class="usage-card budget-card usage-card-global">
             <h4>Global System Metrics</h4>
-            <p class="usage-row"><span>Daily Token Usage</span><strong id="global-daily-label">0%</strong></p>
-            <div class="usage-progress"><div id="global-progress-daily" class="usage-progress-bar"></div></div>
-            <p class="usage-row"><span>Weekly Token Usage</span><strong id="global-weekly-label">0%</strong></p>
-            <div class="usage-progress"><div id="global-progress-weekly" class="usage-progress-bar"></div></div>
-            <p class="usage-row"><span>Monthly Token Usage</span><strong id="global-monthly-label">0%</strong></p>
-            <div class="usage-progress"><div id="global-progress-monthly" class="usage-progress-bar"></div></div>
-            <p class="usage-row"><span>Daily Throughput</span><strong id="global-throughput-label">0%</strong></p>
-            <div class="usage-progress"><div id="global-progress-throughput" class="usage-progress-bar"></div></div>
-            <p class="usage-row"><span>Acceptance Rate (Today)</span><strong id="global-acceptance-label">0%</strong></p>
-            <div class="usage-progress"><div id="global-progress-acceptance" class="usage-progress-bar"></div></div>
-            <p class="usage-row"><span>Quality Loss Rate (Today)</span><strong id="global-quality-loss-label">0%</strong></p>
-            <div class="usage-progress"><div id="global-progress-quality-loss" class="usage-progress-bar usage-progress-loss"></div></div>
-            <p class="usage-row"><span>Tokens Today</span><strong id="global-tokens-today">0</strong></p>
-            <p class="usage-row"><span>Drafts Today</span><strong id="global-drafts-today">0</strong></p>
-            <p class="usage-row"><span>Turned Down Today</span><strong id="global-turned-down-today">0</strong></p>
+            <div class="global-metrics-grid">
+              <div class="global-metric-card">
+                <p class="usage-row"><span>Daily Token Usage</span><strong id="global-daily-label">0%</strong></p>
+                <div class="usage-progress"><div id="global-progress-daily" class="usage-progress-bar"></div></div>
+              </div>
+              <div class="global-metric-card">
+                <p class="usage-row"><span>Weekly Token Usage</span><strong id="global-weekly-label">0%</strong></p>
+                <div class="usage-progress"><div id="global-progress-weekly" class="usage-progress-bar"></div></div>
+              </div>
+              <div class="global-metric-card">
+                <p class="usage-row"><span>Monthly Token Usage</span><strong id="global-monthly-label">0%</strong></p>
+                <div class="usage-progress"><div id="global-progress-monthly" class="usage-progress-bar"></div></div>
+              </div>
+              <div class="global-metric-card">
+                <p class="usage-row"><span>Daily Throughput</span><strong id="global-throughput-label">0%</strong></p>
+                <div class="usage-progress"><div id="global-progress-throughput" class="usage-progress-bar"></div></div>
+              </div>
+              <div class="global-metric-card">
+                <p class="usage-row"><span>Acceptance Rate (Today)</span><strong id="global-acceptance-label">0%</strong></p>
+                <div class="usage-progress"><div id="global-progress-acceptance" class="usage-progress-bar"></div></div>
+              </div>
+              <div class="global-metric-card">
+                <p class="usage-row"><span>Quality Loss Rate (Today)</span><strong id="global-quality-loss-label">0%</strong></p>
+                <div class="usage-progress"><div id="global-progress-quality-loss" class="usage-progress-bar usage-progress-loss"></div></div>
+              </div>
+              <div class="global-metric-card global-metric-value">
+                <p class="usage-row"><span>Tokens Today</span><strong id="global-tokens-today">0</strong></p>
+              </div>
+              <div class="global-metric-card global-metric-value">
+                <p class="usage-row"><span>Drafts Today</span><strong id="global-drafts-today">0</strong></p>
+              </div>
+              <div class="global-metric-card global-metric-value">
+                <p class="usage-row"><span>Quality Loss Rate Today</span><strong id="global-quality-loss-today-value">0%</strong></p>
+              </div>
+            </div>
           </article>
 
           <div class="usage-grid usage-grid-three">

@@ -13,7 +13,7 @@ const REASONS = [
 
 function normalizeModel(value) {
   const model = String(value || '').trim();
-  return model || 'unknown';
+  return model;
 }
 
 function emptyReasonCounts() {
@@ -65,17 +65,24 @@ function sortModelBreakdown(items) {
   });
 }
 
-function buildModelBreakdown(draftRows, duplicateRows, rejectionRows) {
+function buildModelBreakdown(draftRows, duplicateRows, rejectionRows, seedModels = []) {
   const byModel = new Map();
+  for (const seed of seedModels) {
+    const normalizedSeed = normalizeModel(seed);
+    if (!normalizedSeed) continue;
+    ensureModelBucket(byModel, normalizedSeed);
+  }
 
   for (const row of draftRows) {
     const model = normalizeModel(row.model);
+    if (!model) continue;
     const bucket = ensureModelBucket(byModel, model);
     bucket.draftsGiven += Number(row.count || 0);
   }
 
   for (const row of duplicateRows) {
     const model = normalizeModel(row.model);
+    if (!model) continue;
     const bucket = ensureModelBucket(byModel, model);
     const count = Number(row.count || 0);
     bucket.draftsGiven += count;
@@ -85,6 +92,7 @@ function buildModelBreakdown(draftRows, duplicateRows, rejectionRows) {
 
   for (const row of rejectionRows) {
     const model = normalizeModel(row.model);
+    if (!model) continue;
     const reason = String(row.reason || '').trim();
     if (!reason || !REASONS.includes(reason)) continue;
     const bucket = ensureModelBucket(byModel, model);
@@ -95,6 +103,16 @@ function buildModelBreakdown(draftRows, duplicateRows, rejectionRows) {
   }
 
   return sortModelBreakdown(Array.from(byModel.values()));
+}
+
+function getConfiguredModels() {
+  const values = [
+    process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest',
+    process.env.OPENAI_MODEL || 'gpt-5',
+    process.env.GEMINI_MODEL || 'gemini-2.5-pro',
+    process.env.GROK_MODEL || ''
+  ].map((v) => String(v || '').trim()).filter(Boolean);
+  return Array.from(new Set(values));
 }
 
 async function ensureTables(sql) {
@@ -322,9 +340,10 @@ module.exports = async (req, res) => {
       GROUP BY 1, 2
     `;
 
+    const configuredModels = getConfiguredModels();
     const modelBreakdown = {
-      daily: buildModelBreakdown(draftModelDailyRows, duplicateModelDailyRows, rejectionModelDailyRows),
-      total: buildModelBreakdown(draftModelTotalRows, duplicateModelTotalRows, rejectionModelTotalRows)
+      daily: buildModelBreakdown(draftModelDailyRows, duplicateModelDailyRows, rejectionModelDailyRows, configuredModels),
+      total: buildModelBreakdown(draftModelTotalRows, duplicateModelTotalRows, rejectionModelTotalRows, configuredModels)
     };
 
     return res.status(200).json({
@@ -334,6 +353,7 @@ module.exports = async (req, res) => {
       monthly,
       annual,
       total,
+      configuredModels,
       modelBreakdown,
       totalRejected: daily.totalRejected,
       byReason: daily.byReason,
