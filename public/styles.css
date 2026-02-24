@@ -115,7 +115,7 @@ nav a + a::before {
   justify-content: space-between;
   gap: 0.65rem;
   align-items: center;
-  width: min(1160px, calc(100% - 0.75rem));
+  width: min(1168px, calc(100% - 0.25rem));
   max-width: none;
   margin: 0 auto;
   background: #fff;
