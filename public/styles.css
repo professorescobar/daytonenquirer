@@ -1421,8 +1421,8 @@ nav a + a::before {
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form {
     display: grid;
     grid-column: 1 / -1;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 0.05rem;
+    grid-template-columns: minmax(0, 1fr) var(--mobile-signup-min-width);
+    column-gap: 0.35rem;
     row-gap: 0;
     width: 100%;
     align-items: center;
@@ -1437,6 +1437,14 @@ nav a + a::before {
     font-size: 16px;
     min-height: 2.55rem;
     padding: 0.4rem 0.45rem;
+  }
+
+  .newsletter-strip.is-mobile-expanded .newsletter-strip-form input[type="email"]:focus,
+  .newsletter-strip.is-mobile-expanded .newsletter-strip-form input[type="email"]:focus-visible {
+    outline: none;
+    box-shadow: none;
+    max-width: 100%;
+    border-color: #bbb;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"] {
