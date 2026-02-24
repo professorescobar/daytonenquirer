@@ -101,6 +101,21 @@
     </div>
   </section>
 
+  <section id="newsletter-strip" class="newsletter-strip">
+    <div class="container newsletter-strip-inner">
+      <div class="newsletter-strip-copy">
+        <strong>Weekly Mailing List</strong>
+        <span>Get Dayton headlines and major updates in one weekly brief.</span>
+      </div>
+      <form class="newsletter-signup-form newsletter-strip-form" data-source="home_strip">
+        <input type="email" name="email" placeholder="Enter your email here" aria-label="Email address" required />
+        <input type="text" name="company" tabindex="-1" autocomplete="off" hidden />
+        <button type="submit">Sign Up!</button>
+        <p class="newsletter-signup-message" data-newsletter-message></p>
+      </form>
+    </div>
+  </section>
+
   <!-- TOP STORIES CAROUSEL -->
   <section id="top-stories" class="carousel container">
     <div class="slide active">
@@ -323,6 +338,7 @@
  </footer>
 
   <!-- SCRIPT -->
+  <script src="/newsletter-signup.js"></script>
   <script src="script.js"></script>
 
   <script type="application/ld+json">
