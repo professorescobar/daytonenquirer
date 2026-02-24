@@ -15,12 +15,18 @@ module.exports = async (req, res) => {
 
     if (req.method === 'GET') {
       const budgets = await getDailyTokenBudgets(sql);
+      const scope = String(req.query.scope || 'auto').toLowerCase() === 'manual' ? 'manual' : 'auto';
       const requestedModels = String(req.query.models || '')
         .split(',')
         .map((v) => String(v || '').trim())
         .filter(Boolean);
       const modelBudgets = requestedModels.length
-        ? await getModelDailyTokenBudgets(sql, requestedModels, Math.floor(budgets.auto / 3))
+        ? await getModelDailyTokenBudgets(
+          sql,
+          requestedModels,
+          Math.floor((scope === 'manual' ? budgets.manual : budgets.auto) / 3),
+          scope
+        )
         : {};
       return res.status(200).json({
         ok: true,
@@ -34,6 +40,7 @@ module.exports = async (req, res) => {
       const autoBudgetInput = req.body?.dailyTokenBudgetAuto;
       const manualBudgetInput = req.body?.dailyTokenBudgetManual;
       const modelBudgetsInput = req.body?.modelBudgets;
+      const modelBudgetMode = String(req.body?.modelBudgetMode || 'auto').toLowerCase() === 'manual' ? 'manual' : 'auto';
       const hasModelBudgetInput = modelBudgetsInput && typeof modelBudgetsInput === 'object' && !Array.isArray(modelBudgetsInput);
 
       if (!autoBudgetInput && !manualBudgetInput && !hasModelBudgetInput) {
@@ -60,7 +67,7 @@ module.exports = async (req, res) => {
       if (hasModelBudgetInput) {
         for (const [modelName, budgetValue] of Object.entries(modelBudgetsInput)) {
           if (!String(modelName || '').trim()) continue;
-          const saved = await setModelDailyTokenBudget(sql, modelName, budgetValue);
+          const saved = await setModelDailyTokenBudget(sql, modelName, budgetValue, modelBudgetMode);
           savedModelBudgets[modelName] = saved;
         }
       }

@@ -72,9 +72,21 @@ module.exports = async (req, res) => {
     const baseDailyTokenBudget = normalizedScope === 'manual'
       ? budgets.manual
       : (normalizedScope === 'auto' ? budgets.auto : (budgets.auto + budgets.manual));
-    const dailyTokenBudget = requestedModel
-      ? await getModelDailyTokenBudget(sql, requestedModel, Math.floor(baseDailyTokenBudget / 3))
-      : baseDailyTokenBudget;
+    let dailyTokenBudget = baseDailyTokenBudget;
+    if (requestedModel) {
+      if (normalizedScope === 'all') {
+        const [autoModelBudget, manualModelBudget] = await Promise.all([
+          getModelDailyTokenBudget(sql, requestedModel, Math.floor(budgets.auto / 3), 'auto'),
+          getModelDailyTokenBudget(sql, requestedModel, Math.floor(budgets.manual / 3), 'manual')
+        ]);
+        dailyTokenBudget = autoModelBudget + manualModelBudget;
+      } else {
+        const scopeFallback = normalizedScope === 'manual'
+          ? Math.floor(budgets.manual / 3)
+          : Math.floor(budgets.auto / 3);
+        dailyTokenBudget = await getModelDailyTokenBudget(sql, requestedModel, scopeFallback, normalizedScope);
+      }
+    }
     const dailyDraftTarget = Math.max(
       1,
       parseInt(String(req.query.dailyDraftTarget || process.env.DAILY_DRAFT_TARGET || DEFAULT_DAILY_DRAFT_TARGET), 10) || DEFAULT_DAILY_DRAFT_TARGET

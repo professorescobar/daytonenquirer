@@ -1,7 +1,7 @@
 const { neon } = require('@neondatabase/serverless');
 
-const DEFAULT_DAILY_TOKEN_BUDGET_AUTO = 100000;
-const DEFAULT_DAILY_TOKEN_BUDGET_MANUAL = 30000;
+const DEFAULT_DAILY_TOKEN_BUDGET_AUTO = 350000;
+const DEFAULT_DAILY_TOKEN_BUDGET_MANUAL = 80000;
 const MAX_DAILY_TOKEN_BUDGET = 1000000;
 
 function normalizeBudgetModelName(modelName) {
@@ -21,13 +21,22 @@ function detectModelFamily(modelName) {
   return 'other';
 }
 
-function recommendedModelBudget(modelName, fallbackBudget = 25000) {
+function normalizeBudgetMode(mode) {
+  return String(mode || '').toLowerCase() === 'manual' ? 'manual' : 'auto';
+}
+
+function recommendedModelBudget(modelName, mode = 'auto', fallbackBudget = 25000) {
+  const normalizedMode = normalizeBudgetMode(mode);
   const family = detectModelFamily(modelName);
-  if (family === 'openai') return 45000;
-  if (family === 'anthropic') return 35000;
-  if (family === 'gemini') return 35000;
-  if (family === 'grok') return 30000;
-  return fallbackBudget;
+  let autoBudget = fallbackBudget;
+  if (family === 'openai') autoBudget = 120000;
+  else if (family === 'anthropic') autoBudget = 100000;
+  else if (family === 'gemini') autoBudget = 100000;
+  else if (family === 'grok') autoBudget = 90000;
+  if (normalizedMode === 'manual') {
+    return Math.max(1, Math.floor(autoBudget / 3));
+  }
+  return autoBudget;
 }
 
 async function ensureAdminSettingsTable(sql) {
@@ -102,20 +111,29 @@ async function setDailyTokenBudget(sql, budget, mode = 'auto') {
   return numeric;
 }
 
-async function getModelDailyTokenBudget(sql, modelName, fallbackBudget = null) {
+async function getModelDailyTokenBudget(sql, modelName, fallbackBudget = null, mode = 'auto') {
   await ensureAdminSettingsTable(sql);
+  const normalizedMode = normalizeBudgetMode(mode);
   const normalizedModel = normalizeBudgetModelName(modelName);
   if (!normalizedModel) {
     const fallback = Number.isFinite(fallbackBudget) && fallbackBudget > 0 ? fallbackBudget : 25000;
     return Math.min(Math.max(1, Math.floor(fallback)), MAX_DAILY_TOKEN_BUDGET);
   }
 
+  const modeKey = `daily_token_budget_model_${normalizedMode}_${normalizedModel}`;
+  const dbModeValue = await getSettingInt(sql, modeKey);
+  if (dbModeValue) return dbModeValue;
+
   const key = `daily_token_budget_model_${normalizedModel}`;
   const dbValue = await getSettingInt(sql, key);
-  if (dbValue) return dbValue;
+  if (dbValue && normalizedMode === 'auto') return dbValue;
 
-  const envKey = `DAILY_TOKEN_BUDGET_MODEL_${normalizedModel.toUpperCase()}`;
-  const envValue = parseInt(process.env[envKey] || '', 10);
+  const envModeKey = `DAILY_TOKEN_BUDGET_MODEL_${normalizedMode.toUpperCase()}_${normalizedModel.toUpperCase()}`;
+  let envValue = parseInt(process.env[envModeKey] || '', 10);
+  if (!Number.isFinite(envValue) && normalizedMode === 'auto') {
+    const envKey = `DAILY_TOKEN_BUDGET_MODEL_${normalizedModel.toUpperCase()}`;
+    envValue = parseInt(process.env[envKey] || '', 10);
+  }
   if (Number.isFinite(envValue) && envValue > 0) {
     return Math.min(envValue, MAX_DAILY_TOKEN_BUDGET);
   }
@@ -124,19 +142,20 @@ async function getModelDailyTokenBudget(sql, modelName, fallbackBudget = null) {
     ? Math.floor(fallbackBudget)
     : 25000;
   return Math.min(
-    recommendedModelBudget(modelName, fallback),
+    recommendedModelBudget(modelName, normalizedMode, fallback),
     MAX_DAILY_TOKEN_BUDGET
   );
 }
 
-async function setModelDailyTokenBudget(sql, modelName, budget) {
+async function setModelDailyTokenBudget(sql, modelName, budget, mode = 'auto') {
   await ensureAdminSettingsTable(sql);
+  const normalizedMode = normalizeBudgetMode(mode);
   const normalizedModel = normalizeBudgetModelName(modelName);
   if (!normalizedModel) {
     throw new Error('Invalid model name for budget update');
   }
   const numeric = Math.max(1, Math.min(parseInt(String(budget), 10), MAX_DAILY_TOKEN_BUDGET));
-  const key = `daily_token_budget_model_${normalizedModel}`;
+  const key = `daily_token_budget_model_${normalizedMode}_${normalizedModel}`;
   await sql`
     INSERT INTO admin_settings (key, value, updated_at)
     VALUES (${key}, ${String(numeric)}, NOW())
@@ -146,12 +165,12 @@ async function setModelDailyTokenBudget(sql, modelName, budget) {
   return numeric;
 }
 
-async function getModelDailyTokenBudgets(sql, modelNames, fallbackBudget = null) {
+async function getModelDailyTokenBudgets(sql, modelNames, fallbackBudget = null, mode = 'auto') {
   const names = Array.isArray(modelNames) ? modelNames : [];
   const out = {};
   await Promise.all(
     names.map(async (name) => {
-      out[name] = await getModelDailyTokenBudget(sql, name, fallbackBudget);
+      out[name] = await getModelDailyTokenBudget(sql, name, fallbackBudget, mode);
     })
   );
   return out;

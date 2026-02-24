@@ -138,6 +138,12 @@
   gap: 0.75rem;
 }
 
+.combined-metrics-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .usage-card-global {
   width: 100%;
 }
@@ -530,6 +536,11 @@ html[data-theme="dark"] .message {
 
 html[data-theme="dark"] .usage-card,
 html[data-theme="dark"] .draft-card {
+  background: #11161d;
+  border-color: #333942;
+}
+
+html[data-theme="dark"] .global-metric-card {
   background: #11161d;
   border-color: #333942;
 }

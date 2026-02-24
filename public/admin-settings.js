@@ -397,7 +397,7 @@ async function loadUsageDashboard() {
   globalTokensTodayEl.textContent = Number(usageGlobal.dailyTokensUsed || 0).toLocaleString();
   globalDraftsTodayEl.textContent = Number(usageGlobal.dailyDrafts || 0).toLocaleString();
   if (globalQualityLossTodayValueEl) {
-    globalQualityLossTodayValueEl.textContent = `${Number(usageGlobal.qualityLossRatePercent || 0).toFixed(1)}%`;
+    globalQualityLossTodayValueEl.textContent = Number(usageGlobal.turnedDownToday || 0).toLocaleString();
   }
   paintUsageBar(globalProgressDailyEl, Number(usageGlobal.budgetUsedPercent || 0));
   paintUsageBar(globalProgressWeeklyEl, Number(usageGlobal.weeklyBudgetUsedPercent || 0));
@@ -484,15 +484,17 @@ function paintLossBar(barEl, lossPercent) {
   barEl.classList.add('usage-progress-danger');
 }
 
-async function saveModelBudget(modelName, budgetValue) {
+async function saveModelBudget(modelName, budgetValue, budgetMode = 'auto') {
   const numeric = Number(budgetValue || 0);
   if (!numeric || numeric < 1) {
     throw new Error('Enter a valid model daily budget');
   }
+  const normalizedMode = String(budgetMode || 'auto').toLowerCase() === 'manual' ? 'manual' : 'auto';
   await apiRequest('/api/admin-budget', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      modelBudgetMode: normalizedMode,
       modelBudgets: {
         [modelName]: numeric
       }
@@ -567,7 +569,9 @@ function onListClick(event) {
     const modelName = String(card.dataset.modelName || '').trim();
     const input = card.querySelector('.model-budget-input');
     if (!modelName || !input) return;
-    saveModelBudget(modelName, input.value)
+    const parentList = card.closest('#model-metrics-list-manual');
+    const budgetMode = parentList ? 'manual' : 'auto';
+    saveModelBudget(modelName, input.value, budgetMode)
       .then(loadUsageDashboard)
       .then(() => setMessage(`${modelName} budget updated.`))
       .catch((err) => setMessage(`Model budget update failed: ${err.message}`));
