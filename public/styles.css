@@ -1361,10 +1361,10 @@ nav a + a::before {
   }
 
   .newsletter-strip {
-    --mobile-signup-height: 2rem;
-    --mobile-signup-min-width: 4.8rem;
-    --mobile-signup-pad-x: 0.3rem;
-    --mobile-signup-font-size: 0.7rem;
+    --mobile-signup-height: 2.1rem;
+    --mobile-signup-min-width: 4.15rem;
+    --mobile-signup-pad-x: 0.18rem;
+    --mobile-signup-font-size: 0.68rem;
     --mobile-strip-pad-y: 0.32rem;
     --mobile-strip-min-height: 3.2rem;
   }
@@ -1434,8 +1434,8 @@ nav a + a::before {
     width: 100%;
     min-width: 0;
     font-size: 16px;
-    min-height: 2.45rem;
-    padding: 0.45rem 0.6rem;
+    min-height: 2.55rem;
+    padding: 0.4rem 0.45rem;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"] {
