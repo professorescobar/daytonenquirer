@@ -177,6 +177,7 @@ function renderDrafts(drafts) {
         <span class="draft-meta">
           section: ${escapeHtml(draft.section || '')} |
           pubdate: ${escapeHtml(formatDate(draft.pubDate || draft.sourcePublishedAt || draft.createdAt))} |
+          model: ${escapeHtml(draft.model || 'unknown')} |
           status: ${escapeHtml(draft.status || '')}
         </span>
       </button>
@@ -184,6 +185,7 @@ function renderDrafts(drafts) {
         section: ${escapeHtml(draft.section || '')} |
         slug: ${escapeHtml(draft.slug || '')} |
         via: ${escapeHtml(draft.createdVia || 'unknown')} |
+        model: ${escapeHtml(draft.model || 'unknown')} |
         created: ${escapeHtml(formatDate(draft.createdAt))}
       </p>
       <p class="draft-meta article-editor is-collapsed" hidden>source: <a href="${escapeHtml(draft.sourceUrl || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(draft.sourceUrl || 'N/A')}</a></p>
