@@ -25,6 +25,8 @@ async function ensureDraftGenerationRunsTable(sql) {
       daily_token_budget INTEGER,
       tokens_used_today INTEGER DEFAULT 0,
       run_tokens_consumed INTEGER DEFAULT 0,
+      writer_provider TEXT,
+      writer_model TEXT,
       top_skip_reasons JSONB DEFAULT '[]'::jsonb
     )
   `;
@@ -32,6 +34,16 @@ async function ensureDraftGenerationRunsTable(sql) {
   await sql`
     CREATE INDEX IF NOT EXISTS idx_draft_generation_runs_run_at
     ON draft_generation_runs(run_at DESC)
+  `;
+
+  await sql`
+    ALTER TABLE draft_generation_runs
+    ADD COLUMN IF NOT EXISTS writer_provider TEXT
+  `;
+
+  await sql`
+    ALTER TABLE draft_generation_runs
+    ADD COLUMN IF NOT EXISTS writer_model TEXT
   `;
 }
 
@@ -69,6 +81,8 @@ module.exports = async (req, res) => {
         daily_token_budget as "dailyTokenBudget",
         tokens_used_today as "tokensUsedToday",
         run_tokens_consumed as "runTokensConsumed",
+        writer_provider as "writerProvider",
+        writer_model as "writerModelForRun",
         top_skip_reasons as "topSkipReasons"
       FROM draft_generation_runs
       ORDER BY run_at DESC

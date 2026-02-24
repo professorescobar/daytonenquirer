@@ -1764,6 +1764,8 @@ async function ensureDraftGenerationRunsTable(sql) {
       daily_token_budget INTEGER,
       tokens_used_today INTEGER DEFAULT 0,
       run_tokens_consumed INTEGER DEFAULT 0,
+      writer_provider TEXT,
+      writer_model TEXT,
       top_skip_reasons JSONB DEFAULT '[]'::jsonb
     )
   `;
@@ -1776,6 +1778,16 @@ async function ensureDraftGenerationRunsTable(sql) {
   await sql`
     CREATE INDEX IF NOT EXISTS idx_draft_generation_runs_status
     ON draft_generation_runs(run_status)
+  `;
+
+  await sql`
+    ALTER TABLE draft_generation_runs
+    ADD COLUMN IF NOT EXISTS writer_provider TEXT
+  `;
+
+  await sql`
+    ALTER TABLE draft_generation_runs
+    ADD COLUMN IF NOT EXISTS writer_model TEXT
   `;
 }
 
@@ -1815,6 +1827,8 @@ async function logDraftGenerationRun(sql, payload) {
       daily_token_budget,
       tokens_used_today,
       run_tokens_consumed,
+      writer_provider,
+      writer_model,
       top_skip_reasons
     )
     VALUES (
@@ -1837,6 +1851,8 @@ async function logDraftGenerationRun(sql, payload) {
       ${Number.isFinite(payload.dailyTokenBudget) ? payload.dailyTokenBudget : null},
       ${Number.isFinite(payload.tokensUsedToday) ? payload.tokensUsedToday : 0},
       ${Number.isFinite(payload.runTokensConsumed) ? payload.runTokensConsumed : 0},
+      ${payload.writerProvider || null},
+      ${payload.writerModelForRun || null},
       ${topSkipReasons}::jsonb
     )
   `;
@@ -1902,7 +1918,9 @@ module.exports = async (req, res) => {
           activeSections: activeSections.join(','),
           etDate,
           etTime,
-          requestedCount
+          requestedCount,
+          writerProvider,
+          writerModelForRun
         });
         return res.status(400).json({ error: 'schedule=auto requires track=multi|single' });
       }
@@ -1920,7 +1938,9 @@ module.exports = async (req, res) => {
           activeSections: activeSections.join(','),
           etDate,
           etTime,
-          requestedCount
+          requestedCount,
+          writerProvider,
+          writerModelForRun
         });
         return res.status(200).json({
           ok: true,
@@ -1970,7 +1990,9 @@ module.exports = async (req, res) => {
         etTime,
         requestedCount,
         dailyTokenBudget,
-        tokensUsedToday
+        tokensUsedToday,
+        writerProvider,
+        writerModelForRun
       });
       return res.status(200).json({
         ok: true,
@@ -2036,7 +2058,9 @@ module.exports = async (req, res) => {
         requestedCount: effectiveRequestedCount,
         targetCount,
         dailyTokenBudget,
-        tokensUsedToday
+        tokensUsedToday,
+        writerProvider,
+        writerModelForRun
       });
       return res.status(200).json({
         ok: true,
@@ -2769,6 +2793,8 @@ module.exports = async (req, res) => {
       dailyTokenBudget,
       tokensUsedToday,
       runTokensConsumed,
+      writerProvider,
+      writerModelForRun,
       topSkipReasons
     });
     return res.status(200).json({
@@ -2848,7 +2874,9 @@ module.exports = async (req, res) => {
         dryRun,
         includeSections: includeSections?.join(',') || '',
         excludeSections: excludeSections?.join(',') || '',
-        activeSections: activeSections.join(',')
+        activeSections: activeSections.join(','),
+        writerProvider,
+        writerModelForRun
       });
     } catch (logError) {
       console.error('Run logging error:', logError);

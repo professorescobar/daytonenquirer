@@ -317,6 +317,8 @@ function renderGenerationRuns(runs) {
         mode: ${escapeHtml(run.runMode || 'n/a')} |
         schedule: ${escapeHtml(run.scheduleMode || 'n/a')} |
         track: ${escapeHtml(run.track || 'n/a')} |
+        provider: ${escapeHtml(run.writerProvider || 'n/a')} |
+        model: ${escapeHtml(run.writerModelForRun || 'n/a')} |
         dryRun: ${run.dryRun ? 'yes' : 'no'}
       </p>
       <p class="draft-meta article-editor is-collapsed" hidden>
