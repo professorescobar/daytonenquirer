@@ -1369,7 +1369,8 @@ nav a + a::before {
   }
 
   .newsletter-strip-inner {
-    width: 100%;
+    width: calc(100% - 1rem);
+    margin: 0 auto;
     min-height: var(--mobile-strip-min-height);
     padding-top: var(--mobile-strip-pad-y);
     padding-bottom: var(--mobile-strip-pad-y);
