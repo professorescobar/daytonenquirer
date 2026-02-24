@@ -165,18 +165,19 @@ nav a + a::before {
 }
 
 .newsletter-mobile-toggle.is-close {
-  width: auto;
-  min-width: 0;
+  width: 1.9rem;
+  min-width: 1.9rem;
+  height: 1.9rem;
   padding: 0;
-  font-size: 1.6rem;
+  font-size: 1.25rem;
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
   line-height: 1;
-  border: 0;
+  border: 1px solid currentColor;
   background: transparent;
   color: inherit;
-  height: auto;
+  border-radius: 0;
 }
 
 .newsletter-strip-form {
@@ -1358,13 +1359,14 @@ nav a + a::before {
     position: relative;
     display: block;
     padding-top: 0.45rem;
-    padding-bottom: 0.35rem;
+    padding-bottom: 0.15rem;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form {
     --mobile-submit-width: 8.75rem;
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) var(--mobile-submit-width);
+    column-gap: 0.45rem;
     row-gap: 0.35rem;
     width: 100%;
     align-items: center;
@@ -1375,33 +1377,18 @@ nav a + a::before {
     grid-column: 1;
     width: 100%;
     min-width: 0;
-    padding-right: calc(var(--mobile-submit-width) + 0.65rem);
+    padding-right: 0.55rem;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"] {
     grid-row: 2;
-    grid-column: 1;
-    justify-self: end;
-    align-self: center;
+    grid-column: 2;
+    justify-self: stretch;
+    align-self: stretch;
     width: var(--mobile-submit-width);
     min-width: var(--mobile-submit-width);
-    height: auto;
-    border-radius: 0;
-    border: 1px solid #111;
-    background: #000;
-    color: #fff;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    font-size: 0.82rem;
-    font-weight: bold;
+    margin: 0;
     padding: 0.45rem 0.7rem;
-    margin-right: 0.25rem;
-  }
-
-  .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"]:hover {
-    background: #222;
-    color: #fff;
-    border-color: #222;
   }
 
   .newsletter-strip.is-mobile-expanded .turnstile-floating {
@@ -1440,7 +1427,7 @@ nav a + a::before {
   .newsletter-strip.is-mobile-expanded .newsletter-mobile-toggle {
     position: absolute;
     top: 0.35rem;
-    right: 0.5rem;
+    right: 0.3rem;
     z-index: 2;
   }
 
@@ -1603,7 +1590,7 @@ html[data-theme="dark"] .newsletter-mobile-toggle:hover {
 html[data-theme="dark"] .newsletter-mobile-toggle.is-close,
 html[data-theme="dark"] .newsletter-mobile-toggle.is-close:hover {
   background: transparent;
-  border-color: transparent;
+  border-color: #808a9a;
   color: #eef2f8;
 }
 
