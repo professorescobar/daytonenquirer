@@ -965,7 +965,10 @@ async function callGeminiForDraft(candidate) {
   const totalTokens = Number(usage.totalTokenCount || (inputTokens + outputTokens));
   const parsed = safeJsonParse(text);
   if (!parsed) {
-    throw new Error('Model did not return valid JSON');
+    const finishReason = String(data?.candidates?.[0]?.finishReason || '').trim();
+    const preview = String(text || '').slice(0, 180);
+    const suffix = finishReason ? ` (finishReason=${finishReason})` : '';
+    throw new Error(`Model did not return valid JSON${suffix}${preview ? `: ${preview}` : ''}`);
   }
 
   return {
@@ -2494,10 +2497,24 @@ module.exports = async (req, res) => {
       }
 
       const sectionKey = normalizeSection(candidate.section) || 'local';
-      const { draft, words } = await buildDraftWithMinWords({
-        ...candidate,
-        externalDuplicateTitles: reportedExternalDuplicateTitlesBySection[sectionKey] || []
-      }, writerProvider);
+      let draft = null;
+      let words = 0;
+      try {
+        const result = await buildDraftWithMinWords({
+          ...candidate,
+          externalDuplicateTitles: reportedExternalDuplicateTitlesBySection[sectionKey] || []
+        }, writerProvider);
+        draft = result.draft;
+        words = result.words;
+      } catch (err) {
+        skipped.push({
+          reason: 'writer_call_failed',
+          title: candidate.title,
+          url: candidate.url,
+          error: String(err?.message || 'unknown_error').slice(0, 180)
+        });
+        continue;
+      }
       if (!draft.title || !draft.content) {
         skipped.push({ reason: 'rejected_non_local_or_empty', title: candidate.title, url: candidate.url });
         continue;

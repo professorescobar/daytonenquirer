@@ -7,7 +7,6 @@ const statusFilterInput = document.getElementById('status-filter');
 const limitInput = document.getElementById('list-limit');
 const genCountInput = document.getElementById('gen-count');
 const genProviderInput = document.getElementById('gen-provider');
-const genAllModeInput = document.getElementById('gen-all-mode');
 const genIncludeInput = document.getElementById('gen-include');
 const genExcludeInput = document.getElementById('gen-exclude');
 const genTokenInput = document.getElementById('gen-admin-token');
@@ -102,7 +101,8 @@ async function apiRequest(url, options = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    throw new Error(data.error || data.details || `Request failed (${res.status})`);
+    const message = data.error || `Request failed (${res.status})`;
+    throw new Error(data.details ? `${message}: ${data.details}` : message);
   }
 
   return data;
@@ -404,7 +404,6 @@ async function generateDrafts() {
     const includeSections = encodeURIComponent((genIncludeInput.value || '').trim());
     const excludeSections = encodeURIComponent((genExcludeInput.value || '').trim());
     const selectedProvider = String(genProviderInput?.value || 'anthropic').trim().toLowerCase();
-    const allMode = String(genAllModeInput?.value || 'split_total').trim().toLowerCase();
 
     const buildUrl = (provider, count) => {
       const safeCount = encodeURIComponent(String(count));
@@ -415,23 +414,16 @@ async function generateDrafts() {
     let results = [];
     if (selectedProvider === 'all') {
       const providers = ['anthropic', 'openai', 'gemini'];
-      if (allMode === 'per_provider') {
-        results = await Promise.all(providers.map(async (provider) => {
-          const data = await apiRequest(buildUrl(provider, requestedCount), { method: 'POST' });
-          return { provider, data };
-        }));
-      } else {
-        if (requestedCount < providers.length) {
-          throw new Error(`For "All" + split mode, set Count to at least ${providers.length}, or pick a single model.`);
-        }
-        const baseCount = Math.floor(requestedCount / providers.length);
-        const remainder = requestedCount % providers.length;
-        results = await Promise.all(providers.map(async (provider, index) => {
-          const countForProvider = baseCount + (index < remainder ? 1 : 0);
-          const data = await apiRequest(buildUrl(provider, countForProvider), { method: 'POST' });
-          return { provider, data };
-        }));
+      if (requestedCount < providers.length) {
+        throw new Error(`For "All", set Count to at least ${providers.length}, or pick a single model.`);
       }
+      const baseCount = Math.floor(requestedCount / providers.length);
+      const remainder = requestedCount % providers.length;
+      results = await Promise.all(providers.map(async (provider, index) => {
+        const countForProvider = baseCount + (index < remainder ? 1 : 0);
+        const data = await apiRequest(buildUrl(provider, countForProvider), { method: 'POST' });
+        return { provider, data };
+      }));
     } else {
       const data = await apiRequest(buildUrl(selectedProvider, requestedCount), { method: 'POST' });
       results = [{ provider: selectedProvider, data }];

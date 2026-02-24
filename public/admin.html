@@ -127,14 +127,7 @@
                   <option value="anthropic">Claude (Anthropic)</option>
                   <option value="openai">ChatGPT (OpenAI)</option>
                   <option value="gemini">Gemini (Google)</option>
-                  <option value="all">All (Claude + ChatGPT + Gemini)</option>
-                </select>
-              </label>
-              <label>
-                All-mode Count
-                <select id="gen-all-mode">
-                  <option value="split_total">Split count across all selected models</option>
-                  <option value="per_provider">Apply full count to each model (3x total for All)</option>
+                  <option value="all" selected>All (Claude + ChatGPT + Gemini)</option>
                 </select>
               </label>
               <label>
@@ -149,9 +142,6 @@
             <div class="admin-actions">
               <button id="generate-btn" class="btn btn-primary">Generate Drafts</button>
             </div>
-            <p class="draft-meta">
-              Tip: With “All”, choose split mode to keep total drafts near your Count.
-            </p>
             <p class="draft-meta">
               Manual tokens used today:
               <strong id="manual-usage-tokens">0</strong>
