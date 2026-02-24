@@ -104,30 +104,55 @@
 
           <div class="usage-grid usage-grid-three">
             <article class="usage-card budget-card">
-              <h4>Model Metrics</h4>
-              <p class="hint">Each model has independent budget controls and quality metrics.</p>
-              <div id="model-metrics-list" class="duplicate-list"></div>
+              <h4>Model Metrics (Auto)</h4>
+              <p class="hint">Auto-run usage and budget by model.</p>
+              <div id="model-metrics-list-auto" class="duplicate-list"></div>
             </article>
 
             <article class="usage-card budget-card">
-              <h4>Quality Cost</h4>
-              <p class="usage-row"><span>Rejected Today</span><strong id="quality-rejected-today">0</strong></p>
-              <p class="usage-row"><span>Rejected This Month</span><strong id="quality-rejected-month">0</strong></p>
-              <p class="usage-row"><span>Bad Tokens Today</span><strong id="quality-bad-tokens-today">0</strong></p>
-              <p class="usage-row"><span>Bad Tokens This Month</span><strong id="quality-bad-tokens-month">0</strong></p>
-              <p class="usage-row"><span>Duplicate Today</span><strong id="quality-duplicate-today">0</strong></p>
-              <p class="usage-row"><span>Stale Today</span><strong id="quality-stale-today">0</strong></p>
-              <p class="usage-row"><span>Thin Today</span><strong id="quality-thin-today">0</strong></p>
-              <p class="usage-row"><span>Style Today</span><strong id="quality-style-today">0</strong></p>
+              <h4>Model Metrics (Manual)</h4>
+              <p class="hint">Manual-run usage and budget by model.</p>
+              <div id="model-metrics-list-manual" class="duplicate-list"></div>
             </article>
 
             <article class="usage-card budget-card">
-              <h4>Budget Overview</h4>
-              <p class="usage-row"><span>Total Daily Budget</span><strong id="budget-total-daily">0</strong></p>
-              <p class="usage-row"><span>Daily Used</span><strong id="budget-total-used">0</strong></p>
-              <p class="usage-row"><span>Daily Remaining</span><strong id="budget-total-remaining">0</strong></p>
-              <p class="usage-row"><span>Draft Target (Daily)</span><strong id="budget-draft-target">81</strong></p>
-              <p class="hint">Model defaults preload automatically (OpenAI 45k, Claude 35k, Gemini 35k, Grok 30k).</p>
+              <h4>System Metrics</h4>
+              <p class="hint">Expand sections below for quality and budget details.</p>
+              <div class="combined-metrics-stack">
+                <article class="draft-card">
+                  <button class="draft-header draft-toggle btn-reset" type="button">
+                    <strong>Quality Cost</strong>
+                    <span class="draft-meta">Today and monthly rejection/quality loss stats</span>
+                  </button>
+                  <div class="section-editor article-editor is-collapsed" hidden>
+                    <p class="usage-row"><span>Rejected Today</span><strong id="quality-rejected-today">0</strong></p>
+                    <p class="usage-row"><span>Rejected This Month</span><strong id="quality-rejected-month">0</strong></p>
+                    <p class="usage-row"><span>Bad Tokens Today</span><strong id="quality-bad-tokens-today">0</strong></p>
+                    <p class="usage-row"><span>Bad Tokens This Month</span><strong id="quality-bad-tokens-month">0</strong></p>
+                    <p class="usage-row"><span>Duplicate Today</span><strong id="quality-duplicate-today">0</strong></p>
+                    <p class="usage-row"><span>Duplicate This Month</span><strong id="quality-duplicate-month">0</strong></p>
+                    <p class="usage-row"><span>Stale Today</span><strong id="quality-stale-today">0</strong></p>
+                    <p class="usage-row"><span>Stale This Month</span><strong id="quality-stale-month">0</strong></p>
+                    <p class="usage-row"><span>Thin Today</span><strong id="quality-thin-today">0</strong></p>
+                    <p class="usage-row"><span>Thin This Month</span><strong id="quality-thin-month">0</strong></p>
+                    <p class="usage-row"><span>Style Today</span><strong id="quality-style-today">0</strong></p>
+                    <p class="usage-row"><span>Style This Month</span><strong id="quality-style-month">0</strong></p>
+                  </div>
+                </article>
+                <article class="draft-card">
+                  <button class="draft-header draft-toggle btn-reset" type="button">
+                    <strong>Budget Overview</strong>
+                    <span class="draft-meta">Global daily budget and throughput targets</span>
+                  </button>
+                  <div class="section-editor article-editor is-collapsed" hidden>
+                    <p class="usage-row"><span>Total Daily Budget</span><strong id="budget-total-daily">0</strong></p>
+                    <p class="usage-row"><span>Daily Used</span><strong id="budget-total-used">0</strong></p>
+                    <p class="usage-row"><span>Daily Remaining</span><strong id="budget-total-remaining">0</strong></p>
+                    <p class="usage-row"><span>Draft Target (Daily)</span><strong id="budget-draft-target">81</strong></p>
+                    <p class="hint">Model defaults preload automatically (OpenAI 120k, Claude 100k, Gemini 100k, Grok 90k).</p>
+                  </div>
+                </article>
+              </div>
             </article>
           </div>
         </div>

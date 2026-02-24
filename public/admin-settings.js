@@ -29,15 +29,20 @@ const globalProgressQualityLossEl = document.getElementById('global-progress-qua
 const globalTokensTodayEl = document.getElementById('global-tokens-today');
 const globalDraftsTodayEl = document.getElementById('global-drafts-today');
 const globalQualityLossTodayValueEl = document.getElementById('global-quality-loss-today-value');
-const modelMetricsListEl = document.getElementById('model-metrics-list');
+const modelMetricsListAutoEl = document.getElementById('model-metrics-list-auto');
+const modelMetricsListManualEl = document.getElementById('model-metrics-list-manual');
 const qualityRejectedTodayEl = document.getElementById('quality-rejected-today');
 const qualityRejectedMonthEl = document.getElementById('quality-rejected-month');
 const qualityBadTokensTodayEl = document.getElementById('quality-bad-tokens-today');
 const qualityBadTokensMonthEl = document.getElementById('quality-bad-tokens-month');
 const qualityDuplicateTodayEl = document.getElementById('quality-duplicate-today');
+const qualityDuplicateMonthEl = document.getElementById('quality-duplicate-month');
 const qualityStaleTodayEl = document.getElementById('quality-stale-today');
+const qualityStaleMonthEl = document.getElementById('quality-stale-month');
 const qualityThinTodayEl = document.getElementById('quality-thin-today');
+const qualityThinMonthEl = document.getElementById('quality-thin-month');
 const qualityStyleTodayEl = document.getElementById('quality-style-today');
+const qualityStyleMonthEl = document.getElementById('quality-style-month');
 const budgetTotalDailyEl = document.getElementById('budget-total-daily');
 const budgetTotalUsedEl = document.getElementById('budget-total-used');
 const budgetTotalRemainingEl = document.getElementById('budget-total-remaining');
@@ -217,26 +222,26 @@ function renderRejections(rejections) {
   `).join('');
 }
 
-function renderModelMetrics(items, usageByModel) {
-  if (!modelMetricsListEl) return;
-  if (!Array.isArray(items) || !items.length) {
-    modelMetricsListEl.innerHTML = '<p class="draft-meta">No model metrics yet.</p>';
+function renderModelMetrics(listEl, items, usageByModel, scopeLabel) {
+  if (!listEl) return;
+  const filteredItems = (Array.isArray(items) ? items : []);
+  if (!filteredItems.length) {
+    listEl.innerHTML = '<p class="draft-meta">No model metrics yet.</p>';
     return;
   }
 
-  modelMetricsListEl.innerHTML = items.map((item) => {
+  listEl.innerHTML = filteredItems.map((item) => {
     const model = String(item.model || 'unknown');
     const modelLabel = formatModelLabel(model);
     const modelUsage = usageByModel[model] || {};
-    const byReason = item.byReason || {};
     const budgetValue = Number(modelUsage.dailyTokenBudget || 0);
     return `
       <article class="draft-card" data-model-name="${escapeHtml(model)}">
         <button class="draft-header draft-toggle btn-reset" type="button">
           <strong class="model-title">${escapeHtml(modelLabel)}</strong>
           <span class="draft-meta">
-            daily used: ${Number(modelUsage.dailyTokensUsed || 0).toLocaleString()} / ${budgetValue.toLocaleString()} |
-            loss: ${Number(modelUsage.qualityLossRatePercent || 0).toFixed(1)}%
+            ${escapeHtml(scopeLabel)} used today: ${Number(modelUsage.dailyTokensUsed || 0).toLocaleString()} / ${budgetValue.toLocaleString()} |
+            drafts: ${Number(modelUsage.dailyDrafts || 0).toLocaleString()}
           </span>
         </button>
         <div class="section-editor article-editor is-collapsed" hidden>
@@ -250,15 +255,8 @@ function renderModelMetrics(items, usageByModel) {
           <div class="usage-progress"><div class="usage-progress-bar usage-progress-model-acceptance"></div></div>
           <p class="usage-row"><span>Quality Loss Rate (Today)</span><strong>${Number(modelUsage.qualityLossRatePercent || 0).toFixed(1)}%</strong></p>
           <div class="usage-progress"><div class="usage-progress-bar usage-progress-loss usage-progress-model-loss"></div></div>
-          <p class="usage-row"><span>Drafts Given (Total)</span><strong>${Number(item.draftsGiven || 0).toLocaleString()}</strong></p>
-          <p class="usage-row"><span>Turned Down (Total)</span><strong>${Number(item.turnedDown || 0).toLocaleString()}</strong></p>
-          <p class="draft-meta">
-            duplicate: ${Number(byReason.duplicate || 0).toLocaleString()} |
-            stale: ${Number(byReason.stale_or_not_time_relevant || 0).toLocaleString()} |
-            thin: ${Number(byReason.low_newsworthiness_or_thin || 0).toLocaleString()} |
-            style: ${Number(byReason.style_mismatch || 0).toLocaleString()} |
-            user_error: ${Number(byReason.user_error || 0).toLocaleString()}
-          </p>
+          <p class="usage-row"><span>Turned Down (Today)</span><strong>${Number(modelUsage.turnedDownToday || 0).toLocaleString()}</strong></p>
+          <p class="usage-row"><span>Accepted (Today)</span><strong>${Number(modelUsage.acceptedToday || 0).toLocaleString()}</strong></p>
           <div class="admin-grid single">
             <label>
               Daily Budget
@@ -273,7 +271,7 @@ function renderModelMetrics(items, usageByModel) {
     `;
   }).join('');
 
-  modelMetricsListEl.querySelectorAll('.draft-card').forEach((card) => {
+  listEl.querySelectorAll('.draft-card').forEach((card) => {
     const dailyBar = card.querySelector('.usage-progress-model-daily');
     const weeklyBar = card.querySelector('.usage-progress-model-weekly');
     const monthlyBar = card.querySelector('.usage-progress-model-monthly');
@@ -411,14 +409,19 @@ async function loadUsageDashboard() {
   const dailyQuality = quality.daily || {};
   const monthlyQuality = quality.monthly || {};
   const dailyByReason = dailyQuality.byReason || {};
+  const monthlyByReason = monthlyQuality.byReason || {};
   if (qualityRejectedTodayEl) qualityRejectedTodayEl.textContent = Number(dailyQuality.totalRejected || 0).toLocaleString();
   if (qualityRejectedMonthEl) qualityRejectedMonthEl.textContent = Number(monthlyQuality.totalRejected || 0).toLocaleString();
   if (qualityBadTokensTodayEl) qualityBadTokensTodayEl.textContent = Number(dailyQuality.badTokensTotal || 0).toLocaleString();
   if (qualityBadTokensMonthEl) qualityBadTokensMonthEl.textContent = Number(monthlyQuality.badTokensTotal || 0).toLocaleString();
   if (qualityDuplicateTodayEl) qualityDuplicateTodayEl.textContent = Number(dailyByReason.duplicate || 0).toLocaleString();
+  if (qualityDuplicateMonthEl) qualityDuplicateMonthEl.textContent = Number(monthlyByReason.duplicate || 0).toLocaleString();
   if (qualityStaleTodayEl) qualityStaleTodayEl.textContent = Number(dailyByReason.stale_or_not_time_relevant || 0).toLocaleString();
+  if (qualityStaleMonthEl) qualityStaleMonthEl.textContent = Number(monthlyByReason.stale_or_not_time_relevant || 0).toLocaleString();
   if (qualityThinTodayEl) qualityThinTodayEl.textContent = Number(dailyByReason.low_newsworthiness_or_thin || 0).toLocaleString();
+  if (qualityThinMonthEl) qualityThinMonthEl.textContent = Number(monthlyByReason.low_newsworthiness_or_thin || 0).toLocaleString();
   if (qualityStyleTodayEl) qualityStyleTodayEl.textContent = Number(dailyByReason.style_mismatch || 0).toLocaleString();
+  if (qualityStyleMonthEl) qualityStyleMonthEl.textContent = Number(monthlyByReason.style_mismatch || 0).toLocaleString();
   if (budgetTotalDailyEl) budgetTotalDailyEl.textContent = Number(usageGlobal.dailyTokenBudget || 0).toLocaleString();
   if (budgetTotalUsedEl) budgetTotalUsedEl.textContent = Number(usageGlobal.dailyTokensUsed || 0).toLocaleString();
   if (budgetTotalRemainingEl) budgetTotalRemainingEl.textContent = Number(usageGlobal.tokensRemainingToday || 0).toLocaleString();
@@ -427,13 +430,22 @@ async function loadUsageDashboard() {
   const models = Array.from(new Set([
     ...(quality.configuredModels || []).map((v) => String(v || '').trim()),
     ...((quality.modelBreakdown?.total || []).map((item) => String(item.model || '').trim()))
-  ].filter(Boolean)));
-  const usageByModelEntries = await Promise.all(models.map(async (model) => {
-    const usage = await apiRequest(`/api/admin-usage?scope=all&model=${encodeURIComponent(model)}`);
-    return [model, usage];
-  }));
-  const usageByModel = Object.fromEntries(usageByModelEntries);
-  renderModelMetrics(quality.modelBreakdown?.total || [], usageByModel);
+  ].filter((v) => Boolean(v) && String(v).toLowerCase() !== 'unknown')));
+  const modelItems = models.map((model) => ({ model }));
+  const [usageByModelAutoEntries, usageByModelManualEntries] = await Promise.all([
+    Promise.all(models.map(async (model) => {
+      const usage = await apiRequest(`/api/admin-usage?scope=auto&model=${encodeURIComponent(model)}`);
+      return [model, usage];
+    })),
+    Promise.all(models.map(async (model) => {
+      const usage = await apiRequest(`/api/admin-usage?scope=manual&model=${encodeURIComponent(model)}`);
+      return [model, usage];
+    }))
+  ]);
+  const usageByModelAuto = Object.fromEntries(usageByModelAutoEntries);
+  const usageByModelManual = Object.fromEntries(usageByModelManualEntries);
+  renderModelMetrics(modelMetricsListAutoEl, modelItems, usageByModelAuto, 'auto');
+  renderModelMetrics(modelMetricsListManualEl, modelItems, usageByModelManual, 'manual');
 }
 
 function paintUsageBar(barEl, usedPercent) {
