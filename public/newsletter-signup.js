@@ -10,6 +10,7 @@ function setSignupMessage(form, text, kind) {
 let turnstileSiteKeyPromise = null;
 let turnstileScriptPromise = null;
 const turnstileWidgetIds = new WeakMap();
+const turnstilePending = new WeakMap();
 const MOBILE_BREAKPOINT = 768;
 
 function isMobileSignupLayout() {
@@ -33,18 +34,15 @@ function setMobileExpanded(form, isExpanded, options = {}) {
   strip.classList.toggle('is-mobile-expanded', isExpanded);
   strip.classList.toggle('is-mobile-collapsed', !isExpanded);
   toggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
-  toggle.classList.toggle('is-close', isExpanded);
-  toggle.textContent = isExpanded ? '×' : 'Sign Up';
-  toggle.setAttribute('aria-label', isExpanded ? 'Close newsletter signup' : 'Open newsletter signup');
+  toggle.classList.remove('is-close');
+  toggle.textContent = 'Sign Up';
+  toggle.setAttribute('aria-label', 'Open newsletter signup');
 
   if (isExpanded && options.focusInput) {
     const emailInput = form.querySelector('input[name="email"]');
     setTimeout(() => emailInput?.focus(), 0);
   }
 
-  if (!isExpanded) {
-    setTurnstileVisible(form, false);
-  }
 }
 
 function syncMobileSignupState(forms) {
@@ -56,9 +54,9 @@ function syncMobileSignupState(forms) {
     if (isMobileSignupLayout()) {
       if (strip.classList.contains('is-mobile-expanded')) {
         toggle.setAttribute('aria-expanded', 'true');
-        toggle.classList.add('is-close');
-        toggle.textContent = '×';
-        toggle.setAttribute('aria-label', 'Close newsletter signup');
+        toggle.classList.remove('is-close');
+        toggle.textContent = 'Sign Up';
+        toggle.setAttribute('aria-label', 'Open newsletter signup');
       } else {
         strip.classList.add('is-mobile-collapsed');
         strip.classList.remove('is-mobile-expanded');
@@ -75,7 +73,6 @@ function syncMobileSignupState(forms) {
     toggle.classList.remove('is-close');
     toggle.textContent = 'Sign Up';
     toggle.setAttribute('aria-label', 'Open newsletter signup');
-    setTurnstileVisible(form, false);
   });
 }
 
@@ -114,42 +111,14 @@ async function loadTurnstileScript() {
 }
 
 function ensureTurnstileMount(form) {
-  let wrapper = form.querySelector('[data-turnstile-floating]');
-  if (!wrapper) {
-    wrapper = document.createElement('div');
-    wrapper.className = 'turnstile-floating';
-    wrapper.dataset.turnstileFloating = 'true';
-    wrapper.hidden = true;
-
-    const mount = document.createElement('div');
-    mount.className = 'turnstile-widget';
-    mount.dataset.turnstile = 'true';
-    wrapper.appendChild(mount);
-
-    const submitBtn = form.querySelector('button[type="submit"]');
-    if (submitBtn) {
-      form.insertBefore(wrapper, submitBtn);
-    } else {
-      form.appendChild(wrapper);
-    }
+  let mount = form.querySelector('[data-turnstile-hidden]');
+  if (!mount) {
+    mount = document.createElement('div');
+    mount.dataset.turnstileHidden = 'true';
+    mount.hidden = true;
+    form.appendChild(mount);
   }
-  return wrapper.querySelector('[data-turnstile]');
-}
-
-function setTurnstileVisible(form, isVisible) {
-  const wrapper = form.querySelector('[data-turnstile-floating]');
-  if (!wrapper) return;
-
-  if (isVisible) {
-    wrapper.hidden = false;
-    requestAnimationFrame(() => wrapper.classList.add('is-visible'));
-    return;
-  }
-
-  wrapper.classList.remove('is-visible');
-  setTimeout(() => {
-    if (!wrapper.classList.contains('is-visible')) wrapper.hidden = true;
-  }, 160);
+  return mount;
 }
 
 async function ensureTurnstileWidget(form) {
@@ -165,26 +134,61 @@ async function ensureTurnstileWidget(form) {
   const mount = ensureTurnstileMount(form);
   const widgetId = window.turnstile.render(mount, {
     sitekey: siteKey,
-    size: isMobileSignupLayout() ? 'flexible' : 'normal',
+    size: 'invisible',
     theme: 'auto',
-    callback: () => {
-      const strip = getSignupStrip(form);
-      if (isMobileSignupLayout() && strip?.classList.contains('is-mobile-expanded')) {
-        setTurnstileVisible(form, true);
-        return;
+    callback: (token) => {
+      const pending = turnstilePending.get(form);
+      if (pending) {
+        clearTimeout(pending.timeoutId);
+        turnstilePending.delete(form);
+        pending.resolve(String(token || '').trim());
       }
-      setTurnstileVisible(form, false);
+    },
+    'error-callback': () => {
+      const pending = turnstilePending.get(form);
+      if (pending) {
+        clearTimeout(pending.timeoutId);
+        turnstilePending.delete(form);
+        pending.reject(new Error('Verification failed. Please try again.'));
+      }
+    },
+    'expired-callback': () => {
+      const pending = turnstilePending.get(form);
+      if (pending) {
+        clearTimeout(pending.timeoutId);
+        turnstilePending.delete(form);
+        pending.reject(new Error('Verification expired. Please try again.'));
+      }
     }
   });
   turnstileWidgetIds.set(form, widgetId);
   return widgetId;
 }
 
-async function revealTurnstile(form) {
-  const siteKey = await getTurnstileSiteKey();
-  if (!siteKey) return;
-  await ensureTurnstileWidget(form);
-  setTurnstileVisible(form, true);
+async function getTurnstileToken(form) {
+  const widgetId = await ensureTurnstileWidget(form);
+  if (widgetId === null || widgetId === undefined || !window.turnstile) return '';
+
+  window.turnstile.reset(widgetId);
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      if (turnstilePending.has(form)) {
+        turnstilePending.delete(form);
+        reject(new Error('Verification timed out. Please try again.'));
+      }
+    }, 12000);
+
+    turnstilePending.set(form, { resolve, reject, timeoutId });
+
+    try {
+      window.turnstile.execute(widgetId);
+    } catch (_) {
+      clearTimeout(timeoutId);
+      turnstilePending.delete(form);
+      reject(new Error('Verification failed. Please try again.'));
+    }
+  });
 }
 
 async function submitNewsletterForm(form) {
@@ -194,26 +198,9 @@ async function submitNewsletterForm(form) {
   const email = String(emailInput?.value || '').trim();
   const siteKey = await getTurnstileSiteKey();
   const requiresTurnstile = !!siteKey;
-  let widgetId = turnstileWidgetIds.get(form);
-  let turnstileToken = widgetId !== undefined && window.turnstile
-    ? String(window.turnstile.getResponse(widgetId) || '').trim()
-    : '';
 
   if (!email) {
     setSignupMessage(form, 'Enter your email address.', 'error');
-    return;
-  }
-
-  if (requiresTurnstile && !turnstileToken) {
-    widgetId = await ensureTurnstileWidget(form);
-    turnstileToken = widgetId !== null && widgetId !== undefined && window.turnstile
-      ? String(window.turnstile.getResponse(widgetId) || '').trim()
-      : '';
-    setTurnstileVisible(form, true);
-  }
-
-  if (requiresTurnstile && !turnstileToken) {
-    setSignupMessage(form, 'Please verify you are human.', 'error');
     return;
   }
 
@@ -224,6 +211,12 @@ async function submitNewsletterForm(form) {
   }
 
   try {
+    const turnstileToken = requiresTurnstile ? await getTurnstileToken(form) : '';
+
+    if (requiresTurnstile && !turnstileToken) {
+      throw new Error('Please verify you are human.');
+    }
+
     const res = await fetch('/api/newsletter-subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -246,9 +239,9 @@ async function submitNewsletterForm(form) {
   } catch (error) {
     setSignupMessage(form, error.message || 'Signup failed. Please try again.', 'error');
   } finally {
+    const widgetId = turnstileWidgetIds.get(form);
     if (widgetId !== undefined && window.turnstile) {
       window.turnstile.reset(widgetId);
-      setTurnstileVisible(form, false);
     }
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -263,40 +256,17 @@ function bindNewsletterForms() {
   syncMobileSignupState(forms);
 
   forms.forEach((form) => {
-    const emailInput = form.querySelector('input[name="email"]');
-    if (emailInput) {
-      const openTurnstile = () => revealTurnstile(form).catch(() => {});
-      emailInput.addEventListener('focus', openTurnstile);
-      emailInput.addEventListener('click', openTurnstile);
-    }
-
     const toggle = getMobileToggle(form);
     if (toggle) {
       toggle.addEventListener('click', () => {
-        const strip = getSignupStrip(form);
-        const isExpanded = !!strip?.classList.contains('is-mobile-expanded');
-        setMobileExpanded(form, !isExpanded, { focusInput: !isExpanded });
-        if (!isExpanded) {
-          revealTurnstile(form).catch(() => {});
-        }
+        if (!isMobileSignupLayout()) return;
+        setMobileExpanded(form, true, { focusInput: true });
       });
     }
 
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       submitNewsletterForm(form);
-    });
-  });
-
-  document.addEventListener('pointerdown', (event) => {
-    forms.forEach((form) => {
-      const strip = getSignupStrip(form);
-      if (!strip?.contains(event.target)) {
-        setTurnstileVisible(form, false);
-        if (strip?.classList.contains('is-mobile-expanded')) {
-          setMobileExpanded(form, false);
-        }
-      }
     });
   });
 
