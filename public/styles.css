@@ -1358,6 +1358,7 @@ nav a + a::before {
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form {
+    --mobile-submit-width: 8.75rem;
     display: flex;
     width: 100%;
     flex-wrap: wrap;
@@ -1375,8 +1376,25 @@ nav a + a::before {
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"] {
     order: 3;
-    width: auto;
+    width: var(--mobile-submit-width);
+    min-width: var(--mobile-submit-width);
     flex-shrink: 0;
+    height: 2rem;
+    border-radius: 999px;
+    border: 1px solid #111;
+    background: transparent;
+    color: #111;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-size: 0.82rem;
+    font-weight: bold;
+    padding: 0 0.7rem;
+  }
+
+  .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"]:hover {
+    background: #111;
+    color: #fff;
+    border-color: #111;
   }
 
   .newsletter-strip.is-mobile-expanded .turnstile-floating {
@@ -1385,9 +1403,10 @@ nav a + a::before {
     right: auto;
     bottom: auto;
     order: 1;
-    flex: 0 0 100%;
-    width: 100%;
+    flex: 0 0 calc(100% - var(--mobile-submit-width) - 0.45rem);
+    width: calc(100% - var(--mobile-submit-width) - 0.45rem);
     margin-bottom: 0.35rem;
+    margin-right: auto;
     transform: none;
   }
 
@@ -1397,7 +1416,7 @@ nav a + a::before {
 
   .newsletter-strip.is-mobile-expanded .turnstile-widget {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .newsletter-strip.is-mobile-expanded .newsletter-strip-copy {
@@ -1561,6 +1580,18 @@ html[data-theme="dark"] .newsletter-mobile-toggle {
 }
 
 html[data-theme="dark"] .newsletter-mobile-toggle:hover {
+  background: #e8edf7;
+  color: #111318;
+  border-color: #e8edf7;
+}
+
+html[data-theme="dark"] .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"] {
+  background: transparent;
+  color: #eef2f8;
+  border-color: #808a9a;
+}
+
+html[data-theme="dark"] .newsletter-strip.is-mobile-expanded .newsletter-strip-form button[type="submit"]:hover {
   background: #e8edf7;
   color: #111318;
   border-color: #e8edf7;
