@@ -44,22 +44,45 @@ const DEFAULT_MAX_OUTPUT_TOKENS = 2600;
 const RETRY_MIN_INITIAL_WORDS = 300;
 
 const ET_TIME_ZONE = 'America/New_York';
-const MULTI_TRACK_SLOTS_ET = ['06:05', '08:05', '10:05', '12:05', '14:05', '16:05', '18:05', '22:05'];
-const SINGLE_TRACK_SLOTS_ET = ['10:05', '14:05', '22:05'];
-const MULTI_TRACK_COUNT_BY_SLOT_ET = {
-  '06:05': 4,
-  '08:05': 4,
-  '10:05': 2,
-  '12:05': 2,
-  '14:05': 2,
-  '16:05': 4,
-  '18:05': 4,
-  '22:05': 2
-};
-const SINGLE_TRACK_COUNT_BY_SLOT_ET = {
-  '10:05': 1,
-  '14:05': 1,
-  '22:05': 1
+const TRACK_SCHEDULES_BY_PROVIDER = {
+  anthropic: {
+    multiSlots: ['06:05', '08:05', '10:05', '12:05', '14:05', '16:05', '18:05', '22:05'],
+    singleSlots: ['10:05', '14:05', '22:05'],
+    multiCountBySlot: {
+      '06:05': 4,
+      '08:05': 4,
+      '10:05': 2,
+      '12:05': 2,
+      '14:05': 2,
+      '16:05': 4,
+      '18:05': 4,
+      '22:05': 2
+    },
+    singleCountBySlot: {
+      '10:05': 1,
+      '14:05': 1,
+      '22:05': 1
+    }
+  },
+  openai: {
+    multiSlots: ['06:25', '08:25', '10:25', '12:25', '14:25', '16:25', '18:25', '22:25'],
+    singleSlots: ['10:25', '14:25', '22:25'],
+    multiCountBySlot: {
+      '06:25': 4,
+      '08:25': 4,
+      '10:25': 2,
+      '12:25': 2,
+      '14:25': 2,
+      '16:25': 4,
+      '18:25': 4,
+      '22:25': 2
+    },
+    singleCountBySlot: {
+      '10:25': 1,
+      '14:25': 1,
+      '22:25': 1
+    }
+  }
 };
 const CATCH_UP_END_HOUR_ET = 22;
 const SPORTS_FOCUS_MODES = new Set(['auto', 'college_basketball', 'nba', 'baseball', 'football', 'broad']);
@@ -412,22 +435,29 @@ function getEtTimeKey(parts) {
   return `${parts.hour}:${parts.minute}`;
 }
 
-function shouldRunScheduledTrack(track, etTime) {
-  if (track === 'single') return SINGLE_TRACK_SLOTS_ET.includes(etTime);
-  if (track === 'multi') return MULTI_TRACK_SLOTS_ET.includes(etTime);
+function getTrackSchedule(writerProvider) {
+  return TRACK_SCHEDULES_BY_PROVIDER[writerProvider] || TRACK_SCHEDULES_BY_PROVIDER.anthropic;
+}
+
+function shouldRunScheduledTrack(track, etTime, writerProvider) {
+  const schedule = getTrackSchedule(writerProvider);
+  if (track === 'single') return schedule.singleSlots.includes(etTime);
+  if (track === 'multi') return schedule.multiSlots.includes(etTime);
   return false;
 }
 
-function getScheduledRequestedCount(track, etTime) {
-  if (track === 'single') return SINGLE_TRACK_COUNT_BY_SLOT_ET[etTime] || null;
-  if (track === 'multi') return MULTI_TRACK_COUNT_BY_SLOT_ET[etTime] || null;
+function getScheduledRequestedCount(track, etTime, writerProvider) {
+  const schedule = getTrackSchedule(writerProvider);
+  if (track === 'single') return schedule.singleCountBySlot[etTime] || null;
+  if (track === 'multi') return schedule.multiCountBySlot[etTime] || null;
   return null;
 }
 
-function getRemainingScheduledSlots(track, etTime) {
+function getRemainingScheduledSlots(track, etTime, writerProvider) {
+  const schedule = getTrackSchedule(writerProvider);
   const slots = track === 'single'
-    ? SINGLE_TRACK_SLOTS_ET
-    : (track === 'multi' ? MULTI_TRACK_SLOTS_ET : []);
+    ? schedule.singleSlots
+    : (track === 'multi' ? schedule.multiSlots : []);
   const idx = slots.indexOf(etTime);
   if (idx < 0) return 0;
   return Math.max(0, slots.length - idx);
@@ -646,12 +676,7 @@ function getModelMaxOutputTokens() {
   return Math.min(configured, 8192);
 }
 
-async function callAnthropicForDraft(candidate) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error('Missing ANTHROPIC_API_KEY');
-  }
-
+function buildDraftPrompt(candidate) {
   const sectionVoice = ({
     local: 'You are a feature reporter for a local Dayton, Ohio news publication.',
     sports: 'You are a sports news contributor for a local Dayton, Ohio news publication.',
@@ -718,9 +743,7 @@ async function callAnthropicForDraft(candidate) {
     ? `External duplicate memory (do not mirror these source story angles/headlines): ${externalDuplicateTitles.join(' | ')}`
     : 'External duplicate memory: none for this section in current memory window.';
 
-  const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
-  const maxOutputTokens = getModelMaxOutputTokens();
-  const prompt = `
+  return `
 ${sectionVoice}
 Write a fully original publication-ready draft for The Dayton Enquirer.
 
@@ -760,6 +783,22 @@ Requirements:
 
 Return only JSON.
 `;
+}
+
+function resolveWriterProvider(raw) {
+  const provider = String(raw || process.env.DRAFT_WRITER_PROVIDER || 'anthropic').trim().toLowerCase();
+  return provider === 'openai' ? 'openai' : 'anthropic';
+}
+
+async function callAnthropicForDraft(candidate) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing ANTHROPIC_API_KEY');
+  }
+
+  const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
+  const maxOutputTokens = getModelMaxOutputTokens();
+  const prompt = buildDraftPrompt(candidate);
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -804,16 +843,75 @@ Return only JSON.
   };
 }
 
-async function buildDraftWithMinWords(candidate) {
-  let draft = await callAnthropicForDraft(candidate);
+async function callOpenAiForDraft(candidate) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing OPENAI_API_KEY');
+  }
+
+  const model = process.env.OPENAI_MODEL || 'gpt-5';
+  const maxOutputTokens = getModelMaxOutputTokens();
+  const prompt = buildDraftPrompt(candidate);
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.4,
+      max_completion_tokens: maxOutputTokens,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`OpenAI API error ${response.status}: ${body.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content || '';
+  const usage = data?.usage || {};
+  const inputTokens = Number(usage.prompt_tokens || 0);
+  const outputTokens = Number(usage.completion_tokens || 0);
+  const totalTokens = Number(usage.total_tokens || (inputTokens + outputTokens));
+  const parsed = safeJsonParse(text);
+  if (!parsed) {
+    throw new Error('Model did not return valid JSON');
+  }
+
+  return {
+    title: cleanText(parsed.title),
+    description: truncate(cleanText(parsed.description), 800),
+    content: cleanText(parsed.content),
+    section: normalizeSection(candidate.section),
+    model,
+    inputTokens,
+    outputTokens,
+    totalTokens
+  };
+}
+
+async function callWriterForDraft(candidate, writerProvider) {
+  if (writerProvider === 'openai') {
+    return callOpenAiForDraft(candidate);
+  }
+  return callAnthropicForDraft(candidate);
+}
+
+async function buildDraftWithMinWords(candidate, writerProvider) {
+  let draft = await callWriterForDraft(candidate, writerProvider);
   let words = countWords(draft.content);
   if (words >= MIN_ARTICLE_WORDS) return { draft, words };
 
   // Retry once with stricter length guidance.
-  draft = await callAnthropicForDraft({
+  draft = await callWriterForDraft({
     ...candidate,
     title: `${candidate.title} (expand with more verified context and impact details)`
-  });
+  }, writerProvider);
   words = countWords(draft.content);
   return { draft, words };
 }
@@ -1629,6 +1727,7 @@ module.exports = async (req, res) => {
   const dailyTokenBudgetOverride = req.body?.dailyTokenBudget || req.query.dailyTokenBudget;
   const scheduleMode = String(req.body?.schedule || req.query.schedule || '').toLowerCase();
   const requestedRunMode = String(req.body?.runMode || req.query.runMode || 'auto').toLowerCase();
+  const writerProvider = resolveWriterProvider(req.body?.provider || req.query.provider);
   const track = String(req.body?.track || req.query.track || '').toLowerCase();
   const runMode = scheduleMode === 'auto'
     ? 'auto'
@@ -1675,7 +1774,7 @@ module.exports = async (req, res) => {
         });
         return res.status(400).json({ error: 'schedule=auto requires track=multi|single' });
       }
-      if (!shouldRunScheduledTrack(track, etTime)) {
+      if (!shouldRunScheduledTrack(track, etTime, writerProvider)) {
         await logDraftGenerationRun(sql, {
           runStatus: 'skipped',
           runReason: `Not a scheduled ${track} slot`,
@@ -1697,10 +1796,11 @@ module.exports = async (req, res) => {
           reason: `Not a scheduled ${track} slot`,
           etDate,
           etTime,
-          track
+          track,
+          writerProvider
         });
       }
-      const scheduledCount = getScheduledRequestedCount(track, etTime);
+      const scheduledCount = getScheduledRequestedCount(track, etTime, writerProvider);
       if (scheduledCount && scheduledCount > 0) {
         requestedCount = Math.min(scheduledCount, 50);
       }
@@ -1773,7 +1873,7 @@ module.exports = async (req, res) => {
       ['multi', 'single'].includes(track) &&
       shouldApplyCatchUpForEtTime(etTime)
     ) {
-      const slotsLeft = getRemainingScheduledSlots(track, etTime);
+      const slotsLeft = getRemainingScheduledSlots(track, etTime, writerProvider);
       if (slotsLeft > 0) {
         const catchUpCount = Math.ceil(remainingToday / slotsLeft);
         if (Number.isFinite(catchUpCount) && catchUpCount > 0) {
@@ -2234,7 +2334,7 @@ module.exports = async (req, res) => {
       const { draft, words } = await buildDraftWithMinWords({
         ...candidate,
         externalDuplicateTitles: reportedExternalDuplicateTitlesBySection[sectionKey] || []
-      });
+      }, writerProvider);
       if (!draft.title || !draft.content) {
         skipped.push({ reason: 'rejected_non_local_or_empty', title: candidate.title, url: candidate.url });
         continue;
@@ -2544,6 +2644,7 @@ module.exports = async (req, res) => {
       track,
       runMode,
       createdVia,
+      writerProvider,
       sportsFocusMode,
       etDate,
       etTime,

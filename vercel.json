@@ -7,6 +7,14 @@
     {
       "path": "/api/admin-generate-drafts?schedule=auto&track=single&includeSections=health,entertainment,technology",
       "schedule": "5 * * * *"
+    },
+    {
+      "path": "/api/admin-generate-drafts?schedule=auto&track=multi&provider=openai&excludeSections=health,entertainment,technology",
+      "schedule": "25 * * * *"
+    },
+    {
+      "path": "/api/admin-generate-drafts?schedule=auto&track=single&provider=openai&includeSections=health,entertainment,technology",
+      "schedule": "25 * * * *"
     }
   ],
   "headers": [

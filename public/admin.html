@@ -122,6 +122,21 @@
                 <input id="gen-count" type="number" min="1" max="20" value="3" />
               </label>
               <label>
+                Model Source
+                <select id="gen-provider">
+                  <option value="anthropic">Claude (Anthropic)</option>
+                  <option value="openai">ChatGPT (OpenAI)</option>
+                  <option value="all">All (Claude + ChatGPT)</option>
+                </select>
+              </label>
+              <label>
+                All-mode Count
+                <select id="gen-all-mode">
+                  <option value="split_total">Split count across both models</option>
+                  <option value="per_provider">Apply full count to each model (2x total)</option>
+                </select>
+              </label>
+              <label>
                 Include Sections (comma list)
                 <input id="gen-include" type="text" placeholder="local,national,world" />
               </label>
@@ -133,6 +148,9 @@
             <div class="admin-actions">
               <button id="generate-btn" class="btn btn-primary">Generate Drafts</button>
             </div>
+            <p class="draft-meta">
+              Tip: With “All”, choose split mode to keep total drafts near your Count.
+            </p>
             <p class="draft-meta">
               Manual tokens used today:
               <strong id="manual-usage-tokens">0</strong>

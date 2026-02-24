@@ -6,6 +6,8 @@ const unlockAdminBtn = document.getElementById('unlock-admin-btn');
 const statusFilterInput = document.getElementById('status-filter');
 const limitInput = document.getElementById('list-limit');
 const genCountInput = document.getElementById('gen-count');
+const genProviderInput = document.getElementById('gen-provider');
+const genAllModeInput = document.getElementById('gen-all-mode');
 const genIncludeInput = document.getElementById('gen-include');
 const genExcludeInput = document.getElementById('gen-exclude');
 const genTokenInput = document.getElementById('gen-admin-token');
@@ -398,12 +400,48 @@ async function loadDrafts() {
 async function generateDrafts() {
   try {
     setMessage('Generating drafts...');
-    const count = encodeURIComponent(genCountInput.value || '3');
+    const requestedCount = Math.max(1, Number(genCountInput.value || 3));
     const includeSections = encodeURIComponent((genIncludeInput.value || '').trim());
     const excludeSections = encodeURIComponent((genExcludeInput.value || '').trim());
-    const url = `/api/admin-generate-drafts?count=${count}&includeSections=${includeSections}&excludeSections=${excludeSections}&runMode=manual`;
-    const data = await apiRequest(url, { method: 'POST' });
-    setMessage(`Generated ${data.createdCount || 0} draft(s), skipped ${data.skippedCount || 0}.`);
+    const selectedProvider = String(genProviderInput?.value || 'anthropic').trim().toLowerCase();
+    const allMode = String(genAllModeInput?.value || 'split_total').trim().toLowerCase();
+
+    const buildUrl = (provider, count) => {
+      const safeCount = encodeURIComponent(String(count));
+      const safeProvider = encodeURIComponent(provider);
+      return `/api/admin-generate-drafts?count=${safeCount}&provider=${safeProvider}&includeSections=${includeSections}&excludeSections=${excludeSections}&runMode=manual`;
+    };
+
+    let results = [];
+    if (selectedProvider === 'all') {
+      const providers = ['anthropic', 'openai'];
+      if (allMode === 'per_provider') {
+        results = await Promise.all(providers.map(async (provider) => {
+          const data = await apiRequest(buildUrl(provider, requestedCount), { method: 'POST' });
+          return { provider, data };
+        }));
+      } else {
+        if (requestedCount < 2) {
+          throw new Error('For "All" + split mode, set Count to at least 2, or pick a single model.');
+        }
+        const anthropicCount = Math.floor(requestedCount / 2);
+        const openaiCount = requestedCount - anthropicCount;
+        results = await Promise.all([
+          apiRequest(buildUrl('anthropic', anthropicCount), { method: 'POST' }).then((data) => ({ provider: 'anthropic', data })),
+          apiRequest(buildUrl('openai', openaiCount), { method: 'POST' }).then((data) => ({ provider: 'openai', data }))
+        ]);
+      }
+    } else {
+      const data = await apiRequest(buildUrl(selectedProvider, requestedCount), { method: 'POST' });
+      results = [{ provider: selectedProvider, data }];
+    }
+
+    const createdTotal = results.reduce((sum, item) => sum + Number(item.data?.createdCount || 0), 0);
+    const skippedTotal = results.reduce((sum, item) => sum + Number(item.data?.skippedCount || 0), 0);
+    const breakdown = results
+      .map((item) => `${item.provider}: ${Number(item.data?.createdCount || 0)} created`)
+      .join(' | ');
+    setMessage(`Generated ${createdTotal} draft(s), skipped ${skippedTotal}. ${breakdown}`);
     await loadUsageDashboard();
     await loadManualUsageSummary();
     await loadDrafts();
