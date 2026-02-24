@@ -42,12 +42,13 @@ const MIN_ARTICLE_WORDS = 550;
 const TARGET_ARTICLE_WORDS = 700;
 const DEFAULT_MAX_OUTPUT_TOKENS = 2600;
 const RETRY_MIN_INITIAL_WORDS = 300;
+const DEFAULT_MEMORY_SUPPRESSION_ENABLED = false;
 
 const ET_TIME_ZONE = 'America/New_York';
 const TRACK_SCHEDULES_BY_PROVIDER = {
   anthropic: {
     multiSlots: ['06:05', '08:05', '10:05', '12:05', '14:05', '16:05', '18:05', '22:05'],
-    singleSlots: ['10:05', '14:05', '22:05'],
+    singleSlots: ['10:05', '14:05'],
     multiCountBySlot: {
       '06:05': 4,
       '08:05': 4,
@@ -56,17 +57,16 @@ const TRACK_SCHEDULES_BY_PROVIDER = {
       '14:05': 2,
       '16:05': 4,
       '18:05': 4,
-      '22:05': 2
+      '22:05': 1
     },
     singleCountBySlot: {
       '10:05': 1,
-      '14:05': 1,
-      '22:05': 1
+      '14:05': 1
     }
   },
   openai: {
     multiSlots: ['06:25', '08:25', '10:25', '12:25', '14:25', '16:25', '18:25', '22:25'],
-    singleSlots: ['10:25', '14:25', '22:25'],
+    singleSlots: ['10:25', '14:25'],
     multiCountBySlot: {
       '06:25': 4,
       '08:25': 4,
@@ -75,17 +75,16 @@ const TRACK_SCHEDULES_BY_PROVIDER = {
       '14:25': 2,
       '16:25': 4,
       '18:25': 4,
-      '22:25': 2
+      '22:25': 1
     },
     singleCountBySlot: {
       '10:25': 1,
-      '14:25': 1,
-      '22:25': 1
+      '14:25': 1
     }
   },
   gemini: {
     multiSlots: ['06:45', '08:45', '10:45', '12:45', '14:45', '16:45', '18:45', '22:45'],
-    singleSlots: ['10:45', '14:45', '22:45'],
+    singleSlots: ['10:45', '14:45'],
     multiCountBySlot: {
       '06:45': 4,
       '08:45': 4,
@@ -94,12 +93,11 @@ const TRACK_SCHEDULES_BY_PROVIDER = {
       '14:45': 2,
       '16:45': 4,
       '18:45': 4,
-      '22:45': 2
+      '22:45': 1
     },
     singleCountBySlot: {
       '10:45': 1,
-      '14:45': 1,
-      '22:45': 1
+      '14:45': 1
     }
   }
 };
@@ -695,6 +693,13 @@ function getModelMaxOutputTokens() {
   return Math.min(configured, 8192);
 }
 
+function isMemorySuppressionEnabled(rawValue) {
+  if (rawValue === undefined || rawValue === null || rawValue === '') {
+    return DEFAULT_MEMORY_SUPPRESSION_ENABLED;
+  }
+  return String(rawValue).trim().toLowerCase() === 'true';
+}
+
 function buildDraftPrompt(candidate) {
   const sectionVoice = ({
     local: 'You are a feature reporter for a local Dayton, Ohio news publication.',
@@ -809,6 +814,12 @@ function resolveWriterProvider(raw) {
   if (provider === 'openai') return 'openai';
   if (provider === 'gemini') return 'gemini';
   return 'anthropic';
+}
+
+function getWriterModelForProvider(writerProvider) {
+  if (writerProvider === 'openai') return process.env.OPENAI_MODEL || 'gpt-5';
+  if (writerProvider === 'gemini') return process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+  return process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
 }
 
 async function callAnthropicForDraft(candidate) {
@@ -1598,6 +1609,7 @@ async function ensureDuplicateReportsTable(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      model TEXT,
       duplicate_type TEXT DEFAULT 'internal',
       input_tokens INTEGER,
       output_tokens INTEGER,
@@ -1645,6 +1657,11 @@ async function ensureDuplicateReportsTable(sql) {
     ALTER TABLE duplicate_reports
     ADD COLUMN IF NOT EXISTS duplicate_type TEXT DEFAULT 'internal'
   `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS model TEXT
+  `;
 }
 
 async function ensureEditorialRejectionsTable(sql) {
@@ -1657,6 +1674,7 @@ async function ensureEditorialRejectionsTable(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      model TEXT,
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
@@ -1687,6 +1705,40 @@ async function ensureEditorialRejectionsTable(sql) {
     CREATE INDEX IF NOT EXISTS idx_editorial_rejections_source_url
     ON editorial_rejections(source_url)
     WHERE source_url IS NOT NULL
+  `;
+
+  await sql`
+    ALTER TABLE editorial_rejections
+    ADD COLUMN IF NOT EXISTS model TEXT
+  `;
+}
+
+async function ensureModelTrackingReset(sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS admin_runtime_flags (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+
+  const rows = await sql`
+    SELECT key
+    FROM admin_runtime_flags
+    WHERE key = 'model_memory_reset_v1'
+    LIMIT 1
+  `;
+  if (rows.length) return;
+
+  await sql`DELETE FROM duplicate_reports`;
+  await sql`DELETE FROM editorial_rejections`;
+  await sql`
+    INSERT INTO admin_runtime_flags (key, value, created_at, updated_at)
+    VALUES ('model_memory_reset_v1', 'done', NOW(), NOW())
+    ON CONFLICT (key) DO UPDATE
+    SET value = EXCLUDED.value,
+        updated_at = NOW()
   `;
 }
 
@@ -1805,6 +1857,10 @@ module.exports = async (req, res) => {
   const scheduleMode = String(req.body?.schedule || req.query.schedule || '').toLowerCase();
   const requestedRunMode = String(req.body?.runMode || req.query.runMode || 'auto').toLowerCase();
   const writerProvider = resolveWriterProvider(req.body?.provider || req.query.provider);
+  const writerModelForRun = getWriterModelForProvider(writerProvider);
+  const memorySuppressionEnabled = isMemorySuppressionEnabled(
+    req.body?.memorySuppressionEnabled ?? req.query.memorySuppressionEnabled ?? process.env.DRAFT_MEMORY_SUPPRESSION
+  );
   const track = String(req.body?.track || req.query.track || '').toLowerCase();
   const runMode = scheduleMode === 'auto'
     ? 'auto'
@@ -1823,6 +1879,7 @@ module.exports = async (req, res) => {
     sql = neon(process.env.DATABASE_URL);
     await ensureDuplicateReportsTable(sql);
     await ensureEditorialRejectionsTable(sql);
+    await ensureModelTrackingReset(sql);
     await ensureDraftGenerationRunsTable(sql);
     const dailyTokenBudget = dailyTokenBudgetOverride
       ? Math.max(1, Math.min(parseInt(String(dailyTokenBudgetOverride), 10), 1000000))
@@ -1874,7 +1931,8 @@ module.exports = async (req, res) => {
           etDate,
           etTime,
           track,
-          writerProvider
+          writerProvider,
+          writerModelForRun
         });
       }
       const scheduledCount = getScheduledRequestedCount(track, etTime, writerProvider);
@@ -2086,16 +2144,19 @@ module.exports = async (req, res) => {
       }
     }
     const nationalStatesUsedThisRun = new Set();
-    const reportedDuplicateRows = await sql`
-      SELECT
-        section,
-        draft_title as "draftTitle",
-        source_title as "sourceTitle",
-        source_url as "sourceUrl",
-        COALESCE(NULLIF(TRIM(duplicate_type), ''), 'internal') as "duplicateType"
-      FROM duplicate_reports
-      WHERE reported_at >= NOW() - INTERVAL '365 days'
-    `;
+    const reportedDuplicateRows = memorySuppressionEnabled
+      ? await sql`
+          SELECT
+            section,
+            draft_title as "draftTitle",
+            source_title as "sourceTitle",
+            source_url as "sourceUrl",
+            COALESCE(NULLIF(TRIM(duplicate_type), ''), 'internal') as "duplicateType"
+          FROM duplicate_reports
+          WHERE reported_at >= NOW() - INTERVAL '365 days'
+            AND COALESCE(NULLIF(TRIM(model), ''), '') = ${writerModelForRun}
+        `
+      : [];
     const reportedDuplicateTitles = Array.from(
       new Set(
         reportedDuplicateRows
@@ -2141,16 +2202,19 @@ module.exports = async (req, res) => {
         new Set(reportedExternalDuplicateTitlesBySection[section])
       );
     }
-    const editorialRejectRows = await sql`
-      SELECT
-        section,
-        draft_title as "draftTitle",
-        source_title as "sourceTitle",
-        source_url as "sourceUrl",
-        reject_reason as "rejectReason"
-      FROM editorial_rejections
-      WHERE rejected_at >= NOW() - INTERVAL '365 days'
-    `;
+    const editorialRejectRows = memorySuppressionEnabled
+      ? await sql`
+          SELECT
+            section,
+            draft_title as "draftTitle",
+            source_title as "sourceTitle",
+            source_url as "sourceUrl",
+            reject_reason as "rejectReason"
+          FROM editorial_rejections
+          WHERE rejected_at >= NOW() - INTERVAL '365 days'
+            AND COALESCE(NULLIF(TRIM(model), ''), '') = ${writerModelForRun}
+        `
+      : [];
     const editorialRejectedTitlesBySection = {};
     for (const section of SECTION_ORDER) editorialRejectedTitlesBySection[section] = [];
     const editorialRejectedSourceUrls = new Set();
@@ -2722,6 +2786,8 @@ module.exports = async (req, res) => {
       runMode,
       createdVia,
       writerProvider,
+      writerModelForRun,
+      memorySuppressionEnabled,
       sportsFocusMode,
       etDate,
       etTime,

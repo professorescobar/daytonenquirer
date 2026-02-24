@@ -11,6 +11,7 @@ async function ensureDuplicateReportsTable(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      model TEXT,
       duplicate_type TEXT DEFAULT 'internal',
       report_reason TEXT DEFAULT 'manual_duplicate',
       notes TEXT,
@@ -22,6 +23,11 @@ async function ensureDuplicateReportsTable(sql) {
   await sql`
     ALTER TABLE duplicate_reports
     ADD COLUMN IF NOT EXISTS duplicate_type TEXT DEFAULT 'internal'
+  `;
+
+  await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS model TEXT
   `;
 }
 

@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/admin-generate-drafts?schedule=auto&track=single&includeSections=health,entertainment,technology",
-      "schedule": "5 * * * *"
+      "schedule": "5 10,14 * * *"
     },
     {
       "path": "/api/admin-generate-drafts?schedule=auto&track=multi&provider=openai&excludeSections=health,entertainment,technology",
@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/admin-generate-drafts?schedule=auto&track=single&provider=openai&includeSections=health,entertainment,technology",
-      "schedule": "25 * * * *"
+      "schedule": "25 10,14 * * *"
     },
     {
       "path": "/api/admin-generate-drafts?schedule=auto&track=multi&provider=gemini&excludeSections=health,entertainment,technology",
@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/admin-generate-drafts?schedule=auto&track=single&provider=gemini&includeSections=health,entertainment,technology",
-      "schedule": "45 * * * *"
+      "schedule": "45 10,14 * * *"
     }
   ],
   "headers": [

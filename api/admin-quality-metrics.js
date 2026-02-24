@@ -11,6 +11,92 @@ const REASONS = [
   'user_error'
 ];
 
+function normalizeModel(value) {
+  const model = String(value || '').trim();
+  return model || 'unknown';
+}
+
+function emptyReasonCounts() {
+  const out = {};
+  for (const reason of REASONS) out[reason] = 0;
+  return out;
+}
+
+function buildRejectionMaps(rows) {
+  const byReason = emptyReasonCounts();
+  const tokensByReason = emptyReasonCounts();
+  for (const row of rows) {
+    const reason = String(row.reason || '').trim();
+    if (!reason || !Object.prototype.hasOwnProperty.call(byReason, reason)) continue;
+    byReason[reason] = Number(row.count || 0);
+    tokensByReason[reason] = Number(row.tokens || 0);
+  }
+  return { byReason, tokensByReason };
+}
+
+function combineDuplicateAndRejections(duplicateRows, rejectionRows) {
+  const { byReason, tokensByReason } = buildRejectionMaps(rejectionRows);
+  byReason.duplicate = Number(duplicateRows?.[0]?.count || 0);
+  tokensByReason.duplicate = Number(duplicateRows?.[0]?.tokens || 0);
+
+  const totalRejected = Object.values(byReason).reduce((sum, v) => sum + Number(v || 0), 0);
+  const badTokensTotal = Object.values(tokensByReason).reduce((sum, v) => sum + Number(v || 0), 0);
+  return { totalRejected, byReason, tokensByReason, badTokensTotal };
+}
+
+function ensureModelBucket(map, model) {
+  if (map.has(model)) return map.get(model);
+  const bucket = {
+    model,
+    draftsGiven: 0,
+    turnedDown: 0,
+    byReason: emptyReasonCounts()
+  };
+  map.set(model, bucket);
+  return bucket;
+}
+
+function sortModelBreakdown(items) {
+  return items.sort((a, b) => {
+    const aScore = Number(a.turnedDown || 0) + Number(a.draftsGiven || 0);
+    const bScore = Number(b.turnedDown || 0) + Number(b.draftsGiven || 0);
+    if (bScore !== aScore) return bScore - aScore;
+    return String(a.model || '').localeCompare(String(b.model || ''));
+  });
+}
+
+function buildModelBreakdown(draftRows, duplicateRows, rejectionRows) {
+  const byModel = new Map();
+
+  for (const row of draftRows) {
+    const model = normalizeModel(row.model);
+    const bucket = ensureModelBucket(byModel, model);
+    bucket.draftsGiven += Number(row.count || 0);
+  }
+
+  for (const row of duplicateRows) {
+    const model = normalizeModel(row.model);
+    const bucket = ensureModelBucket(byModel, model);
+    const count = Number(row.count || 0);
+    bucket.draftsGiven += count;
+    bucket.turnedDown += count;
+    bucket.byReason.duplicate += count;
+  }
+
+  for (const row of rejectionRows) {
+    const model = normalizeModel(row.model);
+    const reason = String(row.reason || '').trim();
+    if (!reason || !REASONS.includes(reason)) continue;
+    const bucket = ensureModelBucket(byModel, model);
+    const count = Number(row.count || 0);
+    bucket.draftsGiven += count;
+    bucket.turnedDown += count;
+    bucket.byReason[reason] += count;
+  }
+
+  return sortModelBreakdown(Array.from(byModel.values()));
+}
+
 async function ensureTables(sql) {
   await sql`
     CREATE TABLE IF NOT EXISTS duplicate_reports (
@@ -21,6 +107,7 @@ async function ensureTables(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      model TEXT,
       duplicate_type TEXT DEFAULT 'internal',
       input_tokens INTEGER,
       output_tokens INTEGER,
@@ -41,6 +128,7 @@ async function ensureTables(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      model TEXT,
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
@@ -62,8 +150,47 @@ async function ensureTables(sql) {
   `;
 
   await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS model TEXT
+  `;
+
+  await sql`
     ALTER TABLE editorial_rejections
     ADD COLUMN IF NOT EXISTS total_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE editorial_rejections
+    ADD COLUMN IF NOT EXISTS model TEXT
+  `;
+}
+
+async function ensureModelTrackingReset(sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS admin_runtime_flags (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+
+  const rows = await sql`
+    SELECT key
+    FROM admin_runtime_flags
+    WHERE key = 'model_memory_reset_v1'
+    LIMIT 1
+  `;
+  if (rows.length) return;
+
+  await sql`DELETE FROM duplicate_reports`;
+  await sql`DELETE FROM editorial_rejections`;
+  await sql`
+    INSERT INTO admin_runtime_flags (key, value, created_at, updated_at)
+    VALUES ('model_memory_reset_v1', 'done', NOW(), NOW())
+    ON CONFLICT (key) DO UPDATE
+    SET value = EXCLUDED.value,
+        updated_at = NOW()
   `;
 }
 
@@ -76,6 +203,7 @@ module.exports = async (req, res) => {
   try {
     const sql = neon(process.env.DATABASE_URL);
     await ensureTables(sql);
+    await ensureModelTrackingReset(sql);
 
     const duplicateDailyRows = await sql`
       SELECT
@@ -85,7 +213,6 @@ module.exports = async (req, res) => {
       WHERE (reported_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date
             = (NOW() AT TIME ZONE ${ET_TIME_ZONE})::date
     `;
-
     const duplicateMonthlyRows = await sql`
       SELECT
         COUNT(*)::int AS "count",
@@ -93,6 +220,20 @@ module.exports = async (req, res) => {
       FROM duplicate_reports
       WHERE date_trunc('month', (reported_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE}))
             = date_trunc('month', (NOW() AT TIME ZONE ${ET_TIME_ZONE}))
+    `;
+    const duplicateAnnualRows = await sql`
+      SELECT
+        COUNT(*)::int AS "count",
+        COALESCE(SUM(total_tokens), 0)::int AS "tokens"
+      FROM duplicate_reports
+      WHERE date_trunc('year', (reported_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE}))
+            = date_trunc('year', (NOW() AT TIME ZONE ${ET_TIME_ZONE}))
+    `;
+    const duplicateTotalRows = await sql`
+      SELECT
+        COUNT(*)::int AS "count",
+        COALESCE(SUM(total_tokens), 0)::int AS "tokens"
+      FROM duplicate_reports
     `;
 
     const rejectionDailyRows = await sql`
@@ -105,7 +246,6 @@ module.exports = async (req, res) => {
             = (NOW() AT TIME ZONE ${ET_TIME_ZONE})::date
       GROUP BY reject_reason
     `;
-
     const rejectionMonthlyRows = await sql`
       SELECT
         reject_reason as reason,
@@ -116,62 +256,91 @@ module.exports = async (req, res) => {
             = date_trunc('month', (NOW() AT TIME ZONE ${ET_TIME_ZONE}))
       GROUP BY reject_reason
     `;
+    const rejectionAnnualRows = await sql`
+      SELECT
+        reject_reason as reason,
+        COUNT(*)::int AS "count",
+        COALESCE(SUM(total_tokens), 0)::int AS "tokens"
+      FROM editorial_rejections
+      WHERE date_trunc('year', (rejected_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE}))
+            = date_trunc('year', (NOW() AT TIME ZONE ${ET_TIME_ZONE}))
+      GROUP BY reject_reason
+    `;
+    const rejectionTotalRows = await sql`
+      SELECT
+        reject_reason as reason,
+        COUNT(*)::int AS "count",
+        COALESCE(SUM(total_tokens), 0)::int AS "tokens"
+      FROM editorial_rejections
+      GROUP BY reject_reason
+    `;
 
-    const byReasonDaily = {};
-    const tokensByReasonDaily = {};
-    const byReasonMonthly = {};
-    const tokensByReasonMonthly = {};
-    for (const reason of REASONS) {
-      byReasonDaily[reason] = 0;
-      tokensByReasonDaily[reason] = 0;
-      byReasonMonthly[reason] = 0;
-      tokensByReasonMonthly[reason] = 0;
-    }
+    const daily = combineDuplicateAndRejections(duplicateDailyRows, rejectionDailyRows);
+    const monthly = combineDuplicateAndRejections(duplicateMonthlyRows, rejectionMonthlyRows);
+    const annual = combineDuplicateAndRejections(duplicateAnnualRows, rejectionAnnualRows);
+    const total = combineDuplicateAndRejections(duplicateTotalRows, rejectionTotalRows);
 
-    byReasonDaily.duplicate = duplicateDailyRows?.[0]?.count || 0;
-    tokensByReasonDaily.duplicate = duplicateDailyRows?.[0]?.tokens || 0;
-    byReasonMonthly.duplicate = duplicateMonthlyRows?.[0]?.count || 0;
-    tokensByReasonMonthly.duplicate = duplicateMonthlyRows?.[0]?.tokens || 0;
+    const draftModelDailyRows = await sql`
+      SELECT COALESCE(NULLIF(TRIM(model), ''), 'unknown') as model, COUNT(*)::int as "count"
+      FROM article_drafts
+      WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date
+            = (NOW() AT TIME ZONE ${ET_TIME_ZONE})::date
+      GROUP BY 1
+    `;
+    const duplicateModelDailyRows = await sql`
+      SELECT COALESCE(NULLIF(TRIM(model), ''), 'unknown') as model, COUNT(*)::int as "count"
+      FROM duplicate_reports
+      WHERE (reported_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date
+            = (NOW() AT TIME ZONE ${ET_TIME_ZONE})::date
+      GROUP BY 1
+    `;
+    const rejectionModelDailyRows = await sql`
+      SELECT
+        COALESCE(NULLIF(TRIM(model), ''), 'unknown') as model,
+        reject_reason as reason,
+        COUNT(*)::int as "count"
+      FROM editorial_rejections
+      WHERE (rejected_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date
+            = (NOW() AT TIME ZONE ${ET_TIME_ZONE})::date
+      GROUP BY 1, 2
+    `;
 
-    for (const row of rejectionDailyRows) {
-      const key = String(row.reason || '').trim();
-      if (!key) continue;
-      byReasonDaily[key] = Number(row.count || 0);
-      tokensByReasonDaily[key] = Number(row.tokens || 0);
-    }
-    for (const row of rejectionMonthlyRows) {
-      const key = String(row.reason || '').trim();
-      if (!key) continue;
-      byReasonMonthly[key] = Number(row.count || 0);
-      tokensByReasonMonthly[key] = Number(row.tokens || 0);
-    }
+    const draftModelTotalRows = await sql`
+      SELECT COALESCE(NULLIF(TRIM(model), ''), 'unknown') as model, COUNT(*)::int as "count"
+      FROM article_drafts
+      GROUP BY 1
+    `;
+    const duplicateModelTotalRows = await sql`
+      SELECT COALESCE(NULLIF(TRIM(model), ''), 'unknown') as model, COUNT(*)::int as "count"
+      FROM duplicate_reports
+      GROUP BY 1
+    `;
+    const rejectionModelTotalRows = await sql`
+      SELECT
+        COALESCE(NULLIF(TRIM(model), ''), 'unknown') as model,
+        reject_reason as reason,
+        COUNT(*)::int as "count"
+      FROM editorial_rejections
+      GROUP BY 1, 2
+    `;
 
-    const totalRejectedDaily = Object.values(byReasonDaily).reduce((sum, v) => sum + Number(v || 0), 0);
-    const badTokensTotalDaily = Object.values(tokensByReasonDaily).reduce((sum, v) => sum + Number(v || 0), 0);
-
-    const totalRejectedMonthly = Object.values(byReasonMonthly).reduce((sum, v) => sum + Number(v || 0), 0);
-    const badTokensTotalMonthly = Object.values(tokensByReasonMonthly).reduce((sum, v) => sum + Number(v || 0), 0);
+    const modelBreakdown = {
+      daily: buildModelBreakdown(draftModelDailyRows, duplicateModelDailyRows, rejectionModelDailyRows),
+      total: buildModelBreakdown(draftModelTotalRows, duplicateModelTotalRows, rejectionModelTotalRows)
+    };
 
     return res.status(200).json({
       ok: true,
       timezone: ET_TIME_ZONE,
-      daily: {
-        totalRejected: totalRejectedDaily,
-        byReason: byReasonDaily,
-        tokensByReason: tokensByReasonDaily,
-        badTokensTotal: badTokensTotalDaily
-      },
-      monthly: {
-        totalRejected: totalRejectedMonthly,
-        byReason: byReasonMonthly,
-        tokensByReason: tokensByReasonMonthly,
-        badTokensTotal: badTokensTotalMonthly
-      },
-      // Backward-compatible aliases
-      totalRejected: totalRejectedDaily,
-      byReason: byReasonDaily,
-      tokensByReason: tokensByReasonDaily,
-      badTokensTotal: badTokensTotalDaily
+      daily,
+      monthly,
+      annual,
+      total,
+      modelBreakdown,
+      totalRejected: daily.totalRejected,
+      byReason: daily.byReason,
+      tokensByReason: daily.tokensByReason,
+      badTokensTotal: daily.badTokensTotal
     });
   } catch (error) {
     console.error('Quality metrics error:', error);

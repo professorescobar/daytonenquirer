@@ -64,73 +64,29 @@
         <h3>Token Budget Dashboard</h3>
         <div class="usage-grid usage-grid-budgets">
           <article class="usage-card budget-card">
-            <h4>Auto Budget</h4>
-            <div class="usage-progress-group">
-              <p class="usage-row"><span>Daily Usage</span><strong id="usage-auto-daily-bar-label">0%</strong></p>
-              <div class="usage-progress"><div id="usage-auto-progress-daily" class="usage-progress-bar"></div></div>
-              <p class="usage-row"><span>Weekly Usage</span><strong id="usage-auto-weekly-bar-label">0%</strong></p>
-              <div class="usage-progress"><div id="usage-auto-progress-weekly" class="usage-progress-bar"></div></div>
-              <p class="usage-row"><span>Monthly Usage</span><strong id="usage-auto-monthly-bar-label">0%</strong></p>
-              <div class="usage-progress"><div id="usage-auto-progress-monthly" class="usage-progress-bar"></div></div>
-            </div>
-            <p class="usage-row"><span>Daily Budget</span><strong id="usage-auto-daily-budget">0</strong></p>
-            <p class="usage-row"><span>Remaining</span><strong id="usage-auto-daily-remaining">0</strong></p>
-            <p class="usage-row"><span>Used Today</span><strong id="usage-auto-daily-used">0</strong></p>
-            <p class="usage-row"><span>Used This Week</span><strong id="usage-auto-weekly-used">0</strong></p>
-            <p class="usage-row"><span>Used This Month</span><strong id="usage-auto-monthly-used">0</strong></p>
+            <h4>Global System Metrics</h4>
+            <p class="usage-row"><span>Daily Token Usage</span><strong id="global-daily-label">0%</strong></p>
+            <div class="usage-progress"><div id="global-progress-daily" class="usage-progress-bar"></div></div>
+            <p class="usage-row"><span>Weekly Token Usage</span><strong id="global-weekly-label">0%</strong></p>
+            <div class="usage-progress"><div id="global-progress-weekly" class="usage-progress-bar"></div></div>
+            <p class="usage-row"><span>Monthly Token Usage</span><strong id="global-monthly-label">0%</strong></p>
+            <div class="usage-progress"><div id="global-progress-monthly" class="usage-progress-bar"></div></div>
+            <p class="usage-row"><span>Daily Throughput</span><strong id="global-throughput-label">0%</strong></p>
+            <div class="usage-progress"><div id="global-progress-throughput" class="usage-progress-bar"></div></div>
+            <p class="usage-row"><span>Acceptance Rate (Today)</span><strong id="global-acceptance-label">0%</strong></p>
+            <div class="usage-progress"><div id="global-progress-acceptance" class="usage-progress-bar"></div></div>
+            <p class="usage-row"><span>Quality Loss Rate (Today)</span><strong id="global-quality-loss-label">0%</strong></p>
+            <div class="usage-progress"><div id="global-progress-quality-loss" class="usage-progress-bar usage-progress-loss"></div></div>
+            <p class="usage-row"><span>Tokens Today</span><strong id="global-tokens-today">0</strong></p>
+            <p class="usage-row"><span>Drafts Today</span><strong id="global-drafts-today">0</strong></p>
+            <p class="usage-row"><span>Turned Down Today</span><strong id="global-turned-down-today">0</strong></p>
           </article>
 
           <article class="usage-card budget-card">
-            <h4>Manual Budget</h4>
-            <div class="usage-progress-group">
-              <p class="usage-row"><span>Daily Usage</span><strong id="usage-manual-daily-bar-label">0%</strong></p>
-              <div class="usage-progress"><div id="usage-manual-progress-daily" class="usage-progress-bar"></div></div>
-              <p class="usage-row"><span>Weekly Usage</span><strong id="usage-manual-weekly-bar-label">0%</strong></p>
-              <div class="usage-progress"><div id="usage-manual-progress-weekly" class="usage-progress-bar"></div></div>
-              <p class="usage-row"><span>Monthly Usage</span><strong id="usage-manual-monthly-bar-label">0%</strong></p>
-              <div class="usage-progress"><div id="usage-manual-progress-monthly" class="usage-progress-bar"></div></div>
-            </div>
-            <p class="usage-row"><span>Daily Budget</span><strong id="usage-manual-daily-budget">0</strong></p>
-            <p class="usage-row"><span>Remaining</span><strong id="usage-manual-daily-remaining">0</strong></p>
-            <p class="usage-row"><span>Used Today</span><strong id="usage-manual-daily-used">0</strong></p>
-            <p class="usage-row"><span>Used This Week</span><strong id="usage-manual-weekly-used">0</strong></p>
-            <p class="usage-row"><span>Used This Month</span><strong id="usage-manual-monthly-used">0</strong></p>
+            <h4>Model Metrics</h4>
+            <p class="hint">Each model has independent budget controls and quality metrics.</p>
+            <div id="model-metrics-list" class="duplicate-list"></div>
           </article>
-
-          <article class="usage-card budget-card">
-            <h4>Quality Cost</h4>
-            <p class="usage-row"><span>Rejected Today</span><strong id="usage-rejected-daily">0</strong></p>
-            <p class="usage-row"><span>Rejected This Month</span><strong id="usage-rejected-monthly">0</strong></p>
-            <p class="usage-row"><span>Rejected This Year</span><strong id="usage-rejected-annual">0</strong></p>
-            <p class="usage-row"><span>Rejected Total</span><strong id="usage-rejected-total">0</strong></p>
-            <p class="usage-row"><span>Bad Tokens Today</span><strong id="usage-bad-tokens-daily">0</strong></p>
-            <p class="usage-row"><span>Bad Tokens This Month</span><strong id="usage-bad-tokens-monthly">0</strong></p>
-            <p class="usage-row"><span>Bad Tokens This Year</span><strong id="usage-bad-tokens-annual">0</strong></p>
-            <p class="usage-row"><span>Bad Tokens Total</span><strong id="usage-bad-tokens-total">0</strong></p>
-            <div class="admin-actions">
-              <button id="quality-breakdown-toggle" class="btn">Show Breakdown</button>
-            </div>
-            <div id="quality-breakdown" hidden>
-              <p class="usage-row"><span>Daily Duplicate</span><strong id="usage-rejected-duplicate-daily">0</strong></p>
-              <p class="usage-row"><span>Daily Stale</span><strong id="usage-rejected-stale-daily">0</strong></p>
-              <p class="usage-row"><span>Daily Thin</span><strong id="usage-rejected-thin-daily">0</strong></p>
-              <p class="usage-row"><span>Daily Style</span><strong id="usage-rejected-style-daily">0</strong></p>
-              <p class="usage-row"><span>Daily User Error</span><strong id="usage-rejected-user-error-daily">0</strong></p>
-            </div>
-          </article>
-        </div>
-        <div class="admin-grid">
-          <label>
-            Auto Daily Budget
-            <input id="usage-budget-input-auto" type="number" min="1" step="1000" placeholder="Set auto budget" />
-          </label>
-          <label>
-            Manual Daily Budget
-            <input id="usage-budget-input-manual" type="number" min="1" step="1000" placeholder="Set manual budget" />
-          </label>
-        </div>
-        <div class="admin-actions">
-          <button id="save-budget-btn" class="btn">Save Budgets</button>
         </div>
       </section>
 

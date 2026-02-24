@@ -19,6 +19,7 @@ async function ensureTables(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      model TEXT,
       duplicate_type TEXT DEFAULT 'internal',
       input_tokens INTEGER,
       output_tokens INTEGER,
@@ -39,6 +40,7 @@ async function ensureTables(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      model TEXT,
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
@@ -70,6 +72,11 @@ async function ensureTables(sql) {
   `;
 
   await sql`
+    ALTER TABLE duplicate_reports
+    ADD COLUMN IF NOT EXISTS model TEXT
+  `;
+
+  await sql`
     ALTER TABLE editorial_rejections
     ADD COLUMN IF NOT EXISTS input_tokens INTEGER
   `;
@@ -82,6 +89,11 @@ async function ensureTables(sql) {
   await sql`
     ALTER TABLE editorial_rejections
     ADD COLUMN IF NOT EXISTS total_tokens INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE editorial_rejections
+    ADD COLUMN IF NOT EXISTS model TEXT
   `;
 }
 
@@ -126,6 +138,7 @@ module.exports = async (req, res) => {
         id,
         source_url as "sourceUrl",
         source_title as "sourceTitle",
+        model,
         input_tokens as "inputTokens",
         output_tokens as "outputTokens",
         total_tokens as "totalTokens"
@@ -145,6 +158,7 @@ module.exports = async (req, res) => {
           section,
           source_url,
           source_title,
+          model,
           duplicate_type,
           input_tokens,
           output_tokens,
@@ -161,6 +175,7 @@ module.exports = async (req, res) => {
           ${article.section || ''},
           ${linked.sourceUrl || null},
           ${linked.sourceTitle || null},
+          ${linked.model || 'unknown'},
           ${duplicateType},
           ${Number(linked.inputTokens || 0)},
           ${Number(linked.outputTokens || 0)},
@@ -180,6 +195,7 @@ module.exports = async (req, res) => {
           section,
           source_url,
           source_title,
+          model,
           input_tokens,
           output_tokens,
           total_tokens,
@@ -195,6 +211,7 @@ module.exports = async (req, res) => {
           ${article.section || ''},
           ${linked.sourceUrl || null},
           ${linked.sourceTitle || null},
+          ${linked.model || 'unknown'},
           ${Number(linked.inputTokens || 0)},
           ${Number(linked.outputTokens || 0)},
           ${Number(linked.totalTokens || 0)},

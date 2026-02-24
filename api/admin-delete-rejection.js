@@ -18,6 +18,7 @@ module.exports = async (req, res) => {
         section TEXT,
         source_url TEXT,
         source_title TEXT,
+        model TEXT,
         input_tokens INTEGER,
         output_tokens INTEGER,
         total_tokens INTEGER,

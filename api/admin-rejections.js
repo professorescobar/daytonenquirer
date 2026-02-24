@@ -11,6 +11,7 @@ async function ensureEditorialRejectionsTable(sql) {
       section TEXT,
       source_url TEXT,
       source_title TEXT,
+      model TEXT,
       input_tokens INTEGER,
       output_tokens INTEGER,
       total_tokens INTEGER,
@@ -30,6 +31,61 @@ async function ensureEditorialRejectionsTable(sql) {
     CREATE INDEX IF NOT EXISTS idx_editorial_rejections_reason
     ON editorial_rejections(reject_reason)
   `;
+
+  await sql`
+    ALTER TABLE editorial_rejections
+    ADD COLUMN IF NOT EXISTS model TEXT
+  `;
+}
+
+async function ensureModelTrackingReset(sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS duplicate_reports (
+      id SERIAL PRIMARY KEY,
+      draft_id INTEGER,
+      draft_slug TEXT,
+      draft_title TEXT NOT NULL,
+      section TEXT,
+      source_url TEXT,
+      source_title TEXT,
+      model TEXT,
+      duplicate_type TEXT DEFAULT 'internal',
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      total_tokens INTEGER,
+      report_reason TEXT DEFAULT 'manual_duplicate',
+      notes TEXT,
+      reported_by TEXT DEFAULT 'admin_ui',
+      reported_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS admin_runtime_flags (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+
+  const rows = await sql`
+    SELECT key
+    FROM admin_runtime_flags
+    WHERE key = 'model_memory_reset_v1'
+    LIMIT 1
+  `;
+  if (rows.length) return;
+
+  await sql`DELETE FROM duplicate_reports`;
+  await sql`DELETE FROM editorial_rejections`;
+  await sql`
+    INSERT INTO admin_runtime_flags (key, value, created_at, updated_at)
+    VALUES ('model_memory_reset_v1', 'done', NOW(), NOW())
+    ON CONFLICT (key) DO UPDATE
+    SET value = EXCLUDED.value,
+        updated_at = NOW()
+  `;
 }
 
 module.exports = async (req, res) => {
@@ -41,6 +97,7 @@ module.exports = async (req, res) => {
   try {
     const sql = neon(process.env.DATABASE_URL);
     await ensureEditorialRejectionsTable(sql);
+    await ensureModelTrackingReset(sql);
 
     const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 500);
 
@@ -53,6 +110,7 @@ module.exports = async (req, res) => {
         section,
         source_url as "sourceUrl",
         source_title as "sourceTitle",
+        COALESCE(NULLIF(TRIM(model), ''), 'unknown') as "model",
         input_tokens as "inputTokens",
         output_tokens as "outputTokens",
         total_tokens as "totalTokens",

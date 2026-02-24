@@ -189,6 +189,10 @@
   background: #b3261e;
 }
 
+.usage-progress-loss {
+  background: #b3261e;
+}
+
 .usage-edit-row {
   display: flex;
   gap: 0.4rem;

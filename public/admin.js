@@ -269,7 +269,7 @@ function renderDuplicateReports(reports) {
     <article class="draft-card" data-report-id="${report.id}">
       <div class="draft-header">
         <strong>#${report.id} - ${escapeHtml(report.draftTitle || '')}</strong>
-        <span class="draft-meta">section: ${escapeHtml(report.section || 'n/a')} | type: ${escapeHtml(report.duplicateType || 'internal')}</span>
+        <span class="draft-meta">section: ${escapeHtml(report.section || 'n/a')} | model: ${escapeHtml(report.model || 'unknown')} | type: ${escapeHtml(report.duplicateType || 'internal')}</span>
       </div>
       <p class="draft-meta">
         source title: ${escapeHtml(report.sourceTitle || 'N/A')} |
@@ -296,7 +296,7 @@ function renderRejections(rejections) {
     <article class="draft-card" data-rejection-id="${item.id}">
       <div class="draft-header">
         <strong>#${item.id} - ${escapeHtml(item.draftTitle || '')}</strong>
-        <span class="draft-meta">reason: ${escapeHtml(item.rejectReason || 'n/a')}</span>
+        <span class="draft-meta">reason: ${escapeHtml(item.rejectReason || 'n/a')} | model: ${escapeHtml(item.model || 'unknown')}</span>
       </div>
       <p class="draft-meta">
         section: ${escapeHtml(item.section || 'n/a')} |

@@ -14,46 +14,22 @@ const duplicateListEl = document.getElementById('duplicate-list');
 const rejectionListEl = document.getElementById('rejection-list');
 const generationRunListEl = document.getElementById('generation-run-list');
 const runFilterInput = document.getElementById('run-filter');
-const usageAutoDailyUsedEl = document.getElementById('usage-auto-daily-used');
-const usageAutoDailyBudgetEl = document.getElementById('usage-auto-daily-budget');
-const usageAutoDailyRemainingEl = document.getElementById('usage-auto-daily-remaining');
-const usageAutoDailyBarLabelEl = document.getElementById('usage-auto-daily-bar-label');
-const usageAutoWeeklyBarLabelEl = document.getElementById('usage-auto-weekly-bar-label');
-const usageAutoMonthlyBarLabelEl = document.getElementById('usage-auto-monthly-bar-label');
-const usageAutoProgressDailyEl = document.getElementById('usage-auto-progress-daily');
-const usageAutoProgressWeeklyEl = document.getElementById('usage-auto-progress-weekly');
-const usageAutoProgressMonthlyEl = document.getElementById('usage-auto-progress-monthly');
-const usageAutoWeeklyUsedEl = document.getElementById('usage-auto-weekly-used');
-const usageAutoMonthlyUsedEl = document.getElementById('usage-auto-monthly-used');
-const usageManualDailyUsedEl = document.getElementById('usage-manual-daily-used');
-const usageManualDailyBudgetEl = document.getElementById('usage-manual-daily-budget');
-const usageManualDailyRemainingEl = document.getElementById('usage-manual-daily-remaining');
-const usageManualDailyBarLabelEl = document.getElementById('usage-manual-daily-bar-label');
-const usageManualWeeklyBarLabelEl = document.getElementById('usage-manual-weekly-bar-label');
-const usageManualMonthlyBarLabelEl = document.getElementById('usage-manual-monthly-bar-label');
-const usageManualProgressDailyEl = document.getElementById('usage-manual-progress-daily');
-const usageManualProgressWeeklyEl = document.getElementById('usage-manual-progress-weekly');
-const usageManualProgressMonthlyEl = document.getElementById('usage-manual-progress-monthly');
-const usageManualWeeklyUsedEl = document.getElementById('usage-manual-weekly-used');
-const usageManualMonthlyUsedEl = document.getElementById('usage-manual-monthly-used');
-const usageBudgetInputAuto = document.getElementById('usage-budget-input-auto');
-const usageBudgetInputManual = document.getElementById('usage-budget-input-manual');
-const saveBudgetBtn = document.getElementById('save-budget-btn');
-const usageRejectedDailyEl = document.getElementById('usage-rejected-daily');
-const usageRejectedMonthlyEl = document.getElementById('usage-rejected-monthly');
-const usageRejectedAnnualEl = document.getElementById('usage-rejected-annual');
-const usageRejectedTotalEl = document.getElementById('usage-rejected-total');
-const usageBadTokensDailyEl = document.getElementById('usage-bad-tokens-daily');
-const usageBadTokensMonthlyEl = document.getElementById('usage-bad-tokens-monthly');
-const usageBadTokensAnnualEl = document.getElementById('usage-bad-tokens-annual');
-const usageBadTokensTotalEl = document.getElementById('usage-bad-tokens-total');
-const usageRejectedDuplicateDailyEl = document.getElementById('usage-rejected-duplicate-daily');
-const usageRejectedStaleDailyEl = document.getElementById('usage-rejected-stale-daily');
-const usageRejectedThinDailyEl = document.getElementById('usage-rejected-thin-daily');
-const usageRejectedStyleDailyEl = document.getElementById('usage-rejected-style-daily');
-const usageRejectedUserErrorDailyEl = document.getElementById('usage-rejected-user-error-daily');
-const qualityBreakdownToggleBtn = document.getElementById('quality-breakdown-toggle');
-const qualityBreakdownEl = document.getElementById('quality-breakdown');
+const globalDailyLabelEl = document.getElementById('global-daily-label');
+const globalWeeklyLabelEl = document.getElementById('global-weekly-label');
+const globalMonthlyLabelEl = document.getElementById('global-monthly-label');
+const globalThroughputLabelEl = document.getElementById('global-throughput-label');
+const globalAcceptanceLabelEl = document.getElementById('global-acceptance-label');
+const globalQualityLossLabelEl = document.getElementById('global-quality-loss-label');
+const globalProgressDailyEl = document.getElementById('global-progress-daily');
+const globalProgressWeeklyEl = document.getElementById('global-progress-weekly');
+const globalProgressMonthlyEl = document.getElementById('global-progress-monthly');
+const globalProgressThroughputEl = document.getElementById('global-progress-throughput');
+const globalProgressAcceptanceEl = document.getElementById('global-progress-acceptance');
+const globalProgressQualityLossEl = document.getElementById('global-progress-quality-loss');
+const globalTokensTodayEl = document.getElementById('global-tokens-today');
+const globalDraftsTodayEl = document.getElementById('global-drafts-today');
+const globalTurnedDownTodayEl = document.getElementById('global-turned-down-today');
+const modelMetricsListEl = document.getElementById('model-metrics-list');
 
 let unlocked = false;
 let generationRuns = [];
@@ -114,12 +90,6 @@ function shouldIncludeRunByFilter(run, filterValue) {
   return true;
 }
 
-function formatUsageLabel(percentUsed, draftCount, periodLabel) {
-  const pct = Number(percentUsed || 0).toFixed(1);
-  const drafts = Number(draftCount || 0).toLocaleString();
-  return `${pct}% (${drafts} drafts ${periodLabel})`;
-}
-
 async function unlock() {
   try {
     const password = (adminUiPasswordInput.value || '').trim();
@@ -174,6 +144,7 @@ function renderDuplicateReports(reports) {
         <strong>#${report.id} - ${escapeHtml(report.draftTitle || '')}</strong>
         <span class="draft-meta">
           section: ${escapeHtml(report.section || 'n/a')} |
+          model: ${escapeHtml(report.model || 'unknown')} |
           type: ${escapeHtml(report.duplicateType || 'internal')} |
           reported: ${escapeHtml(formatDate(report.reportedAt))}
         </span>
@@ -205,6 +176,7 @@ function renderRejections(rejections) {
         <span class="draft-meta">
           reason: ${escapeHtml(item.rejectReason || 'n/a')} |
           section: ${escapeHtml(item.section || 'n/a')} |
+          model: ${escapeHtml(item.model || 'unknown')} |
           rejected: ${escapeHtml(formatDate(item.rejectedAt))}
         </span>
       </button>
@@ -220,6 +192,77 @@ function renderRejections(rejections) {
       </div>
     </article>
   `).join('');
+}
+
+function renderModelMetrics(items, usageByModel) {
+  if (!modelMetricsListEl) return;
+  if (!Array.isArray(items) || !items.length) {
+    modelMetricsListEl.innerHTML = '<p class="draft-meta">No model metrics yet.</p>';
+    return;
+  }
+
+  modelMetricsListEl.innerHTML = items.map((item) => {
+    const model = String(item.model || 'unknown');
+    const modelUsage = usageByModel[model] || {};
+    const byReason = item.byReason || {};
+    const budgetValue = Number(modelUsage.dailyTokenBudget || 0);
+    return `
+      <article class="draft-card" data-model-name="${escapeHtml(model)}">
+        <button class="draft-header draft-toggle btn-reset" type="button">
+          <strong>${escapeHtml(model)}</strong>
+          <span class="draft-meta">
+            daily used: ${Number(modelUsage.dailyTokensUsed || 0).toLocaleString()} / ${budgetValue.toLocaleString()} |
+            loss: ${Number(modelUsage.qualityLossRatePercent || 0).toFixed(1)}%
+          </span>
+        </button>
+        <div class="section-editor article-editor is-collapsed" hidden>
+          <p class="usage-row"><span>Daily Usage</span><strong>${Number(modelUsage.budgetUsedPercent || 0).toFixed(1)}%</strong></p>
+          <div class="usage-progress"><div class="usage-progress-bar usage-progress-model-daily"></div></div>
+          <p class="usage-row"><span>Weekly Usage</span><strong>${Number(modelUsage.weeklyBudgetUsedPercent || 0).toFixed(1)}%</strong></p>
+          <div class="usage-progress"><div class="usage-progress-bar usage-progress-model-weekly"></div></div>
+          <p class="usage-row"><span>Monthly Usage</span><strong>${Number(modelUsage.monthlyBudgetUsedPercent || 0).toFixed(1)}%</strong></p>
+          <div class="usage-progress"><div class="usage-progress-bar usage-progress-model-monthly"></div></div>
+          <p class="usage-row"><span>Acceptance Rate (Today)</span><strong>${Number(modelUsage.acceptanceRatePercent || 0).toFixed(1)}%</strong></p>
+          <div class="usage-progress"><div class="usage-progress-bar usage-progress-model-acceptance"></div></div>
+          <p class="usage-row"><span>Quality Loss Rate (Today)</span><strong>${Number(modelUsage.qualityLossRatePercent || 0).toFixed(1)}%</strong></p>
+          <div class="usage-progress"><div class="usage-progress-bar usage-progress-loss usage-progress-model-loss"></div></div>
+          <p class="usage-row"><span>Drafts Given (Total)</span><strong>${Number(item.draftsGiven || 0).toLocaleString()}</strong></p>
+          <p class="usage-row"><span>Turned Down (Total)</span><strong>${Number(item.turnedDown || 0).toLocaleString()}</strong></p>
+          <p class="draft-meta">
+            duplicate: ${Number(byReason.duplicate || 0).toLocaleString()} |
+            stale: ${Number(byReason.stale_or_not_time_relevant || 0).toLocaleString()} |
+            thin: ${Number(byReason.low_newsworthiness_or_thin || 0).toLocaleString()} |
+            style: ${Number(byReason.style_mismatch || 0).toLocaleString()} |
+            user_error: ${Number(byReason.user_error || 0).toLocaleString()}
+          </p>
+          <div class="admin-grid single">
+            <label>
+              Daily Budget
+              <input class="model-budget-input" type="number" min="1" step="1000" value="${budgetValue}" />
+            </label>
+          </div>
+          <div class="admin-actions">
+            <button class="btn btn-primary btn-save-model-budget" type="button">Save ${escapeHtml(model)} Budget</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  modelMetricsListEl.querySelectorAll('.draft-card').forEach((card) => {
+    const dailyBar = card.querySelector('.usage-progress-model-daily');
+    const weeklyBar = card.querySelector('.usage-progress-model-weekly');
+    const monthlyBar = card.querySelector('.usage-progress-model-monthly');
+    const acceptanceBar = card.querySelector('.usage-progress-model-acceptance');
+    const lossBar = card.querySelector('.usage-progress-model-loss');
+    const modelName = card.getAttribute('data-model-name') || '';
+    const data = usageByModel[modelName] || {};
+    paintUsageBar(dailyBar, Number(data.budgetUsedPercent || 0));
+    paintUsageBar(weeklyBar, Number(data.weeklyBudgetUsedPercent || 0));
+    paintUsageBar(monthlyBar, Number(data.monthlyBudgetUsedPercent || 0));
+    paintOutcomeBar(acceptanceBar, Number(data.acceptanceRatePercent || 0));
+    paintLossBar(lossBar, Number(data.qualityLossRatePercent || 0));
+  });
 }
 
 function renderGenerationRuns(runs) {
@@ -317,58 +360,35 @@ async function loadAll() {
 }
 
 async function loadUsageDashboard() {
-  const [usageAuto, usageManual, quality] = await Promise.all([
-    apiRequest('/api/admin-usage?scope=auto'),
-    apiRequest('/api/admin-usage?scope=manual'),
+  const [usageGlobal, quality] = await Promise.all([
+    apiRequest('/api/admin-usage?scope=all'),
     apiRequest('/api/admin-quality-metrics')
   ]);
 
-  if (!usageAutoDailyUsedEl) return;
-  usageAutoDailyUsedEl.textContent = Number(usageAuto.dailyTokensUsed || 0).toLocaleString();
-  usageAutoDailyBudgetEl.textContent = Number(usageAuto.dailyTokenBudget || 0).toLocaleString();
-  usageAutoDailyRemainingEl.textContent = Number(usageAuto.tokensRemainingToday || 0).toLocaleString();
-  usageAutoDailyBarLabelEl.textContent = formatUsageLabel(usageAuto.budgetUsedPercent, usageAuto.dailyDrafts, 'today');
-  usageAutoWeeklyBarLabelEl.textContent = formatUsageLabel(usageAuto.weeklyBudgetUsedPercent, usageAuto.weeklyDrafts, 'this week');
-  usageAutoMonthlyBarLabelEl.textContent = formatUsageLabel(usageAuto.monthlyBudgetUsedPercent, usageAuto.monthlyDrafts, 'this month');
-  usageAutoWeeklyUsedEl.textContent = Number(usageAuto.weeklyTokensUsed || 0).toLocaleString();
-  usageAutoMonthlyUsedEl.textContent = Number(usageAuto.monthlyTokensUsed || 0).toLocaleString();
-  paintUsageBar(usageAutoProgressDailyEl, Number(usageAuto.budgetUsedPercent || 0));
-  paintUsageBar(usageAutoProgressWeeklyEl, Number(usageAuto.weeklyBudgetUsedPercent || 0));
-  paintUsageBar(usageAutoProgressMonthlyEl, Number(usageAuto.monthlyBudgetUsedPercent || 0));
+  if (!globalDailyLabelEl) return;
+  globalDailyLabelEl.textContent = `${Number(usageGlobal.budgetUsedPercent || 0).toFixed(1)}%`;
+  globalWeeklyLabelEl.textContent = `${Number(usageGlobal.weeklyBudgetUsedPercent || 0).toFixed(1)}%`;
+  globalMonthlyLabelEl.textContent = `${Number(usageGlobal.monthlyBudgetUsedPercent || 0).toFixed(1)}%`;
+  globalThroughputLabelEl.textContent = `${Number(usageGlobal.throughputPercent || 0).toFixed(1)}%`;
+  globalAcceptanceLabelEl.textContent = `${Number(usageGlobal.acceptanceRatePercent || 0).toFixed(1)}%`;
+  globalQualityLossLabelEl.textContent = `${Number(usageGlobal.qualityLossRatePercent || 0).toFixed(1)}%`;
+  globalTokensTodayEl.textContent = Number(usageGlobal.dailyTokensUsed || 0).toLocaleString();
+  globalDraftsTodayEl.textContent = Number(usageGlobal.dailyDrafts || 0).toLocaleString();
+  globalTurnedDownTodayEl.textContent = Number(usageGlobal.turnedDownToday || 0).toLocaleString();
+  paintUsageBar(globalProgressDailyEl, Number(usageGlobal.budgetUsedPercent || 0));
+  paintUsageBar(globalProgressWeeklyEl, Number(usageGlobal.weeklyBudgetUsedPercent || 0));
+  paintUsageBar(globalProgressMonthlyEl, Number(usageGlobal.monthlyBudgetUsedPercent || 0));
+  paintOutcomeBar(globalProgressThroughputEl, Number(usageGlobal.throughputPercent || 0));
+  paintOutcomeBar(globalProgressAcceptanceEl, Number(usageGlobal.acceptanceRatePercent || 0));
+  paintLossBar(globalProgressQualityLossEl, Number(usageGlobal.qualityLossRatePercent || 0));
 
-  usageManualDailyUsedEl.textContent = Number(usageManual.dailyTokensUsed || 0).toLocaleString();
-  usageManualDailyBudgetEl.textContent = Number(usageManual.dailyTokenBudget || 0).toLocaleString();
-  usageManualDailyRemainingEl.textContent = Number(usageManual.tokensRemainingToday || 0).toLocaleString();
-  usageManualDailyBarLabelEl.textContent = formatUsageLabel(usageManual.budgetUsedPercent, usageManual.dailyDrafts, 'today');
-  usageManualWeeklyBarLabelEl.textContent = formatUsageLabel(usageManual.weeklyBudgetUsedPercent, usageManual.weeklyDrafts, 'this week');
-  usageManualMonthlyBarLabelEl.textContent = formatUsageLabel(usageManual.monthlyBudgetUsedPercent, usageManual.monthlyDrafts, 'this month');
-  usageManualWeeklyUsedEl.textContent = Number(usageManual.weeklyTokensUsed || 0).toLocaleString();
-  usageManualMonthlyUsedEl.textContent = Number(usageManual.monthlyTokensUsed || 0).toLocaleString();
-  paintUsageBar(usageManualProgressDailyEl, Number(usageManual.budgetUsedPercent || 0));
-  paintUsageBar(usageManualProgressWeeklyEl, Number(usageManual.weeklyBudgetUsedPercent || 0));
-  paintUsageBar(usageManualProgressMonthlyEl, Number(usageManual.monthlyBudgetUsedPercent || 0));
-
-  usageBudgetInputAuto.value = Number(usageAuto.dailyTokenBudget || 0);
-  usageBudgetInputManual.value = Number(usageManual.dailyTokenBudget || 0);
-
-  const daily = quality.daily || {};
-  const monthly = quality.monthly || {};
-  const annual = quality.annual || {};
-  const total = quality.total || {};
-  const dailyByReason = daily.byReason || {};
-  usageRejectedDailyEl.textContent = Number(daily.totalRejected || 0).toLocaleString();
-  usageRejectedMonthlyEl.textContent = Number(monthly.totalRejected || 0).toLocaleString();
-  usageRejectedAnnualEl.textContent = Number(annual.totalRejected || 0).toLocaleString();
-  usageRejectedTotalEl.textContent = Number(total.totalRejected || 0).toLocaleString();
-  usageBadTokensDailyEl.textContent = Number(daily.badTokensTotal || 0).toLocaleString();
-  usageBadTokensMonthlyEl.textContent = Number(monthly.badTokensTotal || 0).toLocaleString();
-  usageBadTokensAnnualEl.textContent = Number(annual.badTokensTotal || 0).toLocaleString();
-  usageBadTokensTotalEl.textContent = Number(total.badTokensTotal || 0).toLocaleString();
-  usageRejectedDuplicateDailyEl.textContent = Number(dailyByReason.duplicate || 0).toLocaleString();
-  usageRejectedStaleDailyEl.textContent = Number(dailyByReason.stale_or_not_time_relevant || 0).toLocaleString();
-  usageRejectedThinDailyEl.textContent = Number(dailyByReason.low_newsworthiness_or_thin || 0).toLocaleString();
-  usageRejectedStyleDailyEl.textContent = Number(dailyByReason.style_mismatch || 0).toLocaleString();
-  usageRejectedUserErrorDailyEl.textContent = Number(dailyByReason.user_error || 0).toLocaleString();
+  const models = Array.from(new Set((quality.modelBreakdown?.total || []).map((item) => String(item.model || '').trim()).filter(Boolean)));
+  const usageByModelEntries = await Promise.all(models.map(async (model) => {
+    const usage = await apiRequest(`/api/admin-usage?scope=all&model=${encodeURIComponent(model)}`);
+    return [model, usage];
+  }));
+  const usageByModel = Object.fromEntries(usageByModelEntries);
+  renderModelMetrics(quality.modelBreakdown?.total || [], usageByModel);
 }
 
 function paintUsageBar(barEl, usedPercent) {
@@ -385,28 +405,42 @@ function paintUsageBar(barEl, usedPercent) {
   }
 }
 
-async function saveBudget() {
-  try {
-    const dailyTokenBudgetAuto = Number(usageBudgetInputAuto.value || 0);
-    const dailyTokenBudgetManual = Number(usageBudgetInputManual.value || 0);
-    if (!dailyTokenBudgetAuto || dailyTokenBudgetAuto < 1) {
-      throw new Error('Enter a valid auto token budget');
-    }
-    if (!dailyTokenBudgetManual || dailyTokenBudgetManual < 1) {
-      throw new Error('Enter a valid manual token budget');
-    }
-    const data = await apiRequest('/api/admin-budget', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dailyTokenBudgetAuto, dailyTokenBudgetManual })
-    });
-    setMessage(
-      `Budgets updated. Auto: ${Number(data.dailyTokenBudgetAuto).toLocaleString()} | Manual: ${Number(data.dailyTokenBudgetManual).toLocaleString()}.`
-    );
-    await loadUsageDashboard();
-  } catch (err) {
-    setMessage(`Budget update failed: ${err.message}`);
+function paintOutcomeBar(barEl, percentValue) {
+  if (!barEl) return;
+  const clamped = Math.max(0, Math.min(100, Number(percentValue || 0)));
+  barEl.style.width = `${clamped}%`;
+  barEl.classList.remove('usage-progress-good', 'usage-progress-warn', 'usage-progress-danger');
+  if (clamped >= 75) {
+    barEl.classList.add('usage-progress-good');
+  } else if (clamped >= 45) {
+    barEl.classList.add('usage-progress-warn');
+  } else {
+    barEl.classList.add('usage-progress-danger');
   }
+}
+
+function paintLossBar(barEl, lossPercent) {
+  if (!barEl) return;
+  const clamped = Math.max(0, Math.min(100, Number(lossPercent || 0)));
+  barEl.style.width = `${clamped}%`;
+  barEl.classList.remove('usage-progress-good', 'usage-progress-warn', 'usage-progress-danger');
+  barEl.classList.add('usage-progress-danger');
+}
+
+async function saveModelBudget(modelName, budgetValue) {
+  const numeric = Number(budgetValue || 0);
+  if (!numeric || numeric < 1) {
+    throw new Error('Enter a valid model daily budget');
+  }
+  await apiRequest('/api/admin-budget', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      modelBudgets: {
+        [modelName]: numeric
+      }
+    })
+  });
 }
 
 async function removeDuplicateReport(id) {
@@ -471,6 +505,16 @@ function onListClick(event) {
       .then(() => setMessage(`Rejection record #${rejectionId} deleted.`))
       .catch((err) => setMessage(`Delete rejection failed: ${err.message}`));
   }
+
+  if (button.classList.contains('btn-save-model-budget')) {
+    const modelName = String(card.dataset.modelName || '').trim();
+    const input = card.querySelector('.model-budget-input');
+    if (!modelName || !input) return;
+    saveModelBudget(modelName, input.value)
+      .then(loadUsageDashboard)
+      .then(() => setMessage(`${modelName} budget updated.`))
+      .catch((err) => setMessage(`Model budget update failed: ${err.message}`));
+  }
 }
 
 function saveToken() {
@@ -486,19 +530,6 @@ function loadToken() {
 if (unlockAdminBtn) unlockAdminBtn.addEventListener('click', unlock);
 if (saveTokenBtn) saveTokenBtn.addEventListener('click', saveToken);
 if (loadAllBtn) loadAllBtn.addEventListener('click', loadAll);
-if (saveBudgetBtn) saveBudgetBtn.addEventListener('click', saveBudget);
-if (qualityBreakdownToggleBtn && qualityBreakdownEl) {
-  qualityBreakdownToggleBtn.addEventListener('click', () => {
-    const nextHidden = !qualityBreakdownEl.hasAttribute('hidden');
-    if (nextHidden) {
-      qualityBreakdownEl.setAttribute('hidden', '');
-      qualityBreakdownToggleBtn.textContent = 'Show Breakdown';
-    } else {
-      qualityBreakdownEl.removeAttribute('hidden');
-      qualityBreakdownToggleBtn.textContent = 'Hide Breakdown';
-    }
-  });
-}
 if (appSection) appSection.addEventListener('click', onListClick);
 if (runFilterInput) {
   runFilterInput.addEventListener('change', () => renderGenerationRuns(generationRuns));
