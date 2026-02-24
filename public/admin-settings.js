@@ -6,11 +6,14 @@ const unlockAdminBtn = document.getElementById('unlock-admin-btn');
 const tokenInput = document.getElementById('admin-token');
 const duplicateLimitInput = document.getElementById('duplicate-limit');
 const rejectedLimitInput = document.getElementById('rejected-limit');
+const runLimitInput = document.getElementById('run-limit');
 const saveTokenBtn = document.getElementById('save-token-btn');
 const loadAllBtn = document.getElementById('load-all-btn');
 const messageEl = document.getElementById('settings-message');
 const duplicateListEl = document.getElementById('duplicate-list');
 const rejectionListEl = document.getElementById('rejection-list');
+const generationRunListEl = document.getElementById('generation-run-list');
+const runFilterInput = document.getElementById('run-filter');
 const usageAutoDailyUsedEl = document.getElementById('usage-auto-daily-used');
 const usageAutoDailyBudgetEl = document.getElementById('usage-auto-daily-budget');
 const usageAutoDailyRemainingEl = document.getElementById('usage-auto-daily-remaining');
@@ -53,6 +56,7 @@ const qualityBreakdownToggleBtn = document.getElementById('quality-breakdown-tog
 const qualityBreakdownEl = document.getElementById('quality-breakdown');
 
 let unlocked = false;
+let generationRuns = [];
 
 function setMessage(text) {
   messageEl.hidden = !text;
@@ -83,6 +87,31 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function formatTopSkipReasons(reasons) {
+  if (!Array.isArray(reasons) || reasons.length === 0) return 'none';
+  return reasons
+    .slice(0, 5)
+    .map((item) => `${escapeHtml(item.reason || 'unknown')} (${Number(item.count || 0).toLocaleString()})`)
+    .join(', ');
+}
+
+function isUnderfilledRun(run) {
+  const target = Number(run?.targetCount || 0);
+  const created = Number(run?.createdCount || 0);
+  if (target > 0 && created < target) return true;
+  return String(run?.runReason || '').toLowerCase() === 'underfilled';
+}
+
+function shouldIncludeRunByFilter(run, filterValue) {
+  const status = String(run?.runStatus || '').toLowerCase();
+  const failedOrSkipped = status === 'error' || status === 'invalid_request' || status === 'skipped';
+  const underfilled = isUnderfilledRun(run);
+  if (filterValue === 'failed_or_skipped') return failedOrSkipped;
+  if (filterValue === 'underfilled') return underfilled;
+  if (filterValue === 'failed_or_underfilled') return failedOrSkipped || underfilled;
+  return true;
 }
 
 function formatUsageLabel(percentUsed, draftCount, periodLabel) {
@@ -193,6 +222,61 @@ function renderRejections(rejections) {
   `).join('');
 }
 
+function renderGenerationRuns(runs) {
+  if (!Array.isArray(runs) || runs.length === 0) {
+    generationRunListEl.innerHTML = '<p>No generation runs found.</p>';
+    return;
+  }
+
+  const filterValue = String(runFilterInput?.value || 'all');
+  const filtered = runs.filter((run) => shouldIncludeRunByFilter(run, filterValue));
+  if (!filtered.length) {
+    generationRunListEl.innerHTML = '<p>No generation runs match this filter.</p>';
+    return;
+  }
+
+  generationRunListEl.innerHTML = filtered.map((run) => `
+    <article class="draft-card" data-generation-run-id="${run.id}">
+      <button class="draft-header draft-toggle btn-reset" type="button">
+        <strong>#${run.id} - ${escapeHtml(run.runStatus || 'unknown')}</strong>
+        <span class="draft-meta">
+          ${escapeHtml(formatDate(run.runAt))} |
+          ET: ${escapeHtml(run.etDate || 'n/a')} ${escapeHtml(run.etTime || '')} |
+          created: ${Number(run.createdCount || 0).toLocaleString()}/${Number(run.targetCount || 0).toLocaleString()}
+        </span>
+      </button>
+      <p class="draft-meta article-editor is-collapsed" hidden>
+        reason: ${escapeHtml(run.runReason || 'none')}
+      </p>
+      <p class="draft-meta article-editor is-collapsed" hidden>
+        mode: ${escapeHtml(run.runMode || 'n/a')} |
+        schedule: ${escapeHtml(run.scheduleMode || 'n/a')} |
+        track: ${escapeHtml(run.track || 'n/a')} |
+        dryRun: ${run.dryRun ? 'yes' : 'no'}
+      </p>
+      <p class="draft-meta article-editor is-collapsed" hidden>
+        requested: ${Number(run.requestedCount || 0).toLocaleString()} |
+        target: ${Number(run.targetCount || 0).toLocaleString()} |
+        created: ${Number(run.createdCount || 0).toLocaleString()} |
+        skipped: ${Number(run.skippedCount || 0).toLocaleString()}
+      </p>
+      <p class="draft-meta article-editor is-collapsed" hidden>
+        tokens today: ${Number(run.tokensUsedToday || 0).toLocaleString()} /
+        ${Number(run.dailyTokenBudget || 0).toLocaleString()} budget |
+        consumed this run: ${Number(run.runTokensConsumed || 0).toLocaleString()}
+      </p>
+      <p class="draft-meta article-editor is-collapsed" hidden>
+        sections: active=${escapeHtml(run.activeSections || 'n/a')} |
+        include=${escapeHtml(run.includeSections || 'none')} |
+        exclude=${escapeHtml(run.excludeSections || 'none')}
+      </p>
+      <p class="draft-meta article-editor is-collapsed" hidden>
+        top skip reasons: ${formatTopSkipReasons(run.topSkipReasons)}
+      </p>
+    </article>
+  `).join('');
+}
+
 async function loadDuplicateReports() {
   const limit = encodeURIComponent(duplicateLimitInput?.value || '50');
   const data = await apiRequest(`/api/admin-duplicate-reports?limit=${limit}`);
@@ -207,15 +291,26 @@ async function loadRejections() {
   return Number(data.count || 0);
 }
 
+async function loadGenerationRuns() {
+  const limit = encodeURIComponent(runLimitInput?.value || '50');
+  const data = await apiRequest(`/api/admin-generation-runs?limit=${limit}`);
+  generationRuns = Array.isArray(data.runs) ? data.runs : [];
+  renderGenerationRuns(generationRuns);
+  return Number(data.count || 0);
+}
+
 async function loadAll() {
   try {
     setMessage('Loading settings lists...');
-    const [dupCount, rejCount] = await Promise.all([
+    const [dupCount, rejCount, runCount] = await Promise.all([
       loadDuplicateReports(),
       loadRejections(),
+      loadGenerationRuns(),
       loadUsageDashboard()
     ]);
-    setMessage(`Loaded ${dupCount} duplicate report(s) and ${rejCount} rejection record(s).`);
+    setMessage(
+      `Loaded ${dupCount} duplicate report(s), ${rejCount} rejection record(s), and ${runCount} generation run(s).`
+    );
   } catch (err) {
     setMessage(`Load failed: ${err.message}`);
   }
@@ -405,6 +500,9 @@ if (qualityBreakdownToggleBtn && qualityBreakdownEl) {
   });
 }
 if (appSection) appSection.addEventListener('click', onListClick);
+if (runFilterInput) {
+  runFilterInput.addEventListener('change', () => renderGenerationRuns(generationRuns));
+}
 
 loadToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked_settings') === '1');

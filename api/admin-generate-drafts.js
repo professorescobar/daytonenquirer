@@ -1472,6 +1472,108 @@ async function ensureEditorialRejectionsTable(sql) {
   `;
 }
 
+async function ensureDraftGenerationRunsTable(sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS draft_generation_runs (
+      id SERIAL PRIMARY KEY,
+      run_at TIMESTAMP DEFAULT NOW(),
+      run_status TEXT NOT NULL,
+      run_reason TEXT,
+      schedule_mode TEXT,
+      track TEXT,
+      run_mode TEXT,
+      created_via TEXT,
+      dry_run BOOLEAN DEFAULT false,
+      include_sections TEXT,
+      exclude_sections TEXT,
+      active_sections TEXT,
+      et_date TEXT,
+      et_time TEXT,
+      requested_count INTEGER,
+      target_count INTEGER,
+      created_count INTEGER DEFAULT 0,
+      skipped_count INTEGER DEFAULT 0,
+      daily_token_budget INTEGER,
+      tokens_used_today INTEGER DEFAULT 0,
+      run_tokens_consumed INTEGER DEFAULT 0,
+      top_skip_reasons JSONB DEFAULT '[]'::jsonb
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_draft_generation_runs_run_at
+    ON draft_generation_runs(run_at DESC)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_draft_generation_runs_status
+    ON draft_generation_runs(run_status)
+  `;
+}
+
+function getTopSkipReasons(skipped, limit = 10) {
+  const counts = new Map();
+  for (const row of skipped || []) {
+    const reason = String(row?.reason || 'unknown');
+    counts.set(reason, (counts.get(reason) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([reason, count]) => ({ reason, count }));
+}
+
+async function logDraftGenerationRun(sql, payload) {
+  if (!sql) return;
+  const topSkipReasons = JSON.stringify(payload.topSkipReasons || []);
+  await sql`
+    INSERT INTO draft_generation_runs (
+      run_status,
+      run_reason,
+      schedule_mode,
+      track,
+      run_mode,
+      created_via,
+      dry_run,
+      include_sections,
+      exclude_sections,
+      active_sections,
+      et_date,
+      et_time,
+      requested_count,
+      target_count,
+      created_count,
+      skipped_count,
+      daily_token_budget,
+      tokens_used_today,
+      run_tokens_consumed,
+      top_skip_reasons
+    )
+    VALUES (
+      ${payload.runStatus || 'ok'},
+      ${payload.runReason || null},
+      ${payload.scheduleMode || null},
+      ${payload.track || null},
+      ${payload.runMode || null},
+      ${payload.createdVia || null},
+      ${Boolean(payload.dryRun)},
+      ${payload.includeSections || null},
+      ${payload.excludeSections || null},
+      ${payload.activeSections || null},
+      ${payload.etDate || null},
+      ${payload.etTime || null},
+      ${Number.isFinite(payload.requestedCount) ? payload.requestedCount : null},
+      ${Number.isFinite(payload.targetCount) ? payload.targetCount : null},
+      ${Number.isFinite(payload.createdCount) ? payload.createdCount : 0},
+      ${Number.isFinite(payload.skippedCount) ? payload.skippedCount : 0},
+      ${Number.isFinite(payload.dailyTokenBudget) ? payload.dailyTokenBudget : null},
+      ${Number.isFinite(payload.tokensUsedToday) ? payload.tokensUsedToday : 0},
+      ${Number.isFinite(payload.runTokensConsumed) ? payload.runTokensConsumed : 0},
+      ${topSkipReasons}::jsonb
+    )
+  `;
+}
+
 module.exports = async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
@@ -1497,10 +1599,12 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'No active sections after include/exclude filters' });
   }
 
+  let sql = null;
   try {
-    const sql = neon(process.env.DATABASE_URL);
+    sql = neon(process.env.DATABASE_URL);
     await ensureDuplicateReportsTable(sql);
     await ensureEditorialRejectionsTable(sql);
+    await ensureDraftGenerationRunsTable(sql);
     const dailyTokenBudget = dailyTokenBudgetOverride
       ? Math.max(1, Math.min(parseInt(String(dailyTokenBudgetOverride), 10), 1000000))
       : await getDailyTokenBudget(sql);
@@ -1511,9 +1615,39 @@ module.exports = async (req, res) => {
 
     if (scheduleMode === 'auto') {
       if (!['multi', 'single'].includes(track)) {
+        await logDraftGenerationRun(sql, {
+          runStatus: 'invalid_request',
+          runReason: 'schedule=auto requires track=multi|single',
+          scheduleMode,
+          track,
+          runMode,
+          createdVia,
+          dryRun,
+          includeSections: includeSections?.join(',') || '',
+          excludeSections: excludeSections?.join(',') || '',
+          activeSections: activeSections.join(','),
+          etDate,
+          etTime,
+          requestedCount
+        });
         return res.status(400).json({ error: 'schedule=auto requires track=multi|single' });
       }
       if (!shouldRunScheduledTrack(track, etTime)) {
+        await logDraftGenerationRun(sql, {
+          runStatus: 'skipped',
+          runReason: `Not a scheduled ${track} slot`,
+          scheduleMode,
+          track,
+          runMode,
+          createdVia,
+          dryRun,
+          includeSections: includeSections?.join(',') || '',
+          excludeSections: excludeSections?.join(',') || '',
+          activeSections: activeSections.join(','),
+          etDate,
+          etTime,
+          requestedCount
+        });
         return res.status(200).json({
           ok: true,
           skipped: true,
@@ -1532,7 +1666,7 @@ module.exports = async (req, res) => {
     const todayBySection = await sql`
       SELECT section, COUNT(*)::int AS "count"
       FROM article_drafts
-      WHERE created_at >= date_trunc('day', now())
+      WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date = ${etDate}
         AND created_via = 'auto'
       GROUP BY section
     `;
@@ -1540,11 +1674,28 @@ module.exports = async (req, res) => {
     const todayTokensRows = await sql`
       SELECT COALESCE(SUM(total_tokens), 0)::int AS "tokens"
       FROM article_drafts
-      WHERE created_at >= date_trunc('day', now())
+      WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date = ${etDate}
         AND created_via = 'auto'
     `;
     const tokensUsedToday = todayTokensRows?.[0]?.tokens || 0;
     if (!dryRun && runMode === 'auto' && tokensUsedToday >= dailyTokenBudget) {
+      await logDraftGenerationRun(sql, {
+        runStatus: 'skipped',
+        runReason: 'Daily token budget reached',
+        scheduleMode,
+        track,
+        runMode,
+        createdVia,
+        dryRun,
+        includeSections: includeSections?.join(',') || '',
+        excludeSections: excludeSections?.join(',') || '',
+        activeSections: activeSections.join(','),
+        etDate,
+        etTime,
+        requestedCount,
+        dailyTokenBudget,
+        tokensUsedToday
+      });
       return res.status(200).json({
         ok: true,
         skipped: true,
@@ -1576,6 +1727,24 @@ module.exports = async (req, res) => {
       : (runMode === 'manual' ? requestedCount : Math.min(requestedCount, remainingToday));
 
     if (targetCount <= 0) {
+      await logDraftGenerationRun(sql, {
+        runStatus: 'skipped',
+        runReason: 'Daily section quotas reached',
+        scheduleMode,
+        track,
+        runMode,
+        createdVia,
+        dryRun,
+        includeSections: includeSections?.join(',') || '',
+        excludeSections: excludeSections?.join(',') || '',
+        activeSections: activeSections.join(','),
+        etDate,
+        etTime,
+        requestedCount,
+        targetCount,
+        dailyTokenBudget,
+        tokensUsedToday
+      });
       return res.status(200).json({
         ok: true,
         dryRun,
@@ -1612,7 +1781,7 @@ module.exports = async (req, res) => {
     const todaySportsTopicRows = await sql`
       SELECT title, description, content, source_title as "sourceTitle"
       FROM article_drafts
-      WHERE created_at >= date_trunc('day', now())
+      WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date = ${etDate}
         AND created_via = 'auto'
         AND section = 'sports'
     `;
@@ -1623,7 +1792,7 @@ module.exports = async (req, res) => {
     const todayBusinessTopicRows = await sql`
       SELECT title, description, content, source_title as "sourceTitle", source_url as "sourceUrl"
       FROM article_drafts
-      WHERE created_at >= date_trunc('day', now())
+      WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date = ${etDate}
         AND created_via = 'auto'
         AND section = 'business'
     `;
@@ -1641,7 +1810,7 @@ module.exports = async (req, res) => {
     const todayWorldTopicRows = await sql`
       SELECT title, description, content, source_title as "sourceTitle"
       FROM article_drafts
-      WHERE created_at >= date_trunc('day', now())
+      WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date = ${etDate}
         AND created_via = 'auto'
         AND section = 'world'
     `;
@@ -1668,7 +1837,7 @@ module.exports = async (req, res) => {
     const todayNationalTopicRows = await sql`
       SELECT title, description, content, source_title as "sourceTitle"
       FROM article_drafts
-      WHERE created_at >= date_trunc('day', now())
+      WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date = ${etDate}
         AND created_via = 'auto'
         AND section = 'national'
     `;
@@ -2264,6 +2433,29 @@ module.exports = async (req, res) => {
       });
     }
 
+    const topSkipReasons = getTopSkipReasons(skipped);
+    await logDraftGenerationRun(sql, {
+      runStatus: 'ok',
+      runReason: created.length < targetCount ? 'underfilled' : 'filled',
+      scheduleMode,
+      track,
+      runMode,
+      createdVia,
+      dryRun,
+      includeSections: includeSections?.join(',') || '',
+      excludeSections: excludeSections?.join(',') || '',
+      activeSections: activeSections.join(','),
+      etDate,
+      etTime,
+      requestedCount,
+      targetCount,
+      createdCount: created.length,
+      skippedCount: skipped.length,
+      dailyTokenBudget,
+      tokensUsedToday,
+      runTokensConsumed,
+      topSkipReasons
+    });
     return res.status(200).json({
       ok: true,
       dryRun,
@@ -2322,10 +2514,27 @@ module.exports = async (req, res) => {
       createdCount: created.length,
       skippedCount: skipped.length,
       created,
-      skipped: skipped.slice(0, 20)
+      skipped: skipped.slice(0, 20),
+      topSkipReasons
     });
   } catch (error) {
     console.error('Generate drafts error:', error);
+    try {
+      await logDraftGenerationRun(sql, {
+        runStatus: 'error',
+        runReason: error.message || 'unknown_error',
+        scheduleMode,
+        track,
+        runMode,
+        createdVia,
+        dryRun,
+        includeSections: includeSections?.join(',') || '',
+        excludeSections: excludeSections?.join(',') || '',
+        activeSections: activeSections.join(',')
+      });
+    } catch (logError) {
+      console.error('Run logging error:', logError);
+    }
     return res.status(500).json({ error: 'Failed to generate drafts', details: error.message });
   }
 };

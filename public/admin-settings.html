@@ -150,6 +150,10 @@
             Rejected List Limit
             <input id="rejected-limit" type="number" min="1" max="500" value="50" />
           </label>
+          <label>
+            Run Log Limit
+            <input id="run-limit" type="number" min="1" max="500" value="50" />
+          </label>
         </div>
         <div class="admin-actions">
           <button id="save-token-btn" class="btn">Save Token</button>
@@ -181,6 +185,28 @@
           <div class="article-editor section-editor is-collapsed" hidden>
             <p class="hint">Stored rejections. Expand a row to permanently delete an entry.</p>
             <div id="rejection-list" class="duplicate-list"></div>
+          </div>
+        </article>
+
+        <article class="draft-card">
+          <button class="draft-header draft-toggle btn-reset" type="button">
+            <strong>Generation Runs</strong>
+            <span class="draft-meta">Expand to inspect per-run success/failure and skip reasons</span>
+          </button>
+          <div class="article-editor section-editor is-collapsed" hidden>
+            <p class="hint">One row per draft generation API run (cron or manual). Expand a row for details.</p>
+            <div class="admin-grid single">
+              <label>
+                Run Filter
+                <select id="run-filter">
+                  <option value="all">All runs</option>
+                  <option value="failed_or_skipped">Only failed/skipped</option>
+                  <option value="underfilled">Only underfilled</option>
+                  <option value="failed_or_underfilled">Failed + underfilled</option>
+                </select>
+              </label>
+            </div>
+            <div id="generation-run-list" class="duplicate-list"></div>
           </div>
         </article>
       </section>
