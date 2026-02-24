@@ -165,6 +165,7 @@ async function ensureTurnstileWidget(form) {
   const mount = ensureTurnstileMount(form);
   const widgetId = window.turnstile.render(mount, {
     sitekey: siteKey,
+    size: isMobileSignupLayout() ? 'flexible' : 'normal',
     theme: 'auto',
     callback: () => {
       const strip = getSignupStrip(form);
