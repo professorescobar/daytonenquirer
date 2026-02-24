@@ -270,6 +270,16 @@ function bindNewsletterForms() {
     });
   });
 
+  document.addEventListener('pointerdown', (event) => {
+    forms.forEach((form) => {
+      const strip = getSignupStrip(form);
+      if (!strip || !isMobileSignupLayout()) return;
+      if (!strip.contains(event.target) && strip.classList.contains('is-mobile-expanded')) {
+        setMobileExpanded(form, false);
+      }
+    });
+  });
+
   window.addEventListener('resize', () => {
     syncMobileSignupState(forms);
   });
