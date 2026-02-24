@@ -91,6 +91,21 @@
     </div>
   </section>
 
+  <section id="newsletter-strip" class="newsletter-strip">
+    <div class="container newsletter-strip-inner">
+      <div class="newsletter-strip-copy">
+        <strong>Weekly Mailing List</strong>
+        <span>Get Dayton headlines and major updates in one weekly brief.</span>
+      </div>
+      <form class="newsletter-signup-form newsletter-strip-form" data-source="article_strip">
+        <input type="email" name="email" placeholder="Enter your email here" aria-label="Email address" required />
+        <input type="text" name="company" tabindex="-1" autocomplete="off" hidden />
+        <button type="submit">Sign Up!</button>
+        <p class="newsletter-signup-message" data-newsletter-message></p>
+      </form>
+    </div>
+  </section>
+
   <!-- ARTICLE PAGE CONTENT -->
   <main class="container article-page">
 
@@ -130,6 +145,11 @@
 
     </article>
 
+    <section class="article-newsletter-cta">
+      <p>Get updates on more stories like this from our weekly mailing list.</p>
+      <a href="/index.html#newsletter-strip" class="see-more-btn">Get Weekly Updates</a>
+    </section>
+
     <!-- ARTICLE NAVIGATION -->
     <div id="article-navigation" class="article-navigation">
       <button id="prev-article" class="nav-arrow prev-arrow" aria-label="Previous article">
@@ -147,11 +167,6 @@
    <h3 class="bottom-articles-title">More from this section</h3>
    <div id="related-grid" class="bottom-articles-grid"></div>
    </div>
-
-    <section class="article-newsletter-cta">
-      <p>Get updates on more stories like this from our weekly mailing list.</p>
-      <a href="/index.html#newsletter-strip" class="see-more-btn">Get Weekly Updates</a>
-    </section>
 
   </main>
 
@@ -180,6 +195,7 @@
  </footer>
 
   <script src="/theme.js"></script>
+  <script src="/newsletter-signup.js"></script>
   <script src="/article.js"></script>
 </body>
 </html>

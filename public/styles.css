@@ -106,24 +106,30 @@ nav a + a::before {
 }
 
 .newsletter-strip {
-  background: #fff;
+  background: transparent;
   border-bottom: 1px solid #d6d6d6;
 }
 
 .newsletter-strip-inner {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 1rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.65rem;
   align-items: center;
-  padding-top: 0.55rem;
-  padding-bottom: 0.55rem;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid #d6d6d6;
+  border-top: 0;
+  padding: 0.4rem 0.6rem;
 }
 
 .newsletter-strip-copy {
   display: flex;
   align-items: baseline;
-  gap: 0.65rem;
+  gap: 0.45rem;
   min-width: 0;
+  white-space: nowrap;
 }
 
 .newsletter-strip-copy strong {
@@ -138,10 +144,10 @@ nav a + a::before {
 }
 
 .newsletter-strip-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   gap: 0.45rem;
   align-items: center;
+  flex-wrap: nowrap;
 }
 
 .newsletter-strip-form input[type="email"] {
@@ -149,7 +155,7 @@ nav a + a::before {
   padding: 0.45rem 0.55rem;
   font-family: inherit;
   font-size: 0.92rem;
-  width: 100%;
+  width: 22rem;
 }
 
 .newsletter-strip-form button {
@@ -351,6 +357,7 @@ nav a + a::before {
   left: 0;
   right: 0;
   background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.3));
+  color: #fff;
   padding: 0.5rem;
 }
 
@@ -1161,15 +1168,18 @@ nav a + a::before {
   }
 
   .newsletter-strip-inner {
-    grid-template-columns: 1fr;
+    width: 100%;
     gap: 0.5rem;
     padding-top: 0.7rem;
     padding-bottom: 0.7rem;
+    border-left: 0;
+    border-right: 0;
   }
 
   .newsletter-strip-copy {
     flex-direction: column;
     align-items: flex-start;
+    white-space: normal;
     gap: 0.2rem;
   }
 
@@ -1266,7 +1276,13 @@ nav a + a::before {
   }
 
   .newsletter-strip-form {
-    grid-template-columns: 1fr;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .newsletter-strip-form input[type="email"] {
+    width: 100%;
   }
 
   .newsletter-strip-form button {
@@ -1377,8 +1393,13 @@ html[data-theme="dark"] .market-ticker {
 }
 
 html[data-theme="dark"] .newsletter-strip {
-  background: #121820;
+  background: transparent;
   border-bottom-color: #333942;
+}
+
+html[data-theme="dark"] .newsletter-strip-inner {
+  background: #121820;
+  border-color: #333942;
 }
 
 html[data-theme="dark"] .newsletter-strip-copy span,

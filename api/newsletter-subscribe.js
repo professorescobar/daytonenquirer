@@ -16,6 +16,39 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function getClientIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').trim();
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return String(req.socket?.remoteAddress || '').trim();
+}
+
+async function verifyTurnstile(token, ip) {
+  const secret = String(process.env.TURNSTILE_SECRET_KEY || '').trim();
+  if (!secret) return { ok: true };
+  if (!token) return { ok: false, message: 'Please verify you are human.' };
+
+  const form = new URLSearchParams();
+  form.set('secret', secret);
+  form.set('response', token);
+  if (ip) form.set('remoteip', ip);
+
+  const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.success) {
+    return {
+      ok: false,
+      message: 'Verification failed. Please try again.'
+    };
+  }
+
+  return { ok: true };
+}
+
 async function requestKit(config, path, body) {
   const res = await fetch(`${config.baseUrl}${path}`, {
     method: 'POST',
@@ -87,6 +120,7 @@ module.exports = async (req, res) => {
     const config = getKitConfig();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const honeypot = String(req.body?.company || '').trim();
+    const turnstileToken = String(req.body?.turnstileToken || '').trim();
 
     if (honeypot) {
       return res.status(200).json({ ok: true });
@@ -94,6 +128,11 @@ module.exports = async (req, res) => {
 
     if (!isValidEmail(email)) {
       return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+
+    const turnstileCheck = await verifyTurnstile(turnstileToken, getClientIp(req));
+    if (!turnstileCheck.ok) {
+      return res.status(400).json({ error: turnstileCheck.message });
     }
 
     const upsertResult = await createOrUpsertSubscriber(config, email);

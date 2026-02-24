@@ -7,14 +7,95 @@ function setSignupMessage(form, text, kind) {
   if (kind === 'error') message.classList.add('is-error');
 }
 
+let turnstileSiteKeyPromise = null;
+let turnstileScriptPromise = null;
+const turnstileWidgetIds = new WeakMap();
+
+async function getTurnstileSiteKey() {
+  if (!turnstileSiteKeyPromise) {
+    turnstileSiteKeyPromise = fetch('/api/newsletter-signup-config')
+      .then((res) => (res.ok ? res.json() : {}))
+      .then((data) => String(data?.turnstileSiteKey || '').trim())
+      .catch(() => '');
+  }
+  return turnstileSiteKeyPromise;
+}
+
+async function loadTurnstileScript() {
+  if (window.turnstile) return;
+  if (!turnstileScriptPromise) {
+    turnstileScriptPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-turnstile-script]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error('Turnstile failed to load')), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      script.async = true;
+      script.defer = true;
+      script.dataset.turnstileScript = 'true';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Turnstile failed to load'));
+      document.head.appendChild(script);
+    });
+  }
+  return turnstileScriptPromise;
+}
+
+function ensureTurnstileMount(form) {
+  let mount = form.querySelector('[data-turnstile]');
+  if (!mount) {
+    mount = document.createElement('div');
+    mount.className = 'turnstile-widget';
+    mount.dataset.turnstile = 'true';
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      form.insertBefore(mount, submitBtn);
+    } else {
+      form.appendChild(mount);
+    }
+  }
+  return mount;
+}
+
+async function setupTurnstile(forms) {
+  const siteKey = await getTurnstileSiteKey();
+  if (!siteKey) return;
+
+  await loadTurnstileScript();
+  if (!window.turnstile) return;
+
+  forms.forEach((form) => {
+    if (turnstileWidgetIds.has(form)) return;
+    const mount = ensureTurnstileMount(form);
+    const widgetId = window.turnstile.render(mount, {
+      sitekey: siteKey,
+      theme: 'auto'
+    });
+    turnstileWidgetIds.set(form, widgetId);
+  });
+}
+
 async function submitNewsletterForm(form) {
   const emailInput = form.querySelector('input[name="email"]');
   const companyInput = form.querySelector('input[name="company"]');
   const submitBtn = form.querySelector('button[type="submit"]');
+  const widgetId = turnstileWidgetIds.get(form);
   const email = String(emailInput?.value || '').trim();
+  const turnstileToken = widgetId !== undefined && window.turnstile
+    ? String(window.turnstile.getResponse(widgetId) || '').trim()
+    : '';
 
   if (!email) {
     setSignupMessage(form, 'Enter your email address.', 'error');
+    return;
+  }
+
+  if (widgetId !== undefined && !turnstileToken) {
+    setSignupMessage(form, 'Please verify you are human.', 'error');
     return;
   }
 
@@ -32,7 +113,8 @@ async function submitNewsletterForm(form) {
         email,
         source: form.dataset.source || '',
         section: form.dataset.section || '',
-        company: companyInput ? companyInput.value : ''
+        company: companyInput ? companyInput.value : '',
+        turnstileToken
       })
     });
 
@@ -43,6 +125,9 @@ async function submitNewsletterForm(form) {
   } catch (error) {
     setSignupMessage(form, error.message || 'Signup failed. Please try again.', 'error');
   } finally {
+    if (widgetId !== undefined && window.turnstile) {
+      window.turnstile.reset(widgetId);
+    }
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.textContent = originalBtnText || 'Sign Up!';
@@ -52,6 +137,7 @@ async function submitNewsletterForm(form) {
 
 function bindNewsletterForms() {
   const forms = document.querySelectorAll('.newsletter-signup-form');
+  setupTurnstile(forms).catch(() => {});
   forms.forEach((form) => {
     form.addEventListener('submit', (event) => {
       event.preventDefault();

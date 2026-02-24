@@ -77,7 +77,7 @@ function renderFeatured(article) {
               </a>
             </h3>
             <div class="article-meta">
-              ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}
+              ${article.pubDate ? `<span class="time">${formatDate(article.pubDate)}</span>` : ''}${article.description ? `<span class="featured-preview">${article.description}</span>` : ''}
             </div>
           </div>
         </article>
