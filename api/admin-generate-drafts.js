@@ -43,6 +43,7 @@ const TARGET_ARTICLE_WORDS = 700;
 const DEFAULT_MAX_OUTPUT_TOKENS = 2600;
 const RETRY_MIN_INITIAL_WORDS = 300;
 const DEFAULT_MEMORY_SUPPRESSION_ENABLED = false;
+const DEFAULT_CLAUDE_PROMPT_MODE = 'relaxed';
 
 const ET_TIME_ZONE = 'America/New_York';
 const TRACK_SCHEDULES_BY_PROVIDER = {
@@ -718,7 +719,14 @@ function isMemorySuppressionEnabled(rawValue) {
   return String(rawValue).trim().toLowerCase() === 'true';
 }
 
-function buildDraftPrompt(candidate) {
+function getClaudePromptMode(rawValue) {
+  const mode = String(rawValue || DEFAULT_CLAUDE_PROMPT_MODE).trim().toLowerCase();
+  return mode === 'strict' ? 'strict' : 'relaxed';
+}
+
+function buildDraftPrompt(candidate, writerProvider = 'anthropic') {
+  const claudePromptMode = getClaudePromptMode(process.env.CLAUDE_PROMPT_MODE);
+  const isClaudeRelaxed = writerProvider === 'anthropic' && claudePromptMode === 'relaxed';
   const sectionVoice = ({
     local: 'You are a feature reporter for a local Dayton, Ohio news publication.',
     sports: 'You are a sports news contributor for a local Dayton, Ohio news publication.',
@@ -784,6 +792,20 @@ function buildDraftPrompt(candidate) {
   const externalDuplicateRule = externalDuplicateTitles.length
     ? `External duplicate memory (do not mirror these source story angles/headlines): ${externalDuplicateTitles.join(' | ')}`
     : 'External duplicate memory: none for this section in current memory window.';
+  const claudeRelaxedStyleBlock = isClaudeRelaxed
+    ? `Claude style priority:
+- Write as one cohesive story, not a summary list.
+- Maintain a clear narrative thread from first paragraph to last.
+- Each paragraph must add a new detail or implication and connect logically to the previous one.
+- Avoid repetition: do not restate the same point in new wording.
+- Vary sentence structure and paragraph openings.
+- Keep tone energetic and readable, but measured and non-promotional.
+- Use concrete names, organizations, locations, dates, and numbers whenever available in the source context.
+- Do not replace known specifics with generic wording.`
+    : '';
+  const verificationRule = isClaudeRelaxed
+    ? 'Use source-grounded specificity and avoid generic phrasing when concrete details are available.'
+    : 'Do not include fake quotes or unverifiable claims. If details are uncertain, state uncertainty clearly.';
 
   return `
 ${sectionVoice}
@@ -812,7 +834,7 @@ Requirements:
    - Avoid cliches, AI-sounding filler, and repetitive phrasing.
 7) ${sharedStyleRule}
 8) section must be one of: local, national, world, business, sports, health, entertainment, technology.
-9) Do not include fake quotes or unverifiable claims. If details are uncertain, state uncertainty clearly.
+9) ${verificationRule}
 10) ${sportsRule}
 11) ${localRule}
 12) ${healthRule}
@@ -822,6 +844,7 @@ Requirements:
 16) ${marketUpdateFormatRule}
 17) ${technologyRule}
 18) ${externalDuplicateRule}
+19) ${claudeRelaxedStyleBlock}
 
 Return only JSON.
 `;
@@ -850,7 +873,7 @@ async function callAnthropicForDraft(candidate) {
 
   const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
   const maxOutputTokens = getModelMaxOutputTokens();
-  const prompt = buildDraftPrompt(candidate);
+  const prompt = buildDraftPrompt(candidate, 'anthropic');
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -903,7 +926,7 @@ async function callOpenAiForDraft(candidate) {
 
   const model = process.env.OPENAI_MODEL || 'gpt-5';
   const maxOutputTokens = getModelMaxOutputTokens();
-  const prompt = buildDraftPrompt(candidate);
+  const prompt = buildDraftPrompt(candidate, 'openai');
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -955,7 +978,7 @@ async function callGeminiForDraft(candidate) {
 
   const model = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
   const maxOutputTokens = getModelMaxOutputTokens();
-  const prompt = buildDraftPrompt(candidate);
+  const prompt = buildDraftPrompt(candidate, 'gemini');
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -1011,7 +1034,7 @@ async function callGrokForDraft(candidate) {
 
   const model = process.env.GROK_MODEL || 'grok-4';
   const maxOutputTokens = getModelMaxOutputTokens();
-  const prompt = buildDraftPrompt(candidate);
+  const prompt = buildDraftPrompt(candidate, 'grok');
   const response = await fetch('https://api.x.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
