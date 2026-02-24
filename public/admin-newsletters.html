@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Newsletters | The Dayton Enquirer</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/admin.css" />
+  <script>
+    (function () {
+      try {
+        var key = 'de_theme';
+        var stored = localStorage.getItem(key);
+        var theme = (stored === 'light' || stored === 'dark')
+          ? stored
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+      } catch (_) {}
+    })();
+  </script>
+</head>
+<body>
+  <header class="news-header">
+    <div class="container header-inner">
+      <div class="logo">
+        <a href="/index.html"><h1>The Dayton Enquirer</h1></a>
+      </div>
+      <nav>
+        <a href="/admin.html">Draft</a>
+        <a href="/admin-articles.html">Edit</a>
+        <a href="/admin-settings.html">Settings</a>
+        <a href="/admin-newsletters.html">Newsletters</a>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch theme" aria-pressed="false">
+          <span class="theme-toggle-icon" aria-hidden="true">
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+              <path d="M21.64 13a1 1 0 0 0-1.05-.14 8 8 0 0 1-10.45-10.45 1 1 0 0 0-1.2-1.3A10 10 0 1 0 23 15.06a1 1 0 0 0-1.36-2.06Z"/>
+            </svg>
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+              <path d="M12 7a5 5 0 1 0 5 5 5 5 0 0 0-5-5Zm0 8a3 3 0 1 1 3-3 3 3 0 0 1-3 3Zm0-11a1 1 0 0 0 1-1V2a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm0 16a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Zm10-9h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2ZM4 12a1 1 0 0 0-1-1H2a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm14.36 6.95a1 1 0 0 0-1.41 1.41l.7.71a1 1 0 1 0 1.41-1.41Zm-12.02-12.02a1 1 0 0 0-1.41 0l-.71.7a1 1 0 0 0 1.41 1.42l.71-.71a1 1 0 0 0 0-1.41Zm12.02-1.41-.7.71a1 1 0 0 0 1.41 1.41l.7-.71a1 1 0 1 0-1.41-1.41ZM6.34 17.66l-.71.7a1 1 0 0 0 1.42 1.41l.7-.7a1 1 0 0 0-1.41-1.41Z"/>
+            </svg>
+          </span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container admin-page">
+    <section id="newsletter-lock" class="admin-panel admin-lock">
+      <h2>Admin Access Required</h2>
+      <p class="hint">Enter your admin UI password to unlock this page.</p>
+      <div class="admin-grid single">
+        <label>
+          Admin UI Password
+          <input id="admin-ui-password" type="password" placeholder="Enter password" />
+        </label>
+      </div>
+      <div class="admin-actions">
+        <button id="unlock-admin-btn" class="btn btn-primary">Unlock Newsletters</button>
+      </div>
+    </section>
+
+    <section id="newsletter-app" hidden>
+      <section class="admin-panel">
+        <h2>Campaign Composer</h2>
+        <p class="hint">Create a draft, then send through Kit directly from this admin page.</p>
+        <div class="admin-grid">
+          <label>
+            Admin Token
+            <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
+          </label>
+          <label>
+            Campaign ID
+            <input id="campaign-id" type="text" readonly />
+          </label>
+          <label>
+            Status
+            <input id="campaign-status" type="text" readonly />
+          </label>
+        </div>
+        <div class="admin-actions">
+          <button id="save-token-btn" class="btn">Save Token</button>
+          <button id="new-campaign-btn" class="btn">New Campaign</button>
+          <button id="save-campaign-btn" class="btn btn-primary">Save Draft</button>
+          <button id="send-campaign-btn" class="btn btn-warning">Send</button>
+          <button id="refresh-status-btn" class="btn">Refresh Status</button>
+        </div>
+      </section>
+
+      <section class="admin-panel">
+        <div id="newsletter-message" class="message" hidden></div>
+        <div class="admin-grid">
+          <label>
+            Title
+            <input id="campaign-title" type="text" placeholder="Weekly Dayton Brief" />
+          </label>
+          <label>
+            Subject
+            <input id="campaign-subject" type="text" placeholder="Your Dayton headlines for this week" />
+          </label>
+          <label>
+            Preview Text
+            <input id="campaign-preview-text" type="text" placeholder="Top local stories in under 5 minutes" />
+          </label>
+          <label>
+            Description
+            <input id="campaign-description" type="text" placeholder="Internal campaign description" />
+          </label>
+          <label>
+            Segment IDs (comma)
+            <input id="campaign-segment-ids" type="text" placeholder="123,456" />
+          </label>
+          <label>
+            Tag IDs (comma)
+            <input id="campaign-tag-ids" type="text" placeholder="12,34" />
+          </label>
+        </div>
+        <div class="admin-grid newsletter-grid-two">
+          <label>
+            HTML Content
+            <textarea id="campaign-content-html" rows="14" placeholder="<h2>Hello Dayton</h2><p>...</p>"></textarea>
+          </label>
+          <label>
+            Plain Text Content
+            <textarea id="campaign-content-text" rows="14" placeholder="Hello Dayton..."></textarea>
+          </label>
+        </div>
+      </section>
+
+      <section class="admin-panel">
+        <h3>Campaigns</h3>
+        <div class="admin-grid">
+          <label>
+            Status Filter
+            <select id="campaign-status-filter">
+              <option value="all">all</option>
+              <option value="draft" selected>draft</option>
+              <option value="sending">sending</option>
+              <option value="sent">sent</option>
+              <option value="failed">failed</option>
+            </select>
+          </label>
+          <label>
+            List Limit
+            <input id="campaign-list-limit" type="number" min="1" max="200" value="25" />
+          </label>
+        </div>
+        <div class="admin-actions">
+          <button id="load-campaigns-btn" class="btn">Load Campaigns</button>
+        </div>
+        <div id="campaign-list" class="draft-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/theme.js"></script>
+  <script src="/admin-newsletters.js"></script>
+</body>
+</html>

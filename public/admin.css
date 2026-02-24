@@ -357,6 +357,16 @@
   min-height: 760px;
 }
 
+.newsletter-grid-two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.campaign-select-btn {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
 .draft-form .field-image-caption {
   min-height: 90px;
 }
@@ -411,7 +421,8 @@
 
 @media (max-width: 900px) {
   .admin-grid,
-  .draft-form {
+  .draft-form,
+  .newsletter-grid-two {
     grid-template-columns: 1fr;
   }
 
