@@ -115,7 +115,7 @@ nav a + a::before {
   justify-content: space-between;
   gap: 0.65rem;
   align-items: center;
-  width: calc(100% - 0.75rem);
+  width: min(1100px, calc(100% - 3rem));
   max-width: none;
   margin: 0 auto;
   background: #fff;
@@ -1186,12 +1186,10 @@ nav a + a::before {
   }
 
   .newsletter-strip-inner {
-    width: calc(100% - 0.5rem);
+    width: calc(100% - 1rem);
     gap: 0.5rem;
     padding-top: 0.7rem;
     padding-bottom: 0.7rem;
-    border-left: 0;
-    border-right: 0;
   }
 
   .newsletter-strip-copy {
