@@ -141,14 +141,15 @@ module.exports = async (req, res) => {
     const acceptedRows = await sql`
       SELECT COUNT(*)::int AS "count"
       FROM article_drafts
-      WHERE (updated_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date
+      WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE ${ET_TIME_ZONE})::date
             = (NOW() AT TIME ZONE ${ET_TIME_ZONE})::date
         AND status = 'published'
+        AND (${normalizedScope} = 'all' OR created_via = ${normalizedScope})
         AND (${requestedModel} = '' OR COALESCE(NULLIF(TRIM(model), ''), 'unknown') = ${requestedModel})
     `;
 
     const tokensUsedToday = dailyRows?.[0]?.tokensUsedToday || 0;
-    const draftsToday = dailyRows?.[0]?.draftsToday || 0;
+    const draftsTodayLive = dailyRows?.[0]?.draftsToday || 0;
     const tokensUsedWeek = weeklyRows?.[0]?.tokensUsedWeek || 0;
     const draftsWeek = weeklyRows?.[0]?.draftsWeek || 0;
     const tokensUsedMonth = monthlyRows?.[0]?.tokensUsedMonth || 0;
@@ -164,16 +165,17 @@ module.exports = async (req, res) => {
       : 0;
     const budgetRemainingPercent = Math.max(0, 100 - budgetUsedPercent);
     const turnedDownToday = Number(duplicateRows?.[0]?.count || 0) + Number(rejectionRows?.[0]?.count || 0);
+    const draftsTodayGenerated = draftsTodayLive + turnedDownToday;
     const acceptedToday = Number(acceptedRows?.[0]?.count || 0);
     const reviewedToday = acceptedToday + turnedDownToday;
-    const qualityLossRatePercent = draftsToday > 0
-      ? Math.min((turnedDownToday / draftsToday) * 100, 100)
+    const qualityLossRatePercent = draftsTodayGenerated > 0
+      ? Math.min((turnedDownToday / draftsTodayGenerated) * 100, 100)
       : 0;
     const acceptanceRatePercent = reviewedToday > 0
       ? Math.min((acceptedToday / reviewedToday) * 100, 100)
       : 0;
     const throughputPercent = dailyDraftTarget > 0
-      ? Math.min((draftsToday / dailyDraftTarget) * 100, 100)
+      ? Math.min((draftsTodayGenerated / dailyDraftTarget) * 100, 100)
       : 0;
 
     return res.status(200).json({
@@ -191,10 +193,14 @@ module.exports = async (req, res) => {
       budgetRemainingPercent: Number(budgetRemainingPercent.toFixed(1)),
       // Backward-compatible alias used by existing UI.
       budgetPercent: Number(budgetUsedPercent.toFixed(1)),
-      draftsToday,
+      draftsToday: draftsTodayGenerated,
+      draftsTodayLive,
+      draftsTodayGenerated,
       tokensRemainingToday: Math.max(0, dailyTokenBudget - tokensUsedToday),
       dailyTokensUsed: tokensUsedToday,
-      dailyDrafts: draftsToday,
+      dailyDrafts: draftsTodayGenerated,
+      dailyDraftsLive: draftsTodayLive,
+      dailyDraftsGenerated: draftsTodayGenerated,
       weeklyTokensUsed: tokensUsedWeek,
       weeklyDrafts: draftsWeek,
       monthlyTokensUsed: tokensUsedMonth,
