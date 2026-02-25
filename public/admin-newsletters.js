@@ -118,6 +118,34 @@ function formatSection(value) {
   return section.charAt(0).toUpperCase() + section.slice(1);
 }
 
+function getSectionDisplayName(section) {
+  const key = String(section || '').trim().toLowerCase();
+  const labels = {
+    local: 'Local News',
+    national: 'National News',
+    world: 'World News',
+    business: 'Business',
+    sports: 'Sports',
+    health: 'Health',
+    entertainment: 'Entertainment',
+    technology: 'Technology'
+  };
+  return labels[key] || formatSection(key || 'General');
+}
+
+function getSectionPageUrl(section) {
+  const key = String(section || '').trim().toLowerCase();
+  if (!key) return window.location.origin;
+  return new URL(`section.html?s=${encodeURIComponent(key)}`, window.location.origin).toString();
+}
+
+function getEmailDate(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function getSectionRank(section) {
   const key = String(section || '').trim().toLowerCase();
   const index = HOMEPAGE_SECTION_ORDER.indexOf(key);
@@ -268,45 +296,110 @@ function renderAvailableArticles() {
 }
 
 function buildNewsletterMarkup() {
-  const candidates = [];
   const orderedStories = getSectionOrderedStories();
-  if (selectedLeadArticle) candidates.push(selectedLeadArticle);
+  const selected = [];
+  if (selectedLeadArticle) selected.push(selectedLeadArticle);
   orderedStories.forEach((article) => {
-    if (!candidates.some((item) => Number(item.id) === Number(article.id))) {
-      candidates.push(article);
+    if (!selected.some((item) => Number(item.id) === Number(article.id))) {
+      selected.push(article);
     }
   });
 
-  if (candidates.length === 0) {
+  if (selected.length === 0) {
     throw new Error('Select at least one article to build the newsletter template');
   }
 
-  const lead = candidates[0];
-  const stories = candidates.slice(1);
+  const sections = new Map();
+  selected.forEach((article) => {
+    const key = String(article.section || 'general').toLowerCase();
+    if (!sections.has(key)) sections.set(key, []);
+    sections.get(key).push(article);
+  });
+  const orderedSectionKeys = [
+    ...HOMEPAGE_SECTION_ORDER.filter((key) => sections.has(key)),
+    ...Array.from(sections.keys()).filter((key) => !HOMEPAGE_SECTION_ORDER.includes(key))
+  ];
+
+  const lead = selected[0];
   const heading = String(campaignTitleInput.value || '').trim() || 'The Dayton Enquirer Weekly Brief';
   const intro = String(campaignPreviewTextInput.value || '').trim() || 'Top Dayton stories this week.';
+  const leadDescription = summarizeText(lead.description || lead.content || '', 240);
 
-  const leadUrl = getArticleUrl(lead);
-  const leadImage = String(lead.image || '').trim();
-  const leadDescription = summarizeText(lead.description || lead.content || '', 260);
+  const sectionBlocks = orderedSectionKeys.map((sectionKey) => {
+    const sectionStories = sections.get(sectionKey) || [];
+    if (sectionStories.length === 0) return '';
+    const featured = sectionStories[0];
+    const sidebar = sectionStories.slice(1);
+    const featuredUrl = getArticleUrl(featured);
+    const featuredImage = String(featured.image || '').trim();
+    const featuredDate = getEmailDate(featured.pubDate || featured.updatedAt || featured.createdAt);
+    const sectionTitle = getSectionDisplayName(sectionKey);
+    const sectionUrl = getSectionPageUrl(sectionKey);
 
-  const storyRows = stories.map((article, index) => {
-    const url = getArticleUrl(article);
-    const description = summarizeText(article.description || article.content || '', 160);
+    const sidebarItems = sidebar.map((item) => {
+      const itemUrl = getArticleUrl(item);
+      const itemDate = getEmailDate(item.pubDate || item.updatedAt || item.createdAt);
+      return `
+        <tr>
+          <td style="padding:0 0 10px 0;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.35;">
+            <span style="color:#111111;font-weight:700;">• </span><a href="${escapeHtml(itemUrl)}" style="color:#111111;text-decoration:none;">${escapeHtml(item.title || '(untitled)')}</a>
+            ${itemDate ? `<div style="margin-top:2px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#666666;">${escapeHtml(itemDate)}</div>` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
+
     return `
       <tr>
-        <td style="padding:0 0 16px 0;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        <td style="padding:0 0 18px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dddddd;background:#ffffff;">
             <tr>
-              <td style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#666666;padding:0 0 4px 0;">${index + 1}. ${escapeHtml(formatSection(article.section))}</td>
-            </tr>
-            <tr>
-              <td style="font-family:Arial,Helvetica,sans-serif;font-size:18px;line-height:1.35;font-weight:700;padding:0 0 6px 0;">
-                <a href="${escapeHtml(url)}" style="color:#0b3d91;text-decoration:none;">${escapeHtml(article.title || '(untitled)')}</a>
+              <td style="padding:14px 16px 8px 16px;font-family:Georgia,'Times New Roman',serif;font-size:32px;line-height:1.1;font-weight:700;border-bottom:2px solid #000000;">
+                <a href="${escapeHtml(sectionUrl)}" style="color:#111111;text-decoration:none;">${escapeHtml(sectionTitle)}</a>
               </td>
             </tr>
             <tr>
-              <td style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#222222;">${escapeHtml(description)}</td>
+              <td style="padding:14px 16px 14px 16px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                  <tr>
+                    <td valign="top" style="width:${sidebar.length > 0 ? '62%' : '100%'};padding:0 ${sidebar.length > 0 ? '14px 0 0' : '0'};">
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                        ${featuredImage ? `
+                        <tr>
+                          <td style="padding:0 0 10px 0;">
+                            <a href="${escapeHtml(featuredUrl)}"><img src="${escapeHtml(featuredImage)}" alt="${escapeHtml(featured.title || 'Story image')}" style="display:block;width:100%;height:auto;border:0;border-radius:4px;" /></a>
+                          </td>
+                        </tr>` : ''}
+                        <tr>
+                          <td style="padding:0 0 6px 0;font-family:Georgia,'Times New Roman',serif;font-size:28px;line-height:1.18;font-weight:700;color:#111111;">
+                            <a href="${escapeHtml(featuredUrl)}" style="color:#111111;text-decoration:none;">${escapeHtml(featured.title || '(untitled)')}</a>
+                          </td>
+                        </tr>
+                        ${featuredDate ? `
+                        <tr>
+                          <td style="padding:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#666666;">${escapeHtml(featuredDate)}</td>
+                        </tr>` : ''}
+                        <tr>
+                          <td style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#222222;">
+                            ${escapeHtml(summarizeText(featured.description || featured.content || '', 220))}
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                    ${sidebar.length > 0 ? `
+                    <td valign="top" style="width:38%;padding:0;">
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                        ${sidebarItems}
+                      </table>
+                    </td>` : ''}
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 16px 14px 16px;">
+                <a href="${escapeHtml(sectionUrl)}" style="display:inline-block;border:1px solid #111111;padding:7px 12px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#111111;text-decoration:none;">See more...</a>
+              </td>
             </tr>
           </table>
         </td>
@@ -315,70 +408,58 @@ function buildNewsletterMarkup() {
   }).join('');
 
   const html = `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:700px;margin:0 auto;border-collapse:collapse;background:#ffffff;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:1120px;margin:0 auto;border-collapse:collapse;background:#f8f8f8;">
       <tr>
-        <td style="padding:20px 20px 8px 20px;border-bottom:2px solid #111111;font-family:Arial,Helvetica,sans-serif;">
+        <td style="padding:16px 18px 8px 18px;text-align:center;border-bottom:2px solid #dddddd;background:#ffffff;">
+          <div style="font-family:Georgia,'Times New Roman',serif;font-size:46px;line-height:1.05;font-weight:700;color:#000000;">The Dayton Enquirer</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:14px 18px 8px 18px;font-family:Arial,Helvetica,sans-serif;">
           <div style="font-size:24px;font-weight:800;line-height:1.2;color:#111111;">${escapeHtml(heading)}</div>
-          <div style="margin-top:8px;font-size:14px;line-height:1.5;color:#444444;">${escapeHtml(intro)}</div>
+          <div style="margin-top:6px;font-size:14px;line-height:1.5;color:#444444;">${escapeHtml(intro)}</div>
         </td>
       </tr>
       <tr>
-        <td style="padding:18px 20px 0 20px;">
+        <td style="padding:0 18px 0 18px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#555555;">
+          Lead: <a href="${escapeHtml(getArticleUrl(lead))}" style="color:#111111;text-decoration:none;font-weight:700;">${escapeHtml(lead.title || '(untitled)')}</a>
+          ${leadDescription ? `<span style="display:block;margin-top:4px;color:#666666;">${escapeHtml(leadDescription)}</span>` : ''}
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:12px 18px 14px 18px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-            <tr>
-              <td style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#666666;padding:0 0 4px 0;">Lead Story • ${escapeHtml(formatSection(lead.section))}</td>
-            </tr>
-            <tr>
-              <td style="font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:1.25;font-weight:800;padding:0 0 10px 0;">
-                <a href="${escapeHtml(leadUrl)}" style="color:#111111;text-decoration:none;">${escapeHtml(lead.title || '(untitled)')}</a>
-              </td>
-            </tr>
-            ${leadImage ? `
-            <tr>
-              <td style="padding:0 0 10px 0;">
-                <a href="${escapeHtml(leadUrl)}"><img src="${escapeHtml(leadImage)}" alt="${escapeHtml(lead.title || 'Lead story image')}" style="display:block;width:100%;height:auto;border:0;" /></a>
-              </td>
-            </tr>` : ''}
-            <tr>
-              <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#222222;padding:0 0 16px 0;">${escapeHtml(leadDescription)}</td>
-            </tr>
+            ${sectionBlocks}
           </table>
         </td>
       </tr>
-      ${stories.length > 0 ? `
-      <tr>
-        <td style="padding:10px 20px 2px 20px;font-family:Arial,Helvetica,sans-serif;font-size:20px;line-height:1.3;font-weight:700;color:#111111;border-top:1px solid #e5e5e5;">More Stories</td>
-      </tr>
-      <tr>
-        <td style="padding:10px 20px 12px 20px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-            ${storyRows}
-          </table>
-        </td>
-      </tr>` : ''}
     </table>
   `.trim();
 
   const textLines = [
+    'The Dayton Enquirer',
+    '',
     heading,
     '',
     intro,
     '',
     `Lead Story: ${lead.title || '(untitled)'}`,
-    leadUrl,
+    getArticleUrl(lead),
     leadDescription,
     ''
   ];
-  if (stories.length > 0) {
-    textLines.push('More Stories:');
-    stories.forEach((article, index) => {
+  orderedSectionKeys.forEach((sectionKey) => {
+    const sectionStories = sections.get(sectionKey) || [];
+    if (sectionStories.length === 0) return;
+    textLines.push(`${getSectionDisplayName(sectionKey)}:`);
+    sectionStories.forEach((article, index) => {
       textLines.push(`${index + 1}. ${article.title || '(untitled)'}`);
       textLines.push(getArticleUrl(article));
       const description = summarizeText(article.description || article.content || '', 180);
       if (description) textLines.push(description);
       textLines.push('');
     });
-  }
+  });
 
   return {
     html,
