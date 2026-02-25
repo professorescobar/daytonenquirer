@@ -1528,8 +1528,8 @@ nav a + a::before {
     padding: 0 0.25rem;
   }
 
-  .newsletter-strip.is-mobile-collapsed .newsletter-strip-copy span,
-  .newsletter-strip:not(.is-mobile-expanded) .newsletter-strip-copy span,
+  .newsletter-strip.is-mobile-collapsed .newsletter-strip-copy > span,
+  .newsletter-strip:not(.is-mobile-expanded) .newsletter-strip-copy > span,
   .newsletter-strip.is-mobile-collapsed .newsletter-strip-form,
   .newsletter-strip:not(.is-mobile-expanded) .newsletter-strip-form {
     display: none;
