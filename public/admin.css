@@ -56,6 +56,10 @@
   margin-top: 1rem;
 }
 
+.newsletter-editor-actions {
+  justify-content: flex-end;
+}
+
 .btn {
   border: 1px solid #000;
   background: #fff;
@@ -361,6 +365,99 @@
   grid-template-columns: 1fr 1fr;
 }
 
+.newsletter-editor-wrap {
+  border: 1px solid #bbb;
+  background: #fff;
+}
+
+.newsletter-picker-layout {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.5fr);
+  gap: 0.8rem;
+}
+
+.newsletter-picker-column h4 {
+  margin: 0 0 0.5rem 0;
+}
+
+.newsletter-selected-group + .newsletter-selected-group {
+  margin-top: 0.8rem;
+}
+
+.newsletter-story-card-body {
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.newsletter-story-summary {
+  margin: 0.1rem 0 0 0;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.newsletter-story-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.newsletter-story-actions .btn {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.newsletter-story-actions .btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.newsletter-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border-bottom: 1px solid #ddd;
+  background: #f7f7f7;
+}
+
+.btn.btn-editor {
+  padding: 0.25rem 0.55rem;
+  border-color: #8f8f8f;
+  font-size: 0.85rem;
+}
+
+.newsletter-editor {
+  min-height: 440px;
+  padding: 0.7rem;
+  overflow: auto;
+  font-weight: normal;
+  line-height: 1.5;
+}
+
+.newsletter-editor:focus {
+  outline: 2px solid #6f95e8;
+  outline-offset: -2px;
+}
+
+.newsletter-editor p,
+.newsletter-editor ul,
+.newsletter-editor ol,
+.newsletter-editor blockquote {
+  margin: 0 0 0.8rem 0;
+}
+
+.newsletter-editor h2 {
+  margin: 0.2rem 0 0.8rem 0;
+}
+
+.newsletter-editor ul,
+.newsletter-editor ol {
+  padding-left: 1.4rem;
+}
+
 .campaign-select-btn {
   width: 100%;
   text-align: left;
@@ -422,7 +519,8 @@
 @media (max-width: 900px) {
   .admin-grid,
   .draft-form,
-  .newsletter-grid-two {
+  .newsletter-grid-two,
+  .newsletter-picker-layout {
     grid-template-columns: 1fr;
   }
 
@@ -499,6 +597,28 @@ html[data-theme="dark"] .draft-card textarea {
   background: #0f1319;
   color: #e8edf7;
   border-color: #3a4250;
+}
+
+html[data-theme="dark"] .newsletter-editor-wrap {
+  background: #0f1319;
+  border-color: #3a4250;
+}
+
+html[data-theme="dark"] .newsletter-story-summary {
+  color: #aeb8c7;
+}
+
+html[data-theme="dark"] .newsletter-editor-toolbar {
+  background: #171b22;
+  border-color: #3a4250;
+}
+
+html[data-theme="dark"] .newsletter-editor {
+  color: #e8edf7;
+}
+
+html[data-theme="dark"] .btn.btn-editor {
+  border-color: #5e6778;
 }
 
 html[data-theme="dark"] .btn {

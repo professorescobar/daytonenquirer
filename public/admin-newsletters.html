@@ -81,8 +81,6 @@
         <div class="admin-actions">
           <button id="save-token-btn" class="btn">Save Token</button>
           <button id="new-campaign-btn" class="btn">New Campaign</button>
-          <button id="save-campaign-btn" class="btn btn-primary">Save Draft</button>
-          <button id="send-campaign-btn" class="btn btn-warning">Send</button>
           <button id="refresh-status-btn" class="btn">Refresh Status</button>
         </div>
       </section>
@@ -115,15 +113,83 @@
             <input id="campaign-tag-ids" type="text" placeholder="12,34" />
           </label>
         </div>
-        <div class="admin-grid newsletter-grid-two">
+      </section>
+
+      <section class="admin-panel">
+        <h3>Story Picker</h3>
+        <p class="hint">Choose published articles to auto-build a newsletter layout. Lead story is manual; section order follows the homepage automatically.</p>
+        <div class="admin-grid">
           <label>
-            HTML Content
-            <textarea id="campaign-content-html" rows="14" placeholder="<h2>Hello Dayton</h2><p>...</p>"></textarea>
+            Section Filter
+            <select id="newsletter-article-section">
+              <option value="all" selected>all</option>
+              <option value="local">local</option>
+              <option value="national">national</option>
+              <option value="world">world</option>
+              <option value="business">business</option>
+              <option value="sports">sports</option>
+              <option value="health">health</option>
+              <option value="entertainment">entertainment</option>
+              <option value="technology">technology</option>
+            </select>
           </label>
           <label>
-            Plain Text Content
-            <textarea id="campaign-content-text" rows="14" placeholder="Hello Dayton..."></textarea>
+            Article Limit
+            <input id="newsletter-article-limit" type="number" min="10" max="300" value="120" />
           </label>
+          <label>
+            Search
+            <input id="newsletter-article-search" type="text" placeholder="Search headlines or descriptions" />
+          </label>
+        </div>
+        <div class="admin-actions">
+          <button id="load-newsletter-articles-btn" class="btn">Load Published Articles</button>
+          <button id="clear-newsletter-selection-btn" class="btn">Clear Selection</button>
+          <button id="build-newsletter-template-btn" class="btn btn-primary">Build Newsletter From Selection</button>
+        </div>
+        <div class="newsletter-picker-layout">
+          <div class="newsletter-picker-column">
+            <h4>Selected Layout</h4>
+            <div class="newsletter-selected-group">
+              <p class="hint">Lead Story</p>
+              <div id="newsletter-selected-lead" class="draft-list"></div>
+            </div>
+            <div class="newsletter-selected-group">
+              <p class="hint">Story List</p>
+              <div id="newsletter-selected-stories" class="draft-list"></div>
+            </div>
+          </div>
+          <div class="newsletter-picker-column">
+            <h4>Available Articles</h4>
+            <div id="newsletter-article-results" class="draft-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-panel">
+        <div class="admin-grid">
+          <label>
+            Newsletter Content
+            <div class="newsletter-editor-wrap">
+              <div id="campaign-editor-toolbar" class="newsletter-editor-toolbar" role="toolbar" aria-label="Text formatting">
+                <button type="button" class="btn btn-editor" data-cmd="bold" title="Bold"><strong>B</strong></button>
+                <button type="button" class="btn btn-editor" data-cmd="italic" title="Italic"><em>I</em></button>
+                <button type="button" class="btn btn-editor" data-cmd="underline" title="Underline"><u>U</u></button>
+                <button type="button" class="btn btn-editor" data-cmd="insertUnorderedList" title="Bullet list">Bullets</button>
+                <button type="button" class="btn btn-editor" data-cmd="insertOrderedList" title="Numbered list">Numbers</button>
+                <button type="button" class="btn btn-editor" data-cmd="formatBlock" data-value="h2" title="Heading">H2</button>
+                <button type="button" class="btn btn-editor" data-cmd="formatBlock" data-value="p" title="Paragraph">P</button>
+                <button type="button" class="btn btn-editor" data-action="link" title="Add link">Link</button>
+                <button type="button" class="btn btn-editor" data-cmd="removeFormat" title="Clear formatting">Clear</button>
+              </div>
+              <div id="campaign-content-editor" class="newsletter-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
+            </div>
+            <textarea id="campaign-content-text" rows="14" hidden></textarea>
+          </label>
+        </div>
+        <div class="admin-actions newsletter-editor-actions">
+          <button id="save-campaign-btn" class="btn btn-primary">Save Draft</button>
+          <button id="send-campaign-btn" class="btn btn-warning">Send</button>
         </div>
       </section>
 
