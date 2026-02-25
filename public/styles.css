@@ -156,6 +156,10 @@ nav a + a::before {
   display: none;
 }
 
+.newsletter-desktop-arrow {
+  display: none;
+}
+
 .newsletter-strip-artwork svg {
   display: block;
   width: 100%;
@@ -278,6 +282,7 @@ nav a + a::before {
     width: 100%;
     margin: 0;
     line-height: 1;
+    position: relative;
   }
 
   .newsletter-strip-title-text,
@@ -291,6 +296,34 @@ nav a + a::before {
     max-width: none;
     height: 32px;
     padding-right: 0.1rem;
+  }
+
+  .newsletter-strip-artwork-desktop .ns-arrow {
+    display: none;
+  }
+
+  .newsletter-desktop-arrow {
+    display: block;
+    position: absolute;
+    right: -0.2rem;
+    top: 50%;
+    width: 1.5rem;
+    height: 0.95rem;
+    transform: translateY(-50%);
+    color: var(--newsletter-art-arrow);
+    pointer-events: none;
+    opacity: 0;
+    animation: newsletterArrowSwap 15s linear infinite;
+  }
+
+  .newsletter-desktop-arrow svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .newsletter-desktop-arrow path {
+    fill: currentColor;
   }
 
   .newsletter-strip-artwork-desktop .ns-envelope {
@@ -318,6 +351,10 @@ nav a + a::before {
   .newsletter-strip-artwork .ns-arrow,
   .newsletter-strip-artwork .ns-label,
   .newsletter-strip-artwork .ns-label-desktop {
+    opacity: 1;
+  }
+
+  .newsletter-desktop-arrow {
     opacity: 1;
   }
 }
