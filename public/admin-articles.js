@@ -14,10 +14,7 @@ const articleTotalCountEl = document.getElementById('article-total-count');
 const messageEl = document.getElementById('admin-message');
 const listEl = document.getElementById('article-list');
 const removeModalEl = document.getElementById('article-remove-modal');
-const removeActionInput = document.getElementById('article-remove-action');
-const removeReasonInput = document.getElementById('article-remove-reason');
-const removeDuplicateTypeInput = document.getElementById('article-remove-duplicate-type');
-const removeNotesInput = document.getElementById('article-remove-notes');
+const removeConfirmInput = document.getElementById('article-remove-confirm-input');
 const removeConfirmBtn = document.getElementById('article-remove-confirm-btn');
 const removeCancelBtn = document.getElementById('article-remove-cancel-btn');
 
@@ -385,7 +382,7 @@ function renderArticles(articles) {
       </div>
       <div class="draft-actions article-editor is-collapsed" hidden>
         <button type="button" class="btn btn-primary btn-save-article">Save Article</button>
-        <button type="button" class="btn btn-danger btn-remove-article">Remove Article</button>
+        <button type="button" class="btn btn-danger btn-remove-article">Permanently Delete Article</button>
       </div>
     </article>
   `).join('');
@@ -470,10 +467,7 @@ async function saveArticle(card) {
 function openRemoveModal(articleId) {
   removeTargetArticleId = Number(articleId || 0);
   if (!removeTargetArticleId || !removeModalEl) return;
-  removeActionInput.value = 'duplicate';
-  removeReasonInput.value = '';
-  if (removeDuplicateTypeInput) removeDuplicateTypeInput.value = 'internal';
-  removeNotesInput.value = '';
+  if (removeConfirmInput) removeConfirmInput.value = '';
   removeModalEl.hidden = false;
 }
 
@@ -484,26 +478,17 @@ function closeRemoveModal() {
 }
 
 async function removeArticle() {
-  const action = String(removeActionInput?.value || '').trim();
-  const reason = String(removeReasonInput?.value || '').trim();
-  const duplicateType = String(removeDuplicateTypeInput?.value || '').trim();
-  const notes = String(removeNotesInput?.value || '').trim();
+  const confirmation = String(removeConfirmInput?.value || '').trim();
   if (!removeTargetArticleId) throw new Error('Missing article target');
-  if (!['duplicate', 'reject'].includes(action)) throw new Error('Select a valid action');
-  if (action === 'reject' && !reason) throw new Error('Select a rejection reason');
-  if (action === 'duplicate' && !['internal', 'external'].includes(duplicateType)) {
-    throw new Error('Select a duplicate type');
+  if (confirmation !== 'DELETE') {
+    throw new Error('Type DELETE to confirm permanent deletion');
   }
 
   await apiRequest('/api/admin-remove-article', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      id: removeTargetArticleId,
-      action,
-      duplicateType: action === 'duplicate' ? duplicateType : null,
-      reason: action === 'reject' ? reason : null,
-      notes
+      id: removeTargetArticleId
     })
   });
 }
@@ -564,9 +549,8 @@ function onRemoveConfirm() {
   removeArticle()
     .then(async () => {
       const id = removeTargetArticleId;
-      const action = removeActionInput.value;
       closeRemoveModal();
-      setMessage(`Article #${id} removed (${action}).`);
+      setMessage(`Article #${id} permanently deleted.`);
       scrollToTopStatus();
       await loadArticles();
     })

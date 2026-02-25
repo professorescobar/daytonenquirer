@@ -860,9 +860,9 @@ function resolveWriterProvider(raw) {
 
 function getWriterModelForProvider(writerProvider) {
   if (writerProvider === 'openai') return process.env.OPENAI_MODEL || 'gpt-5';
-  if (writerProvider === 'gemini') return process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+  if (writerProvider === 'gemini') return process.env.GEMINI_MODEL || 'gemini-3-pro-preview';
   if (writerProvider === 'grok') return process.env.GROK_MODEL || 'grok-4';
-  return process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
+  return process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
 }
 
 async function callAnthropicForDraft(candidate) {
@@ -871,7 +871,7 @@ async function callAnthropicForDraft(candidate) {
     throw new Error('Missing ANTHROPIC_API_KEY');
   }
 
-  const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
+  const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
   const maxOutputTokens = getModelMaxOutputTokens();
   const prompt = buildDraftPrompt(candidate, 'anthropic');
 
@@ -976,7 +976,7 @@ async function callGeminiForDraft(candidate) {
     throw new Error('Missing GEMINI_API_KEY');
   }
 
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+  const model = process.env.GEMINI_MODEL || 'gemini-3-pro-preview';
   const maxOutputTokens = getModelMaxOutputTokens();
   const prompt = buildDraftPrompt(candidate, 'gemini');
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -1699,146 +1699,9 @@ async function alreadyExists(sql, candidate) {
   return !!rows?.[0]?.exists;
 }
 
-async function ensureDuplicateReportsTable(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS duplicate_reports (
-      id SERIAL PRIMARY KEY,
-      draft_id INTEGER,
-      draft_slug TEXT,
-      draft_title TEXT NOT NULL,
-      section TEXT,
-      source_url TEXT,
-      source_title TEXT,
-      model TEXT,
-      duplicate_type TEXT DEFAULT 'internal',
-      input_tokens INTEGER,
-      output_tokens INTEGER,
-      total_tokens INTEGER,
-      report_reason TEXT DEFAULT 'manual_duplicate',
-      notes TEXT,
-      reported_by TEXT DEFAULT 'admin_ui',
-      reported_at TIMESTAMP DEFAULT NOW()
-    )
-  `;
-
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_duplicate_reports_draft_id_unique
-    ON duplicate_reports(draft_id)
-    WHERE draft_id IS NOT NULL
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_duplicate_reports_reported_at
-    ON duplicate_reports(reported_at DESC)
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_duplicate_reports_source_url
-    ON duplicate_reports(source_url)
-    WHERE source_url IS NOT NULL
-  `;
-
-  await sql`
-    ALTER TABLE duplicate_reports
-    ADD COLUMN IF NOT EXISTS input_tokens INTEGER
-  `;
-
-  await sql`
-    ALTER TABLE duplicate_reports
-    ADD COLUMN IF NOT EXISTS output_tokens INTEGER
-  `;
-
-  await sql`
-    ALTER TABLE duplicate_reports
-    ADD COLUMN IF NOT EXISTS total_tokens INTEGER
-  `;
-
-  await sql`
-    ALTER TABLE duplicate_reports
-    ADD COLUMN IF NOT EXISTS duplicate_type TEXT DEFAULT 'internal'
-  `;
-
-  await sql`
-    ALTER TABLE duplicate_reports
-    ADD COLUMN IF NOT EXISTS model TEXT
-  `;
-}
-
-async function ensureEditorialRejectionsTable(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS editorial_rejections (
-      id SERIAL PRIMARY KEY,
-      draft_id INTEGER,
-      draft_slug TEXT,
-      draft_title TEXT NOT NULL,
-      section TEXT,
-      source_url TEXT,
-      source_title TEXT,
-      model TEXT,
-      input_tokens INTEGER,
-      output_tokens INTEGER,
-      total_tokens INTEGER,
-      reject_reason TEXT NOT NULL,
-      notes TEXT,
-      rejected_by TEXT DEFAULT 'admin_ui',
-      rejected_at TIMESTAMP DEFAULT NOW()
-    )
-  `;
-
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_editorial_rejections_draft_id_unique
-    ON editorial_rejections(draft_id)
-    WHERE draft_id IS NOT NULL
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_editorial_rejections_rejected_at
-    ON editorial_rejections(rejected_at DESC)
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_editorial_rejections_reason
-    ON editorial_rejections(reject_reason)
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_editorial_rejections_source_url
-    ON editorial_rejections(source_url)
-    WHERE source_url IS NOT NULL
-  `;
-
-  await sql`
-    ALTER TABLE editorial_rejections
-    ADD COLUMN IF NOT EXISTS model TEXT
-  `;
-}
-
-async function ensureModelTrackingReset(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS admin_runtime_flags (
-      key TEXT PRIMARY KEY,
-      value TEXT,
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW()
-    )
-  `;
-
-  const rows = await sql`
-    SELECT key
-    FROM admin_runtime_flags
-    WHERE key = 'model_memory_reset_v1'
-    LIMIT 1
-  `;
-  if (rows.length) return;
-
-  await sql`DELETE FROM duplicate_reports`;
-  await sql`DELETE FROM editorial_rejections`;
-  await sql`DELETE FROM admin_runtime_flags WHERE key = 'model_memory_reset_v1'`;
-  await sql`
-    INSERT INTO admin_runtime_flags (key, value, created_at, updated_at)
-    VALUES ('model_memory_reset_v1', 'done', NOW(), NOW())
-  `;
-}
+async function ensureDuplicateReportsTable() {}
+async function ensureEditorialRejectionsTable() {}
+async function ensureModelTrackingReset() {}
 
 async function ensureDraftGenerationRunsTable(sql) {
   await sql`
@@ -1969,23 +1832,29 @@ module.exports = async (req, res) => {
   const dryRun = String(req.body?.dryRun || req.query.dryRun || 'false') === 'true';
   const dailyTokenBudgetOverride = req.body?.dailyTokenBudget || req.query.dailyTokenBudget;
   const scheduleMode = String(req.body?.schedule || req.query.schedule || '').toLowerCase();
-  const requestedRunMode = String(req.body?.runMode || req.query.runMode || 'auto').toLowerCase();
+  const requestedRunMode = String(req.body?.runMode || req.query.runMode || 'manual').toLowerCase();
   const writerProvider = resolveWriterProvider(req.body?.provider || req.query.provider);
   const writerModelForRun = getWriterModelForProvider(writerProvider);
   const memorySuppressionEnabled = isMemorySuppressionEnabled(
     req.body?.memorySuppressionEnabled ?? req.query.memorySuppressionEnabled ?? process.env.DRAFT_MEMORY_SUPPRESSION
   );
   const track = String(req.body?.track || req.query.track || '').toLowerCase();
-  const runMode = scheduleMode === 'auto'
-    ? 'auto'
-    : (requestedRunMode === 'manual' ? 'manual' : 'auto');
-  const createdVia = runMode === 'manual' ? 'manual' : 'auto';
+  const runMode = 'manual';
+  const createdVia = 'manual';
   const includeSections = parseSectionList(req.body?.includeSections || req.query.includeSections);
   const excludeSections = parseSectionList(req.body?.excludeSections || req.query.excludeSections);
   const activeSections = resolveActiveSections(includeSections, excludeSections);
 
   if (!activeSections.length) {
     return res.status(400).json({ error: 'No active sections after include/exclude filters' });
+  }
+
+  if (scheduleMode === 'auto') {
+    return res.status(400).json({ error: 'Automatic scheduled runs are disabled. Use manual mode only.' });
+  }
+
+  if (requestedRunMode && requestedRunMode !== 'manual') {
+    return res.status(400).json({ error: 'Only runMode=manual is supported.' });
   }
 
   let sql = null;
@@ -2266,19 +2135,7 @@ module.exports = async (req, res) => {
       }
     }
     const nationalStatesUsedThisRun = new Set();
-    const reportedDuplicateRows = memorySuppressionEnabled
-      ? await sql`
-          SELECT
-            section,
-            draft_title as "draftTitle",
-            source_title as "sourceTitle",
-            source_url as "sourceUrl",
-            COALESCE(NULLIF(TRIM(duplicate_type), ''), 'internal') as "duplicateType"
-          FROM duplicate_reports
-          WHERE reported_at >= NOW() - INTERVAL '365 days'
-            AND COALESCE(NULLIF(TRIM(model), ''), '') = ${writerModelForRun}
-        `
-      : [];
+    const reportedDuplicateRows = [];
     const reportedDuplicateTitles = Array.from(
       new Set(
         reportedDuplicateRows
@@ -2324,19 +2181,7 @@ module.exports = async (req, res) => {
         new Set(reportedExternalDuplicateTitlesBySection[section])
       );
     }
-    const editorialRejectRows = memorySuppressionEnabled
-      ? await sql`
-          SELECT
-            section,
-            draft_title as "draftTitle",
-            source_title as "sourceTitle",
-            source_url as "sourceUrl",
-            reject_reason as "rejectReason"
-          FROM editorial_rejections
-          WHERE rejected_at >= NOW() - INTERVAL '365 days'
-            AND COALESCE(NULLIF(TRIM(model), ''), '') = ${writerModelForRun}
-        `
-      : [];
+    const editorialRejectRows = [];
     const editorialRejectedTitlesBySection = {};
     for (const section of SECTION_ORDER) editorialRejectedTitlesBySection[section] = [];
     const editorialRejectedSourceUrls = new Set();

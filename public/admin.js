@@ -310,68 +310,11 @@ function renderDrafts(drafts) {
       <div class="draft-actions article-editor is-collapsed" hidden>
         <button class="btn btn-save">Save Draft</button>
         <button class="btn btn-primary btn-publish">Publish Draft</button>
-        <button class="btn btn-warning btn-reject">Reject Draft</button>
-        <button class="btn btn-warning btn-report-duplicate">Report Duplicate</button>
+        <button class="btn btn-danger btn-delete-draft">Permanently Delete Draft</button>
       </div>
     </article>
   `).join('');
   initializeRichTextEditors(draftListEl);
-}
-
-function renderDuplicateReports(reports) {
-  if (!duplicateListEl) return;
-  if (!Array.isArray(reports) || reports.length === 0) {
-    duplicateListEl.innerHTML = '<p>No duplicate reports found.</p>';
-    return;
-  }
-
-  duplicateListEl.innerHTML = reports.map((report) => `
-    <article class="draft-card" data-report-id="${report.id}">
-      <div class="draft-header">
-        <strong>#${report.id} - ${escapeHtml(report.draftTitle || '')}</strong>
-        <span class="draft-meta">section: ${escapeHtml(report.section || 'n/a')} | model: ${escapeHtml(report.model || 'unknown')} | type: ${escapeHtml(report.duplicateType || 'internal')}</span>
-      </div>
-      <p class="draft-meta">
-        source title: ${escapeHtml(report.sourceTitle || 'N/A')} |
-        reported: ${escapeHtml(formatDate(report.reportedAt))}
-      </p>
-      <p class="draft-meta">source url:
-        <a href="${escapeHtml(report.sourceUrl || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(report.sourceUrl || 'N/A')}</a>
-      </p>
-      <div class="draft-actions">
-        <button class="btn btn-danger btn-remove-duplicate-report">Remove From Duplicate List</button>
-      </div>
-    </article>
-  `).join('');
-}
-
-function renderRejections(rejections) {
-  if (!rejectionListEl) return;
-  if (!Array.isArray(rejections) || rejections.length === 0) {
-    rejectionListEl.innerHTML = '<p>No rejected drafts found.</p>';
-    return;
-  }
-
-  rejectionListEl.innerHTML = rejections.map((item) => `
-    <article class="draft-card" data-rejection-id="${item.id}">
-      <div class="draft-header">
-        <strong>#${item.id} - ${escapeHtml(item.draftTitle || '')}</strong>
-        <span class="draft-meta">reason: ${escapeHtml(item.rejectReason || 'n/a')} | model: ${escapeHtml(item.model || 'unknown')}</span>
-      </div>
-      <p class="draft-meta">
-        section: ${escapeHtml(item.section || 'n/a')} |
-        tokens: ${Number(item.totalTokens || 0).toLocaleString()} |
-        rejected: ${escapeHtml(formatDate(item.rejectedAt))}
-      </p>
-      <p class="draft-meta">source:
-        <a href="${escapeHtml(item.sourceUrl || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.sourceUrl || 'N/A')}</a>
-      </p>
-      <p class="draft-meta">notes: ${escapeHtml(item.notes || 'none')}</p>
-      <div class="draft-actions">
-        <button class="btn btn-danger btn-delete-rejection">Permanently Delete Record</button>
-      </div>
-    </article>
-  `).join('');
 }
 
 function buildCloudinaryOptimizedUrl(publicId) {
@@ -530,98 +473,13 @@ async function loadManualUsageSummary() {
 
 async function loadUsageDashboard() {
   if (!usageTokensEl) return;
-  const [usage, quality] = await Promise.all([
-    apiRequest('/api/admin-usage'),
-    apiRequest('/api/admin-quality-metrics')
-  ]);
+  const usage = await apiRequest('/api/admin-usage');
 
   usageTokensEl.textContent = Number(usage.tokensUsedToday || 0).toLocaleString();
   usageBudgetEl.textContent = Number(usage.dailyTokenBudget || 0).toLocaleString();
   usagePercentEl.textContent = `${usage.budgetPercent || 0}%`;
   usageDraftsEl.textContent = Number(usage.draftsToday || 0).toLocaleString();
   usageBudgetInput.value = Number(usage.dailyTokenBudget || 0);
-
-  const byReason = quality.byReason || {};
-  usageRejectedTotalEl.textContent = Number(quality.totalRejected || 0).toLocaleString();
-  usageRejectedDuplicateEl.textContent = Number(byReason.duplicate || 0).toLocaleString();
-  usageRejectedStaleEl.textContent = Number(byReason.stale_or_not_time_relevant || 0).toLocaleString();
-  usageRejectedThinEl.textContent = Number(byReason.low_newsworthiness_or_thin || 0).toLocaleString();
-  usageRejectedStyleEl.textContent = Number(byReason.style_mismatch || 0).toLocaleString();
-  if (usageRejectedUserErrorEl) {
-    usageRejectedUserErrorEl.textContent = Number(byReason.user_error || 0).toLocaleString();
-  }
-  usageBadTokensEl.textContent = Number(quality.badTokensTotal || 0).toLocaleString();
-}
-
-async function loadDuplicateReports() {
-  try {
-    setMessage('Loading duplicate reports...');
-    const limit = encodeURIComponent(duplicateLimitInput?.value || '50');
-    const data = await apiRequest(`/api/admin-duplicate-reports?limit=${limit}`);
-    renderDuplicateReports(data.reports || []);
-    setMessage(`Loaded ${data.count || 0} duplicate report(s).`);
-  } catch (err) {
-    setMessage(`Load duplicate reports failed: ${err.message}`);
-  }
-}
-
-async function removeDuplicateReport(id) {
-  await apiRequest('/api/admin-remove-duplicate-report', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id })
-  });
-}
-
-async function loadRejections() {
-  try {
-    setMessage('Loading rejected drafts...');
-    const limit = encodeURIComponent(rejectedLimitInput?.value || '50');
-    const data = await apiRequest(`/api/admin-rejections?limit=${limit}`);
-    renderRejections(data.rejections || []);
-    setMessage(`Loaded ${data.count || 0} rejected draft record(s).`);
-  } catch (err) {
-    setMessage(`Load rejections failed: ${err.message}`);
-  }
-}
-
-async function deleteRejection(id) {
-  await apiRequest('/api/admin-delete-rejection', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id })
-  });
-}
-
-function openRejectModal(draftId) {
-  rejectTargetDraftId = Number(draftId || 0);
-  if (!rejectTargetDraftId || !rejectModalEl) return;
-  rejectReasonInput.value = '';
-  rejectNotesInput.value = '';
-  rejectModalEl.hidden = false;
-}
-
-function closeRejectModal() {
-  rejectTargetDraftId = 0;
-  if (!rejectModalEl) return;
-  rejectModalEl.hidden = true;
-}
-
-async function confirmRejectDraft() {
-  const reason = String(rejectReasonInput?.value || '').trim();
-  const notes = String(rejectNotesInput?.value || '').trim();
-  if (!rejectTargetDraftId) throw new Error('Missing reject target draft');
-  if (!reason) throw new Error('Select a rejection reason');
-
-  await apiRequest('/api/admin-reject-draft', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      id: rejectTargetDraftId,
-      reason,
-      notes
-    })
-  });
 }
 
 async function saveBudget() {
@@ -635,7 +493,8 @@ async function saveBudget() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dailyTokenBudget })
     });
-    setMessage(`Daily token budget updated to ${Number(data.dailyTokenBudget).toLocaleString()}.`);
+    const savedBudget = Number(data.dailyTokenBudgetManual || data.dailyTokenBudgetAuto || dailyTokenBudget);
+    setMessage(`Daily token budget updated to ${savedBudget.toLocaleString()}.`);
     await loadUsageDashboard();
   } catch (err) {
     setMessage(`Budget update failed: ${err.message}`);
@@ -673,31 +532,13 @@ async function publishDraft(card) {
   });
 }
 
-async function reportDuplicateDraft(card) {
+async function deleteDraft(card) {
   const id = Number(card.dataset.id);
-  const duplicateType = String(card.dataset.duplicateType || 'internal').trim().toLowerCase();
-  await apiRequest('/api/admin-report-duplicate', {
+  await apiRequest('/api/admin-delete-draft', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      id,
-      reason: 'manual_duplicate',
-      duplicateType
-    })
+    body: JSON.stringify({ id })
   });
-}
-
-function chooseDuplicateType(draftId) {
-  const answer = window.prompt(
-    `Draft #${draftId}: enter duplicate type ("internal" or "external").`,
-    'internal'
-  );
-  if (answer === null) return null;
-  const normalized = String(answer || '').trim().toLowerCase();
-  if (!['internal', 'external'].includes(normalized)) {
-    throw new Error('Duplicate type must be "internal" or "external".');
-  }
-  return normalized;
 }
 
 function onDraftListClick(event) {
@@ -747,35 +588,18 @@ function onDraftListClick(event) {
       });
   }
 
-  if (button.classList.contains('btn-reject')) {
-    openRejectModal(card.dataset.id);
-  }
-
-  if (button.classList.contains('btn-report-duplicate')) {
-    let duplicateType;
-    try {
-      duplicateType = chooseDuplicateType(card.dataset.id);
-    } catch (err) {
-      setMessage(err.message);
-      return;
-    }
-    if (!duplicateType) return;
-    card.dataset.duplicateType = duplicateType;
-
-    const ok = window.confirm(
-      `Report draft #${card.dataset.id} as ${duplicateType} duplicate and remove it from drafts?`
-    );
+  if (button.classList.contains('btn-delete-draft')) {
+    const ok = window.confirm(`Permanently delete draft #${card.dataset.id}? This cannot be undone.`);
     if (!ok) return;
 
-    reportDuplicateDraft(card)
+    deleteDraft(card)
       .then(async () => {
-        setMessage(`Draft #${card.dataset.id} reported as duplicate and removed.`);
+        setMessage(`Draft #${card.dataset.id} permanently deleted.`);
         scrollToTopStatus();
         await loadDrafts();
-        await loadUsageDashboard();
       })
       .catch((err) => {
-        setMessage(`Report duplicate failed: ${err.message}`);
+        setMessage(`Delete failed: ${err.message}`);
         scrollToTopStatus();
       });
   }
@@ -804,62 +628,6 @@ function onAppSectionClick(event) {
       el.classList.add('is-collapsed');
     }
   });
-}
-
-function onDuplicateListClick(event) {
-  const button = event.target.closest('button');
-  if (!button || !button.classList.contains('btn-remove-duplicate-report')) return;
-  const card = event.target.closest('[data-report-id]');
-  if (!card) return;
-
-  const reportId = Number(card.dataset.reportId || 0);
-  if (!reportId) return;
-  const ok = window.confirm(`Remove duplicate report #${reportId}?`);
-  if (!ok) return;
-
-  removeDuplicateReport(reportId)
-    .then(async () => {
-      setMessage(`Duplicate report #${reportId} removed.`);
-      await loadDuplicateReports();
-      await loadUsageDashboard();
-    })
-    .catch((err) => setMessage(`Remove duplicate report failed: ${err.message}`));
-}
-
-function onRejectionListClick(event) {
-  const button = event.target.closest('button');
-  if (!button || !button.classList.contains('btn-delete-rejection')) return;
-  const card = event.target.closest('[data-rejection-id]');
-  if (!card) return;
-
-  const rejectionId = Number(card.dataset.rejectionId || 0);
-  if (!rejectionId) return;
-  const ok = window.confirm(`Permanently delete rejection record #${rejectionId}?`);
-  if (!ok) return;
-
-  deleteRejection(rejectionId)
-    .then(async () => {
-      setMessage(`Rejection record #${rejectionId} deleted.`);
-      await loadRejections();
-      await loadUsageDashboard();
-    })
-    .catch((err) => setMessage(`Delete rejection failed: ${err.message}`));
-}
-
-function onRejectModalConfirm() {
-  confirmRejectDraft()
-    .then(async () => {
-      const draftId = rejectTargetDraftId;
-      closeRejectModal();
-      setMessage(`Draft #${draftId} rejected and moved to rejected list.`);
-      scrollToTopStatus();
-      await loadDrafts();
-      await loadUsageDashboard();
-    })
-    .catch((err) => {
-      setMessage(`Reject failed: ${err.message}`);
-      scrollToTopStatus();
-    });
 }
 
 function onDraftListChange(event) {
@@ -928,11 +696,7 @@ if (saveGenTokenBtn) saveGenTokenBtn.addEventListener('click', saveToken);
 loadDraftsBtn.addEventListener('click', loadDrafts);
 generateBtn.addEventListener('click', generateDrafts);
 createDraftBtn.addEventListener('click', createManualDraft);
-if (loadDuplicatesBtn) loadDuplicatesBtn.addEventListener('click', loadDuplicateReports);
-if (loadRejectionsBtn) loadRejectionsBtn.addEventListener('click', loadRejections);
 draftListEl.addEventListener('click', onDraftListClick);
-if (duplicateListEl) duplicateListEl.addEventListener('click', onDuplicateListClick);
-if (rejectionListEl) rejectionListEl.addEventListener('click', onRejectionListClick);
 draftListEl.addEventListener('change', onDraftListChange);
 draftListEl.addEventListener('dragover', onDraftListDragOver);
 draftListEl.addEventListener('dragleave', onDraftListDragLeave);
@@ -943,16 +707,6 @@ if (appSection) appSection.addEventListener('click', onAppSectionClick);
 if (tokenInput) tokenInput.addEventListener('input', syncTokenInputs);
 if (manualTokenInput) manualTokenInput.addEventListener('input', syncTokenInputs);
 if (genTokenInput) genTokenInput.addEventListener('input', syncTokenInputs);
-if (rejectConfirmBtn) rejectConfirmBtn.addEventListener('click', onRejectModalConfirm);
-if (rejectCancelBtn) rejectCancelBtn.addEventListener('click', closeRejectModal);
-if (rejectModalEl) {
-  rejectModalEl.addEventListener('click', (event) => {
-    const target = event.target;
-    if (target && target.classList && target.classList.contains('admin-modal-backdrop')) {
-      closeRejectModal();
-    }
-  });
-}
 
 loadStoredToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked') === '1');

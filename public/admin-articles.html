@@ -109,38 +109,14 @@
       <div id="article-remove-modal" class="admin-modal" hidden>
         <div class="admin-modal-backdrop"></div>
         <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="article-remove-title">
-          <h4 id="article-remove-title">Remove Published Article</h4>
-          <p class="hint">Choose how this article should be categorized before removal.</p>
+          <h4 id="article-remove-title">Permanently Delete Published Article</h4>
+          <p class="hint">This action permanently deletes the article and cannot be undone.</p>
           <label>
-            Removal Type
-            <select id="article-remove-action">
-              <option value="duplicate">report duplicate</option>
-              <option value="reject">reject</option>
-            </select>
-          </label>
-          <label>
-            Reject Reason (required for reject)
-            <select id="article-remove-reason">
-              <option value="">Select a reason</option>
-              <option value="stale_or_not_time_relevant">stale_or_not_time_relevant</option>
-              <option value="low_newsworthiness_or_thin">low_newsworthiness_or_thin</option>
-              <option value="style_mismatch">style_mismatch</option>
-              <option value="user_error">user_error</option>
-            </select>
-          </label>
-          <label>
-            Duplicate Type (required for duplicate)
-            <select id="article-remove-duplicate-type">
-              <option value="internal">internal (our own duplicate)</option>
-              <option value="external">external (too close to another source)</option>
-            </select>
-          </label>
-          <label>
-            Notes (optional)
-            <textarea id="article-remove-notes" rows="4" placeholder="Optional context"></textarea>
+            Confirmation
+            <input id="article-remove-confirm-input" type="text" placeholder="Type DELETE to confirm" />
           </label>
           <div class="admin-actions">
-            <button id="article-remove-confirm-btn" class="btn btn-warning">Confirm Remove</button>
+            <button id="article-remove-confirm-btn" class="btn btn-danger">Permanently Delete</button>
             <button id="article-remove-cancel-btn" class="btn">Cancel</button>
           </div>
         </div>

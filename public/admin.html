@@ -125,11 +125,11 @@
               <label>
                 Model Source
                 <select id="gen-provider">
-                  <option value="anthropic">Claude (Anthropic)</option>
+                  <option value="anthropic">Opus (Anthropic)</option>
                   <option value="openai">ChatGPT (OpenAI)</option>
                   <option value="gemini">Gemini (Google)</option>
                   <option value="grok">Grok (xAI)</option>
-                  <option value="all" selected>All (Claude + ChatGPT + Gemini + Grok)</option>
+                  <option value="all" selected>All (Opus + ChatGPT + Gemini + Grok)</option>
                 </select>
               </label>
               <label>
@@ -157,7 +157,7 @@
         <article class="draft-card">
           <div class="draft-header">
             <strong>Draft Operations</strong>
-            <span class="draft-meta">Load, review, edit, publish, reject, or report duplicates</span>
+            <span class="draft-meta">Load, review, edit, publish, or permanently delete drafts</span>
           </div>
           <div class="article-editor">
             <div class="admin-grid">
@@ -189,32 +189,6 @@
           </div>
         </article>
       </section>
-
-    <div id="reject-modal" class="admin-modal" hidden>
-      <div class="admin-modal-backdrop"></div>
-      <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="reject-modal-title">
-        <h4 id="reject-modal-title">Reject Draft</h4>
-        <p class="hint">Select one reason for rejection.</p>
-        <label>
-          Rejection Reason
-          <select id="reject-reason">
-            <option value="">Select a reason</option>
-            <option value="stale_or_not_time_relevant">stale_or_not_time_relevant</option>
-            <option value="low_newsworthiness_or_thin">low_newsworthiness_or_thin</option>
-            <option value="style_mismatch">style_mismatch</option>
-            <option value="user_error">user_error</option>
-          </select>
-        </label>
-        <label>
-          Notes (optional)
-          <textarea id="reject-notes" rows="4" placeholder="Optional context for this rejection"></textarea>
-        </label>
-        <div class="admin-actions">
-          <button id="reject-confirm-btn" class="btn btn-warning">Confirm Rejection</button>
-          <button id="reject-cancel-btn" class="btn">Cancel</button>
-        </div>
-      </div>
-    </div>
 
     </section>
   </main>

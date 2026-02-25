@@ -62,118 +62,16 @@
 
     <section id="settings-app" hidden>
       <section class="admin-panel">
-        <h3>Token Budget Dashboard</h3>
-        <div class="usage-dashboard-stack">
-          <article class="usage-card budget-card usage-card-global">
-            <h4>Global System Metrics</h4>
-            <div class="global-metrics-grid">
-              <div class="global-metric-card">
-                <p class="usage-row"><span>Daily Token Usage</span><strong id="global-daily-label">0%</strong></p>
-                <div class="usage-progress"><div id="global-progress-daily" class="usage-progress-bar"></div></div>
-              </div>
-              <div class="global-metric-card">
-                <p class="usage-row"><span>Weekly Token Usage</span><strong id="global-weekly-label">0%</strong></p>
-                <div class="usage-progress"><div id="global-progress-weekly" class="usage-progress-bar"></div></div>
-              </div>
-              <div class="global-metric-card">
-                <p class="usage-row"><span>Monthly Token Usage</span><strong id="global-monthly-label">0%</strong></p>
-                <div class="usage-progress"><div id="global-progress-monthly" class="usage-progress-bar"></div></div>
-              </div>
-              <div class="global-metric-card">
-                <p class="usage-row"><span>Daily Throughput</span><strong id="global-throughput-label">0%</strong></p>
-                <div class="usage-progress"><div id="global-progress-throughput" class="usage-progress-bar"></div></div>
-              </div>
-              <div class="global-metric-card">
-                <p class="usage-row"><span>Acceptance Rate (Today)</span><strong id="global-acceptance-label">0%</strong></p>
-                <div class="usage-progress"><div id="global-progress-acceptance" class="usage-progress-bar"></div></div>
-              </div>
-              <div class="global-metric-card">
-                <p class="usage-row"><span>Quality Loss Rate (Today)</span><strong id="global-quality-loss-label">0%</strong></p>
-                <div class="usage-progress"><div id="global-progress-quality-loss" class="usage-progress-bar usage-progress-loss"></div></div>
-              </div>
-              <div class="global-metric-card global-metric-value">
-                <p class="usage-row"><span>Tokens Today</span><strong id="global-tokens-today">0</strong></p>
-              </div>
-              <div class="global-metric-card global-metric-value">
-                <p class="usage-row"><span>Drafts Today</span><strong id="global-drafts-today">0</strong></p>
-              </div>
-              <div class="global-metric-card global-metric-value">
-                <p class="usage-row"><span>Quality Losses Today</span><strong id="global-quality-loss-today-value">0</strong></p>
-              </div>
-            </div>
-          </article>
-
-          <div class="usage-grid usage-grid-three">
-            <article class="usage-card budget-card">
-              <h4>Model Metrics (Auto)</h4>
-              <p class="hint">Auto-run usage and budget by model.</p>
-              <div id="model-metrics-list-auto" class="duplicate-list"></div>
-            </article>
-
-            <article class="usage-card budget-card">
-              <h4>Model Metrics (Manual)</h4>
-              <p class="hint">Manual-run usage and budget by model.</p>
-              <div id="model-metrics-list-manual" class="duplicate-list"></div>
-            </article>
-
-            <article class="usage-card budget-card">
-              <h4>System Metrics</h4>
-              <p class="hint">Expand sections below for quality and budget details.</p>
-              <div class="combined-metrics-stack">
-                <article class="draft-card">
-                  <button class="draft-header draft-toggle btn-reset" type="button">
-                    <strong>Quality Cost</strong>
-                    <span class="draft-meta">Today and monthly rejection/quality loss stats</span>
-                  </button>
-                  <div class="section-editor article-editor is-collapsed" hidden>
-                    <p class="usage-row"><span>Rejected Today</span><strong id="quality-rejected-today">0</strong></p>
-                    <p class="usage-row"><span>Rejected This Month</span><strong id="quality-rejected-month">0</strong></p>
-                    <p class="usage-row"><span>Duplicate Today</span><strong id="quality-duplicate-today">0</strong></p>
-                    <p class="usage-row"><span>Duplicate This Month</span><strong id="quality-duplicate-month">0</strong></p>
-                    <p class="usage-row"><span>Stale Today</span><strong id="quality-stale-today">0</strong></p>
-                    <p class="usage-row"><span>Stale This Month</span><strong id="quality-stale-month">0</strong></p>
-                    <p class="usage-row"><span>Thin Today</span><strong id="quality-thin-today">0</strong></p>
-                    <p class="usage-row"><span>Thin This Month</span><strong id="quality-thin-month">0</strong></p>
-                    <p class="usage-row"><span>Style Today</span><strong id="quality-style-today">0</strong></p>
-                    <p class="usage-row"><span>Style This Month</span><strong id="quality-style-month">0</strong></p>
-                    <p class="usage-row"><span>Bad Tokens Today</span><strong id="quality-bad-tokens-today">0</strong></p>
-                    <p class="usage-row"><span>Bad Tokens This Month</span><strong id="quality-bad-tokens-month">0</strong></p>
-                  </div>
-                </article>
-                <article class="draft-card">
-                  <button class="draft-header draft-toggle btn-reset" type="button">
-                    <strong>Budget Overview</strong>
-                    <span class="draft-meta">Global daily budget and throughput targets</span>
-                  </button>
-                  <div class="section-editor article-editor is-collapsed" hidden>
-                    <p class="usage-row"><span>Total Daily Budget</span><strong id="budget-total-daily">0</strong></p>
-                    <p class="usage-row"><span>Daily Used</span><strong id="budget-total-used">0</strong></p>
-                    <p class="usage-row"><span>Daily Remaining</span><strong id="budget-total-remaining">0</strong></p>
-                    <p class="usage-row"><span>Draft Target (Daily)</span><strong id="budget-draft-target">81</strong></p>
-                    <p class="hint">Model defaults preload automatically (OpenAI 120k, Claude 100k, Gemini 100k, Grok 90k).</p>
-                  </div>
-                </article>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="admin-panel">
-        <h2>Settings</h2>
-        <p class="hint">Manage duplicate/rejection memory and permanent deletes from one place.</p>
+        <h2>Manual Budget</h2>
+        <p class="hint">Auto budget and auto budget stats have been removed. Manual budget is now the only budget mode.</p>
         <div class="admin-grid">
           <label>
             Admin Token
             <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
           </label>
           <label>
-            Duplicate List Limit
-            <input id="duplicate-limit" type="number" min="1" max="500" value="50" />
-          </label>
-          <label>
-            Rejected List Limit
-            <input id="rejected-limit" type="number" min="1" max="500" value="50" />
+            Manual Daily Token Budget
+            <input id="manual-budget-input" type="number" min="1" step="1000" value="350000" />
           </label>
           <label>
             Run Log Limit
@@ -182,44 +80,19 @@
         </div>
         <div class="admin-actions">
           <button id="save-token-btn" class="btn">Save Token</button>
-          <button id="load-all-btn" class="btn btn-primary">Load Lists</button>
+          <button id="save-manual-budget-btn" class="btn">Save Manual Budget</button>
+          <button id="load-runs-btn" class="btn btn-primary">Load Generation Runs</button>
         </div>
-      </section>
-
-      <section class="admin-panel">
         <div id="settings-message" class="message" hidden></div>
       </section>
 
       <section class="admin-panel">
         <article class="draft-card">
           <button class="draft-header draft-toggle btn-reset" type="button">
-            <strong>Duplicates</strong>
-            <span class="draft-meta">Expand to view and manage duplicate memory</span>
-          </button>
-          <div class="article-editor section-editor is-collapsed" hidden>
-            <p class="hint">Stored duplicate memory. Expand a row to remove an entry.</p>
-            <div id="duplicate-list" class="duplicate-list"></div>
-          </div>
-        </article>
-
-        <article class="draft-card">
-          <button class="draft-header draft-toggle btn-reset" type="button">
-            <strong>Deletions</strong>
-            <span class="draft-meta">Expand to view and manage rejected/deleted records</span>
-          </button>
-          <div class="article-editor section-editor is-collapsed" hidden>
-            <p class="hint">Stored rejections. Expand a row to permanently delete an entry.</p>
-            <div id="rejection-list" class="duplicate-list"></div>
-          </div>
-        </article>
-
-        <article class="draft-card">
-          <button class="draft-header draft-toggle btn-reset" type="button">
             <strong>Generation Runs</strong>
-            <span class="draft-meta">Expand to inspect per-run success/failure and skip reasons</span>
+            <span class="draft-meta">Manual draft generation run log</span>
           </button>
           <div class="article-editor section-editor is-collapsed" hidden>
-            <p class="hint">One row per draft generation API run (cron or manual). Expand a row for details.</p>
             <div class="admin-grid single">
               <label>
                 Run Filter
@@ -239,8 +112,6 @@
   </main>
 
   <script src="/theme.js"></script>
-
-
   <script src="/admin-settings.js"></script>
 </body>
 </html>
