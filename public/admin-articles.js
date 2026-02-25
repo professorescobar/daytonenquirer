@@ -142,21 +142,30 @@ function setHeadlineOptions(card, headlineList) {
 function syncRewriteIssueSelect(card, target) {
   const modelSelect = card.querySelector(`.job-model-rewrite-${target}`);
   const issueSelect = card.querySelector(`.rewrite-issues-${target}`);
+  const issueStep = card.querySelector(`.ai-step-issues-${target}`);
+  const runStep = card.querySelector(`.ai-step-run-${target}`);
+  const runBtn = card.querySelector(`.btn-rewrite-${target}`);
   if (!modelSelect || !issueSelect) return;
   const modelValue = String(modelSelect.value || '').trim();
   const hasModel = modelValue.includes(':');
   if (!hasModel) {
     issueSelect.innerHTML = '<option value="">Select model first</option>';
     issueSelect.disabled = true;
+    if (issueStep) issueStep.setAttribute('hidden', '');
+    if (runStep) runStep.setAttribute('hidden', '');
+    if (runBtn) runBtn.disabled = true;
     return;
   }
   issueSelect.disabled = false;
+  if (issueStep) issueStep.removeAttribute('hidden');
+  if (runStep) runStep.removeAttribute('hidden');
   const provider = getProviderFromModelValue(modelSelect.value);
   const selected = Array.from(issueSelect.selectedOptions).map((opt) => opt.value);
   issueSelect.innerHTML = rewriteIssueOptionsHtml(target, provider);
   Array.from(issueSelect.options).forEach((opt) => {
     if (selected.includes(opt.value)) opt.selected = true;
   });
+  if (runBtn) runBtn.disabled = getSelectedIssues(card, target).length < 1;
 }
 
 function enforceIssueLimit(selectEl, max = 3) {
@@ -173,13 +182,25 @@ function getSelectedIssues(card, target) {
   return Array.from(issueSelect.selectedOptions).map((opt) => String(opt.value || '').trim()).filter(Boolean).slice(0, 3);
 }
 
-function toggleAiPanel(card, panelClass) {
-  if (!card || !panelClass) return;
+function toggleAiPanel(card, panelClass, anchorButton) {
+  if (!card || !panelClass || !anchorButton) return;
+  const root = card.querySelector('.draft-form') || card;
   const targetPanel = card.querySelector(`.${panelClass}`);
   if (!targetPanel) return;
-  const opening = targetPanel.hasAttribute('hidden');
+  const opening = targetPanel.hasAttribute('hidden') || targetPanel.dataset.anchorClass !== panelClass;
   card.querySelectorAll('.ai-panel').forEach((panel) => panel.setAttribute('hidden', ''));
-  if (opening) targetPanel.removeAttribute('hidden');
+  if (!opening) return;
+  targetPanel.removeAttribute('hidden');
+  targetPanel.dataset.anchorClass = panelClass;
+  const rootRect = root.getBoundingClientRect();
+  const buttonRect = anchorButton.getBoundingClientRect();
+  const panelWidth = Math.min(360, Math.max(240, Math.round(root.clientWidth * 0.42)));
+  targetPanel.style.width = `${panelWidth}px`;
+  const leftRaw = buttonRect.left - rootRect.left;
+  const left = Math.max(8, Math.min(leftRaw, root.clientWidth - panelWidth - 8));
+  const top = Math.max(8, buttonRect.bottom - rootRect.top + 6);
+  targetPanel.style.left = `${left}px`;
+  targetPanel.style.top = `${top}px`;
 }
 
 function setMessage(text) {
@@ -486,19 +507,25 @@ function renderArticles(articles) {
           <button type="button" class="btn btn-primary btn-generate-headlines">Run</button>
         </div>
         <div class="full ai-panel panel-headline-rewrite" hidden>
-          <label>
-            Model
-            <select class="job-model-rewrite-headline">
-              ${rewriteModelSelectHtml()}
-            </select>
-          </label>
-          <label>
-            Issues (max 3)
-            <select class="rewrite-issues-headline" multiple size="4">
-              ${rewriteIssueOptionsHtml('headline', 'anthropic')}
-            </select>
-          </label>
-          <button type="button" class="btn btn-primary btn-rewrite-headline">Run</button>
+          <div class="ai-step ai-step-model">
+            <label>
+              Model
+              <select class="job-model-rewrite-headline">
+                ${rewriteModelSelectHtml()}
+              </select>
+            </label>
+          </div>
+          <div class="ai-step ai-step-issues ai-step-issues-headline" hidden>
+            <label>
+              Reasons (max 3)
+              <select class="rewrite-issues-headline" multiple size="4">
+                ${rewriteIssueOptionsHtml('headline', 'anthropic')}
+              </select>
+            </label>
+          </div>
+          <div class="ai-step ai-step-run ai-step-run-headline" hidden>
+            <button type="button" class="btn btn-primary btn-rewrite-headline" disabled>Run</button>
+          </div>
         </div>
         <div class="full">
           <div class="field-label-row">
@@ -520,19 +547,25 @@ function renderArticles(articles) {
           <button type="button" class="btn btn-primary btn-generate-description">Run</button>
         </div>
         <div class="full ai-panel panel-description-rewrite" hidden>
-          <label>
-            Model
-            <select class="job-model-rewrite-description">
-              ${rewriteModelSelectHtml()}
-            </select>
-          </label>
-          <label>
-            Issues (max 3)
-            <select class="rewrite-issues-description" multiple size="4">
-              ${rewriteIssueOptionsHtml('description', 'anthropic')}
-            </select>
-          </label>
-          <button type="button" class="btn btn-primary btn-rewrite-description">Run</button>
+          <div class="ai-step ai-step-model">
+            <label>
+              Model
+              <select class="job-model-rewrite-description">
+                ${rewriteModelSelectHtml()}
+              </select>
+            </label>
+          </div>
+          <div class="ai-step ai-step-issues ai-step-issues-description" hidden>
+            <label>
+              Reasons (max 3)
+              <select class="rewrite-issues-description" multiple size="4">
+                ${rewriteIssueOptionsHtml('description', 'anthropic')}
+              </select>
+            </label>
+          </div>
+          <div class="ai-step ai-step-run ai-step-run-description" hidden>
+            <button type="button" class="btn btn-primary btn-rewrite-description" disabled>Run</button>
+          </div>
         </div>
         <div class="full">
           <div class="field-label-row">
@@ -565,19 +598,25 @@ function renderArticles(articles) {
               <button type="button" class="btn btn-primary btn-generate-article">Run</button>
             </div>
             <div class="ai-panel ai-panel-inline panel-article-rewrite" hidden>
-              <label>
-                Model
-                <select class="job-model-rewrite-article">
-                  ${rewriteModelSelectHtml()}
-                </select>
-              </label>
-              <label>
-                Issues (max 3)
-                <select class="rewrite-issues-article" multiple size="5">
-                  ${rewriteIssueOptionsHtml('article', 'anthropic')}
-                </select>
-              </label>
-              <button type="button" class="btn btn-primary btn-rewrite-article">Run</button>
+              <div class="ai-step ai-step-model">
+                <label>
+                  Model
+                  <select class="job-model-rewrite-article">
+                    ${rewriteModelSelectHtml()}
+                  </select>
+                </label>
+              </div>
+              <div class="ai-step ai-step-issues ai-step-issues-article" hidden>
+                <label>
+                  Reasons (max 3)
+                  <select class="rewrite-issues-article" multiple size="5">
+                    ${rewriteIssueOptionsHtml('article', 'anthropic')}
+                  </select>
+                </label>
+              </div>
+              <div class="ai-step ai-step-run ai-step-run-article" hidden>
+                <button type="button" class="btn btn-primary btn-rewrite-article" disabled>Run</button>
+              </div>
             </div>
             <div class="field-content-editor rte-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
             <textarea class="field-content" hidden>${escapeHtml(article.content || '')}</textarea>
@@ -870,7 +909,7 @@ function onListClick(event) {
   if (!button) return;
 
   if (button.classList.contains('ai-action-toggle')) {
-    toggleAiPanel(card, String(button.dataset.panel || ''));
+    toggleAiPanel(card, String(button.dataset.panel || ''), button);
     return;
   }
 
@@ -1015,6 +1054,19 @@ function onListChange(event) {
   }
   if (input.classList.contains('rewrite-issues-headline') || input.classList.contains('rewrite-issues-article') || input.classList.contains('rewrite-issues-description')) {
     enforceIssueLimit(input, 3);
+    const card = input.closest('.draft-card');
+    if (card && input.classList.contains('rewrite-issues-headline')) {
+      const runBtn = card.querySelector('.btn-rewrite-headline');
+      if (runBtn) runBtn.disabled = getSelectedIssues(card, 'headline').length < 1;
+    }
+    if (card && input.classList.contains('rewrite-issues-description')) {
+      const runBtn = card.querySelector('.btn-rewrite-description');
+      if (runBtn) runBtn.disabled = getSelectedIssues(card, 'description').length < 1;
+    }
+    if (card && input.classList.contains('rewrite-issues-article')) {
+      const runBtn = card.querySelector('.btn-rewrite-article');
+      if (runBtn) runBtn.disabled = getSelectedIssues(card, 'article').length < 1;
+    }
     return;
   }
   if (!input.classList.contains('file-image')) return;
