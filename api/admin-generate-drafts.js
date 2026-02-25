@@ -862,7 +862,7 @@ function getWriterModelForProvider(writerProvider) {
   if (writerProvider === 'openai') return process.env.OPENAI_MODEL || 'gpt-5';
   if (writerProvider === 'gemini') return process.env.GEMINI_MODEL || 'gemini-3-pro-preview';
   if (writerProvider === 'grok') return process.env.GROK_MODEL || 'grok-4';
-  return process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
+  return process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
 }
 
 async function callAnthropicForDraft(candidate) {
@@ -871,7 +871,7 @@ async function callAnthropicForDraft(candidate) {
     throw new Error('Missing ANTHROPIC_API_KEY');
   }
 
-  const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
+  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
   const maxOutputTokens = getModelMaxOutputTokens();
   const prompt = buildDraftPrompt(candidate, 'anthropic');
 

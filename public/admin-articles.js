@@ -39,6 +39,128 @@ const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
 const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
 const CLOUDINARY_WIDTH = 1600;
 
+function aiModelSelectHtml(defaultValue = 'anthropic:claude-sonnet-4-6') {
+  const options = [
+    { value: 'anthropic:claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+    { value: 'anthropic:claude-opus-4-6', label: 'Claude Opus 4.6' },
+    { value: 'openai:gpt-5', label: 'ChatGPT (GPT-5)' },
+    { value: 'gemini:gemini-3-pro-preview', label: 'Gemini 3 Pro Preview' },
+    { value: 'grok:grok-4', label: 'Grok 4' }
+  ];
+  return options
+    .map((opt) => `<option value="${opt.value}" ${opt.value === defaultValue ? 'selected' : ''}>${opt.label}</option>`)
+    .join('');
+}
+
+const REWRITE_ISSUES = {
+  base: {
+    headline: [
+      { id: 'too_generic', label: 'Too generic' },
+      { id: 'not_newsworthy', label: 'Not newsworthy enough' },
+      { id: 'unclear', label: 'Unclear' },
+      { id: 'too_long', label: 'Too long' },
+      { id: 'too_clickbait', label: 'Too clickbait' },
+      { id: 'weak_hook', label: 'Weak hook' }
+    ],
+    description: [
+      { id: 'too_vague', label: 'Too vague' },
+      { id: 'too_hypey', label: 'Too hypey' },
+      { id: 'too_generic', label: 'Too generic' },
+      { id: 'too_wordy', label: 'Too wordy' },
+      { id: 'weak_seo', label: 'Weak SEO focus' },
+      { id: 'weak_hook', label: 'Weak hook' }
+    ],
+    article: [
+      { id: 'not_long_enough', label: 'Not long enough' },
+      { id: 'too_much_fluff', label: 'Too much fluff' },
+      { id: 'cheesy_corny', label: 'Cheesy/corny tone' },
+      { id: 'not_enough_enthusiasm', label: 'Not enough enthusiasm' },
+      { id: 'too_much_enthusiasm', label: 'Too much enthusiasm' },
+      { id: 'not_thought_provoking', label: 'Not thought-provoking enough' },
+      { id: 'repetitive', label: 'Repetitive' },
+      { id: 'unclear_structure', label: 'Unclear structure' }
+    ]
+  },
+  provider: {
+    anthropic: {
+      article: [{ id: 'overcautious', label: 'Overly cautious framing' }]
+    },
+    gemini: {
+      article: [{ id: 'overhedging', label: 'Too much hedging' }]
+    },
+    openai: {
+      article: [{ id: 'surface_level', label: 'Too surface-level' }]
+    },
+    grok: {
+      article: [{ id: 'hot_take_bias', label: 'Too hot-take oriented' }]
+    }
+  }
+};
+
+function getProviderFromModelValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw.includes(':')) return 'anthropic';
+  return raw.split(':')[0] || 'anthropic';
+}
+
+function getRewriteIssueOptions(target, provider) {
+  const base = REWRITE_ISSUES.base[target] || [];
+  const extras = REWRITE_ISSUES.provider[provider]?.[target] || [];
+  return [...base, ...extras];
+}
+
+function rewriteIssueOptionsHtml(target, provider = 'anthropic') {
+  return getRewriteIssueOptions(target, provider)
+    .map((issue) => `<option value="${issue.id}">${escapeHtml(issue.label)}</option>`)
+    .join('');
+}
+
+function setHeadlineOptions(card, headlineList) {
+  const wrap = card.querySelector('.headline-options');
+  if (!wrap) return;
+  const options = Array.isArray(headlineList) ? headlineList.filter(Boolean).slice(0, 3) : [];
+  if (!options.length) {
+    wrap.innerHTML = '';
+    return;
+  }
+  wrap.innerHTML = `
+    <p class="draft-meta">Headline options:</p>
+    <div class="admin-actions">
+      ${options.map((headline, index) => `
+        <button type="button" class="btn ${index === 0 ? 'btn-primary' : ''} btn-headline-option" data-headline="${escapeHtml(headline)}">
+          ${index === 0 ? 'Use best: ' : 'Use alt: '}${escapeHtml(headline)}
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+
+function syncRewriteIssueSelect(card, target) {
+  const modelSelect = card.querySelector(`.job-model-rewrite-${target}`);
+  const issueSelect = card.querySelector(`.rewrite-issues-${target}`);
+  if (!modelSelect || !issueSelect) return;
+  const provider = getProviderFromModelValue(modelSelect.value);
+  const selected = Array.from(issueSelect.selectedOptions).map((opt) => opt.value);
+  issueSelect.innerHTML = rewriteIssueOptionsHtml(target, provider);
+  Array.from(issueSelect.options).forEach((opt) => {
+    if (selected.includes(opt.value)) opt.selected = true;
+  });
+}
+
+function enforceIssueLimit(selectEl, max = 3) {
+  if (!selectEl) return;
+  const selected = Array.from(selectEl.selectedOptions);
+  if (selected.length <= max) return;
+  selected[selected.length - 1].selected = false;
+  setMessage(`Select up to ${max} rewrite issues.`);
+}
+
+function getSelectedIssues(card, target) {
+  const issueSelect = card.querySelector(`.rewrite-issues-${target}`);
+  if (!issueSelect) return [];
+  return Array.from(issueSelect.selectedOptions).map((opt) => String(opt.value || '').trim()).filter(Boolean).slice(0, 3);
+}
+
 function setMessage(text) {
   messageEl.hidden = !text;
   messageEl.textContent = text || '';
@@ -322,10 +444,83 @@ function renderArticles(articles) {
       </button>
 
       <div class="draft-form article-editor is-collapsed" hidden>
+        <div class="admin-actions">
+          <label>
+            Headline Model
+            <select class="job-model-headline-gen">
+              ${aiModelSelectHtml()}
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary btn-generate-headlines">Generate headlines...</button>
+        </div>
+        <div class="headline-options full"></div>
         <label class="full">
           Title
           <input class="field-title" type="text" value="${escapeHtml(article.title || '')}" />
         </label>
+        <div class="admin-actions">
+          <label>
+            Rewrite Headline Model
+            <select class="job-model-rewrite-headline">
+              ${aiModelSelectHtml()}
+            </select>
+          </label>
+          <label>
+            Headline Issues (max 3)
+            <select class="rewrite-issues-headline" multiple size="4">
+              ${rewriteIssueOptionsHtml('headline', 'anthropic')}
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary btn-rewrite-headline">Rewrite headline...</button>
+        </div>
+        <div class="admin-actions">
+          <label>
+            Article Model
+            <select class="job-model-article">
+              ${aiModelSelectHtml()}
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary btn-generate-article">Generate article...</button>
+        </div>
+        <div class="admin-actions">
+          <label>
+            Rewrite Article Model
+            <select class="job-model-rewrite-article">
+              ${aiModelSelectHtml()}
+            </select>
+          </label>
+          <label>
+            Article Issues (max 3)
+            <select class="rewrite-issues-article" multiple size="5">
+              ${rewriteIssueOptionsHtml('article', 'anthropic')}
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary btn-rewrite-article">Rewrite article...</button>
+        </div>
+        <div class="admin-actions">
+          <label>
+            Description Model
+            <select class="job-model-description">
+              ${aiModelSelectHtml()}
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary btn-generate-description">Generate description...</button>
+        </div>
+        <div class="admin-actions">
+          <label>
+            Rewrite Description Model
+            <select class="job-model-rewrite-description">
+              ${aiModelSelectHtml()}
+            </select>
+          </label>
+          <label>
+            Description Issues (max 3)
+            <select class="rewrite-issues-description" multiple size="4">
+              ${rewriteIssueOptionsHtml('description', 'anthropic')}
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary btn-rewrite-description">Rewrite description...</button>
+        </div>
         <label class="full">
           Description
           <textarea class="field-description">${escapeHtml(article.description || '')}</textarea>
@@ -387,6 +582,29 @@ function renderArticles(articles) {
     </article>
   `).join('');
   initializeRichTextEditors(listEl);
+  listEl.querySelectorAll('.draft-card').forEach((card) => {
+    const headlineGenModel = localStorage.getItem('de_job_model_headline_gen') || '';
+    const articleModel = localStorage.getItem('de_job_model_article') || '';
+    const descriptionModel = localStorage.getItem('de_job_model_description') || '';
+    const rewriteHeadlineModel = localStorage.getItem('de_job_model_rewrite_headline') || '';
+    const rewriteArticleModel = localStorage.getItem('de_job_model_rewrite_article') || '';
+    const rewriteDescriptionModel = localStorage.getItem('de_job_model_rewrite_description') || '';
+    const headlineGenSelect = card.querySelector('.job-model-headline-gen');
+    const articleSelect = card.querySelector('.job-model-article');
+    const descriptionSelect = card.querySelector('.job-model-description');
+    const rewriteHeadlineSelect = card.querySelector('.job-model-rewrite-headline');
+    const rewriteArticleSelect = card.querySelector('.job-model-rewrite-article');
+    const rewriteDescriptionSelect = card.querySelector('.job-model-rewrite-description');
+    if (headlineGenSelect && headlineGenModel) headlineGenSelect.value = headlineGenModel;
+    if (articleSelect && articleModel) articleSelect.value = articleModel;
+    if (descriptionSelect && descriptionModel) descriptionSelect.value = descriptionModel;
+    if (rewriteHeadlineSelect && rewriteHeadlineModel) rewriteHeadlineSelect.value = rewriteHeadlineModel;
+    if (rewriteArticleSelect && rewriteArticleModel) rewriteArticleSelect.value = rewriteArticleModel;
+    if (rewriteDescriptionSelect && rewriteDescriptionModel) rewriteDescriptionSelect.value = rewriteDescriptionModel;
+    syncRewriteIssueSelect(card, 'headline');
+    syncRewriteIssueSelect(card, 'article');
+    syncRewriteIssueSelect(card, 'description');
+  });
 }
 
 function articleSearchHaystack(article) {
@@ -493,6 +711,115 @@ async function removeArticle() {
   });
 }
 
+function getJobModelSelection(card, selectorClass) {
+  const raw = String(card.querySelector(selectorClass)?.value || '').trim();
+  const [provider, ...modelParts] = raw.split(':');
+  const model = modelParts.join(':').trim();
+  if (!provider || !model) throw new Error('Select a model first');
+  return { provider: provider.trim(), model };
+}
+
+async function generateArticleForCard(card) {
+  const title = String(card.querySelector('.field-title')?.value || '').trim();
+  const section = String(card.querySelector('.field-section')?.value || 'local').trim();
+  if (!title) throw new Error('Title is required before generating article');
+  const { provider, model } = getJobModelSelection(card, '.job-model-article');
+  localStorage.setItem('de_job_model_article', `${provider}:${model}`);
+
+  const data = await apiRequest('/api/admin-generate-article', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, section, provider, model })
+  });
+
+  const description = String(data?.article?.description || '').trim();
+  const content = String(data?.article?.content || '').trim();
+  if (!content) throw new Error('Generation returned empty article content');
+  const descriptionField = card.querySelector('.field-description');
+  const contentEditor = card.querySelector('.field-content-editor');
+  const contentTextarea = card.querySelector('.field-content');
+  if (descriptionField && description) descriptionField.value = description;
+  if (contentEditor) contentEditor.innerHTML = content;
+  if (contentTextarea) contentTextarea.value = content;
+}
+
+async function generateDescriptionForCard(card) {
+  const title = String(card.querySelector('.field-title')?.value || '').trim();
+  const content = getCardContentHtml(card);
+  const section = String(card.querySelector('.field-section')?.value || 'local').trim();
+  if (!title) throw new Error('Title is required before generating description');
+  if (!String(content || '').trim()) throw new Error('Content is required before generating description');
+  const { provider, model } = getJobModelSelection(card, '.job-model-description');
+  localStorage.setItem('de_job_model_description', `${provider}:${model}`);
+
+  const data = await apiRequest('/api/admin-generate-description', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, content, section, provider, model })
+  });
+
+  const description = String(data?.description || '').trim();
+  if (!description) throw new Error('Generation returned empty description');
+  const descriptionField = card.querySelector('.field-description');
+  if (descriptionField) descriptionField.value = description;
+}
+
+async function generateHeadlinesForCard(card) {
+  const topic = String(card.querySelector('.field-title')?.value || '').trim();
+  const section = String(card.querySelector('.field-section')?.value || 'local').trim();
+  const { provider, model } = getJobModelSelection(card, '.job-model-headline-gen');
+  localStorage.setItem('de_job_model_headline_gen', `${provider}:${model}`);
+
+  const data = await apiRequest('/api/admin-generate-headlines', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic, title: topic, section, provider, model })
+  });
+
+  const best = String(data?.bestHeadline || '').trim();
+  const alternates = Array.isArray(data?.alternates) ? data.alternates.map((v) => String(v || '').trim()).filter(Boolean) : [];
+  const titleField = card.querySelector('.field-title');
+  if (titleField && best) titleField.value = best;
+  setHeadlineOptions(card, [best, ...alternates]);
+}
+
+async function rewriteCardContent(card, target) {
+  const title = String(card.querySelector('.field-title')?.value || '').trim();
+  const description = String(card.querySelector('.field-description')?.value || '').trim();
+  const content = getCardContentHtml(card);
+  const issues = getSelectedIssues(card, target);
+  if (issues.length < 1 || issues.length > 3) throw new Error('Select 1 to 3 rewrite issues');
+  const { provider, model } = getJobModelSelection(card, `.job-model-rewrite-${target}`);
+  localStorage.setItem(`de_job_model_rewrite_${target}`, `${provider}:${model}`);
+
+  const data = await apiRequest('/api/admin-rewrite-content', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target, title, description, content, issues, provider, model })
+  });
+
+  if (target === 'headline') {
+    const nextTitle = String(data?.headline || '').trim();
+    if (!nextTitle) throw new Error('Rewrite returned empty headline');
+    const titleField = card.querySelector('.field-title');
+    if (titleField) titleField.value = nextTitle;
+    return;
+  }
+  if (target === 'description') {
+    const nextDescription = String(data?.description || '').trim();
+    if (!nextDescription) throw new Error('Rewrite returned empty description');
+    const descriptionField = card.querySelector('.field-description');
+    if (descriptionField) descriptionField.value = nextDescription;
+    return;
+  }
+  const nextContent = String(data?.content || '').trim();
+  if (!nextContent) throw new Error('Rewrite returned empty article content');
+  const contentEditor = card.querySelector('.field-content-editor');
+  const contentTextarea = card.querySelector('.field-content');
+  if (contentEditor) contentEditor.innerHTML = nextContent;
+  if (contentTextarea) contentTextarea.value = nextContent;
+}
+
 function onListClick(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
@@ -533,6 +860,48 @@ function onListClick(event) {
     return;
   }
 
+  if (button.classList.contains('btn-generate-article')) {
+    generateArticleForCard(card)
+      .then(() => setMessage(`Article #${card.dataset.id}: generated new article copy.`))
+      .catch((err) => setMessage(`Generate article failed: ${err.message}`));
+    return;
+  }
+
+  if (button.classList.contains('btn-generate-headlines')) {
+    generateHeadlinesForCard(card)
+      .then(() => setMessage(`Article #${card.dataset.id}: generated headline options.`))
+      .catch((err) => setMessage(`Generate headlines failed: ${err.message}`));
+    return;
+  }
+
+  if (button.classList.contains('btn-generate-description')) {
+    generateDescriptionForCard(card)
+      .then(() => setMessage(`Article #${card.dataset.id}: generated description.`))
+      .catch((err) => setMessage(`Generate description failed: ${err.message}`));
+    return;
+  }
+
+  if (button.classList.contains('btn-rewrite-headline')) {
+    rewriteCardContent(card, 'headline')
+      .then(() => setMessage(`Article #${card.dataset.id}: headline rewritten.`))
+      .catch((err) => setMessage(`Rewrite headline failed: ${err.message}`));
+    return;
+  }
+
+  if (button.classList.contains('btn-rewrite-description')) {
+    rewriteCardContent(card, 'description')
+      .then(() => setMessage(`Article #${card.dataset.id}: description rewritten.`))
+      .catch((err) => setMessage(`Rewrite description failed: ${err.message}`));
+    return;
+  }
+
+  if (button.classList.contains('btn-rewrite-article')) {
+    rewriteCardContent(card, 'article')
+      .then(() => setMessage(`Article #${card.dataset.id}: article rewritten.`))
+      .catch((err) => setMessage(`Rewrite article failed: ${err.message}`));
+    return;
+  }
+
   if (button.classList.contains('btn-remove-article')) {
     openRemoveModal(card.dataset.id);
     return;
@@ -542,6 +911,12 @@ function onListClick(event) {
     const fileInput = card.querySelector('.file-image');
     if (fileInput) fileInput.click();
     return;
+  }
+
+  if (button.classList.contains('btn-headline-option')) {
+    const titleField = card.querySelector('.field-title');
+    const headline = String(button.dataset.headline || '').trim();
+    if (titleField && headline) titleField.value = headline;
   }
 }
 
@@ -563,6 +938,40 @@ function onRemoveConfirm() {
 function onListChange(event) {
   const input = event.target instanceof Element ? event.target : null;
   if (!input) return;
+  if (input.classList.contains('job-model-headline-gen')) {
+    localStorage.setItem('de_job_model_headline_gen', String(input.value || ''));
+    return;
+  }
+  if (input.classList.contains('job-model-article')) {
+    localStorage.setItem('de_job_model_article', String(input.value || ''));
+    return;
+  }
+  if (input.classList.contains('job-model-description')) {
+    localStorage.setItem('de_job_model_description', String(input.value || ''));
+    return;
+  }
+  if (input.classList.contains('job-model-rewrite-headline')) {
+    localStorage.setItem('de_job_model_rewrite_headline', String(input.value || ''));
+    const card = input.closest('.draft-card');
+    if (card) syncRewriteIssueSelect(card, 'headline');
+    return;
+  }
+  if (input.classList.contains('job-model-rewrite-article')) {
+    localStorage.setItem('de_job_model_rewrite_article', String(input.value || ''));
+    const card = input.closest('.draft-card');
+    if (card) syncRewriteIssueSelect(card, 'article');
+    return;
+  }
+  if (input.classList.contains('job-model-rewrite-description')) {
+    localStorage.setItem('de_job_model_rewrite_description', String(input.value || ''));
+    const card = input.closest('.draft-card');
+    if (card) syncRewriteIssueSelect(card, 'description');
+    return;
+  }
+  if (input.classList.contains('rewrite-issues-headline') || input.classList.contains('rewrite-issues-article') || input.classList.contains('rewrite-issues-description')) {
+    enforceIssueLimit(input, 3);
+    return;
+  }
   if (!input.classList.contains('file-image')) return;
   const card = input.closest('.draft-card');
   if (!card) return;
