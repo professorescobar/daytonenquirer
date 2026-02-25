@@ -20,27 +20,26 @@ const campaignPreviewTextInput = document.getElementById('campaign-preview-text'
 const campaignDescriptionInput = document.getElementById('campaign-description');
 const campaignSegmentIdsInput = document.getElementById('campaign-segment-ids');
 const campaignTagIdsInput = document.getElementById('campaign-tag-ids');
-const campaignEditorToolbar = document.getElementById('campaign-editor-toolbar');
-const campaignContentEditor = document.getElementById('campaign-content-editor');
+const campaignPreviewFrame = document.getElementById('newsletter-preview-frame');
+const campaignContentHtmlInput = document.getElementById('campaign-content-html');
 const campaignContentTextInput = document.getElementById('campaign-content-text');
 const campaignStatusFilterInput = document.getElementById('campaign-status-filter');
 const campaignListLimitInput = document.getElementById('campaign-list-limit');
 const campaignListEl = document.getElementById('campaign-list');
 const newsletterArticleSectionInput = document.getElementById('newsletter-article-section');
-const newsletterArticleLimitInput = document.getElementById('newsletter-article-limit');
 const newsletterArticleSearchInput = document.getElementById('newsletter-article-search');
-const loadNewsletterArticlesBtn = document.getElementById('load-newsletter-articles-btn');
-const clearNewsletterSelectionBtn = document.getElementById('clear-newsletter-selection-btn');
-const buildNewsletterTemplateBtn = document.getElementById('build-newsletter-template-btn');
+const newsletterPagePrevBtn = document.getElementById('newsletter-page-prev');
+const newsletterPageNextBtn = document.getElementById('newsletter-page-next');
+const newsletterPageLabelEl = document.getElementById('newsletter-page-label');
 const newsletterArticleResultsEl = document.getElementById('newsletter-article-results');
-const newsletterSelectedLeadEl = document.getElementById('newsletter-selected-lead');
-const newsletterSelectedStoriesEl = document.getElementById('newsletter-selected-stories');
 
 let unlocked = false;
 let selectedCampaignId = null;
 let availableArticles = [];
 let selectedLeadArticle = null;
 let selectedStoryArticles = [];
+let articlePage = 1;
+const ARTICLE_PAGE_SIZE = 9;
 const HOMEPAGE_SECTION_ORDER = [
   'local',
   'national',
@@ -155,124 +154,117 @@ function textToHtml(value) {
     .join('');
 }
 
-function getEditorHtml() {
-  if (!campaignContentEditor) return '';
-  const html = String(campaignContentEditor.innerHTML || '').trim();
-  return html === '<br>' ? '' : html;
+function renderNewsletterPreview(html) {
+  if (!campaignPreviewFrame) return;
+  const bodyContent = String(html || '').trim()
+    || '<div style="padding:20px;font-family:Arial,Helvetica,sans-serif;color:#555;">Build a newsletter from selected stories to preview it here.</div>';
+  const doc = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { margin: 0; padding: 16px; background: #f1f3f6; }
+  </style>
+</head>
+<body>${bodyContent}</body>
+</html>`;
+  campaignPreviewFrame.srcdoc = doc;
 }
 
-function getEditorText() {
-  if (!campaignContentEditor) return String(campaignContentTextInput.value || '').trim();
-  return String(campaignContentEditor.innerText || '')
-    .replace(/\u00a0/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+function setCampaignContent(html, text = '') {
+  const normalizedHtml = String(html || '').trim();
+  const normalizedText = String(text || '').trim() || htmlToText(normalizedHtml);
+  campaignContentHtmlInput.value = normalizedHtml;
+  campaignContentTextInput.value = normalizedText;
+  renderNewsletterPreview(normalizedHtml);
 }
 
-function syncHiddenTextInput() {
-  campaignContentTextInput.value = getEditorText();
+function getCampaignContent() {
+  const html = String(campaignContentHtmlInput.value || '').trim();
+  const text = String(campaignContentTextInput.value || '').trim() || htmlToText(html);
+  return { html, text };
 }
 
-function setEditorHtml(value) {
-  if (!campaignContentEditor) {
-    campaignContentTextInput.value = htmlToText(value);
-    return;
-  }
-  campaignContentEditor.innerHTML = String(value || '').trim();
-  syncHiddenTextInput();
-}
-
-function execEditorCommand(command, value = null) {
-  if (!campaignContentEditor) return;
-  campaignContentEditor.focus();
-  document.execCommand(command, false, value);
-  syncHiddenTextInput();
-}
-
-function clearStorySelection() {
+function clearStorySelection(options = {}) {
   selectedLeadArticle = null;
   selectedStoryArticles = [];
-  renderSelectedStories();
+  if (options.clearContent) {
+    setCampaignContent('', '');
+  }
+  articlePage = 1;
   renderAvailableArticles();
 }
 
-function renderSelectedStories() {
-  if (!newsletterSelectedLeadEl || !newsletterSelectedStoriesEl) return;
-  const orderedStories = getSectionOrderedStories();
+function getFilteredArticles() {
+  const query = String(newsletterArticleSearchInput?.value || '').trim().toLowerCase();
+  const section = String(newsletterArticleSectionInput?.value || 'all').toLowerCase();
+  return availableArticles.filter((article) => {
+    if (section !== 'all' && String(article.section || '').toLowerCase() !== section) {
+      return false;
+    }
+    if (!query) return true;
+    const haystack = [article.title, article.description, article.section]
+      .map((value) => String(value || '').toLowerCase())
+      .join(' ');
+    return haystack.includes(query);
+  });
+}
 
-  if (!selectedLeadArticle) {
-    newsletterSelectedLeadEl.innerHTML = '<p class="hint">No lead story selected.</p>';
-  } else {
-    newsletterSelectedLeadEl.innerHTML = `
-      <article class="draft-card">
-        <div class="newsletter-story-card-body">
-          <strong>${escapeHtml(selectedLeadArticle.title || '(untitled)')}</strong>
-          <span class="draft-meta">${escapeHtml(formatSection(selectedLeadArticle.section))} | ${escapeHtml(formatDate(selectedLeadArticle.pubDate))}</span>
-          <div class="newsletter-story-actions">
-            <button type="button" class="btn" data-selected-action="remove-lead">Remove Lead</button>
-          </div>
-        </div>
-      </article>
-    `;
+function refreshNewsletterFromSelection() {
+  const hasSelection = !!selectedLeadArticle || selectedStoryArticles.length > 0;
+  if (!hasSelection) {
+    setCampaignContent('', '');
+    return;
   }
-
-  if (orderedStories.length === 0) {
-    newsletterSelectedStoriesEl.innerHTML = '<p class="hint">No stories selected yet.</p>';
-  } else {
-    newsletterSelectedStoriesEl.innerHTML = orderedStories.map((article, index) => `
-      <article class="draft-card" data-selected-story-id="${article.id}">
-        <div class="newsletter-story-card-body">
-          <strong>${index + 1}. ${escapeHtml(article.title || '(untitled)')}</strong>
-          <span class="draft-meta">${escapeHtml(formatSection(article.section))} | ${escapeHtml(formatDate(article.pubDate))}</span>
-          <div class="newsletter-story-actions">
-            <button type="button" class="btn" data-selected-action="promote-lead">Set Lead</button>
-            <button type="button" class="btn" data-selected-action="remove-story">Remove</button>
-          </div>
-        </div>
-      </article>
-    `).join('');
-  }
+  const { html, text } = buildNewsletterMarkup();
+  setCampaignContent(html, text);
 }
 
 function renderAvailableArticles() {
   if (!newsletterArticleResultsEl) return;
-  const query = String(newsletterArticleSearchInput?.value || '').trim().toLowerCase();
+  const filtered = getFilteredArticles();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ARTICLE_PAGE_SIZE));
+  articlePage = Math.min(Math.max(articlePage, 1), totalPages);
+
+  const start = (articlePage - 1) * ARTICLE_PAGE_SIZE;
+  const pageArticles = filtered.slice(start, start + ARTICLE_PAGE_SIZE);
   const selectedStoryIds = new Set(selectedStoryArticles.map((article) => Number(article.id)));
   const leadId = Number(selectedLeadArticle?.id || 0);
 
-  const filtered = availableArticles.filter((article) => {
-    if (!query) return true;
-    const haystack = [
-      article.title,
-      article.description,
-      article.section
-    ].map((value) => String(value || '').toLowerCase()).join(' ');
-    return haystack.includes(query);
-  });
-
-  if (filtered.length === 0) {
-    newsletterArticleResultsEl.innerHTML = '<p class="hint">No articles match your filters yet.</p>';
-    return;
+  if (pageArticles.length === 0) {
+    newsletterArticleResultsEl.innerHTML = '<p class="hint">No recent stories found for this filter.</p>';
+  } else {
+    newsletterArticleResultsEl.innerHTML = pageArticles.map((article) => {
+      const id = Number(article.id);
+      const inLead = id === leadId;
+      const inStories = selectedStoryIds.has(id);
+      const image = String(article.image || '').trim();
+      const badge = inLead ? 'Lead' : (inStories ? 'Selected' : '');
+      return `
+        <article class="draft-card newsletter-story-card ${inLead || inStories ? 'is-selected' : ''}" data-article-id="${id}">
+          ${badge ? `<span class="newsletter-story-badge">${escapeHtml(badge)}</span>` : ''}
+          ${image
+            ? `<img class="newsletter-story-image" src="${escapeHtml(image)}" alt="${escapeHtml(article.title || 'Article image')}" loading="lazy" />`
+            : '<div class="newsletter-story-image newsletter-story-image-empty">No image</div>'}
+          <div class="newsletter-story-card-body">
+            <strong>${escapeHtml(article.title || '(untitled)')}</strong>
+            <span class="draft-meta">${escapeHtml(formatDate(article.pubDate))}</span>
+            <div class="newsletter-story-actions">
+              <button type="button" class="btn" data-article-action="set-lead">${inLead ? 'Lead Selected' : 'Set Lead'}</button>
+              <button type="button" class="btn" data-article-action="toggle-story">${inLead || inStories ? 'Remove' : 'Add'}</button>
+            </div>
+          </div>
+        </article>
+      `;
+    }).join('');
   }
 
-  newsletterArticleResultsEl.innerHTML = filtered.map((article) => {
-    const id = Number(article.id);
-    const inLead = id === leadId;
-    const inStories = selectedStoryIds.has(id);
-    return `
-      <article class="draft-card" data-article-id="${id}">
-        <div class="newsletter-story-card-body">
-          <strong>${escapeHtml(article.title || '(untitled)')}</strong>
-          <span class="draft-meta">${escapeHtml(formatSection(article.section))} | ${escapeHtml(formatDate(article.pubDate))}</span>
-          <p class="newsletter-story-summary">${escapeHtml(summarizeText(article.description || article.content || '', 180))}</p>
-          <div class="newsletter-story-actions">
-            <button type="button" class="btn" data-article-action="add-lead"${inLead ? ' disabled' : ''}>${inLead ? 'Lead Selected' : 'Use as Lead'}</button>
-            <button type="button" class="btn" data-article-action="add-story"${inStories ? ' disabled' : ''}>${inStories ? 'Added' : 'Add Story'}</button>
-          </div>
-        </div>
-      </article>
-    `;
-  }).join('');
+  if (newsletterPageLabelEl) {
+    newsletterPageLabelEl.textContent = `Page ${articlePage} of ${totalPages}`;
+  }
+  if (newsletterPagePrevBtn) newsletterPagePrevBtn.disabled = articlePage <= 1;
+  if (newsletterPageNextBtn) newsletterPageNextBtn.disabled = articlePage >= totalPages;
 }
 
 function buildNewsletterMarkup() {
@@ -396,13 +388,23 @@ function buildNewsletterMarkup() {
 
 async function loadAvailableArticles() {
   const section = encodeURIComponent(String(newsletterArticleSectionInput?.value || 'all'));
-  const limit = Math.min(Math.max(Number(newsletterArticleLimitInput?.value || 120), 10), 300);
-  const data = await apiRequest(`/api/admin-articles?section=${section}&limit=${limit}`);
-  availableArticles = Array.isArray(data.articles)
-    ? data.articles.filter((article) => String(article.status || '').toLowerCase() === 'published')
+  const data = await apiRequest(`/api/admin-articles?section=${section}&limit=5000`);
+  const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  availableArticles = Array.isArray(data.articles) ? data.articles
+    .filter((article) => String(article.status || '').toLowerCase() === 'published')
+    .filter((article) => {
+      const ts = new Date(article.pubDate || article.updatedAt || article.createdAt).getTime();
+      return Number.isFinite(ts) && ts >= weekAgo;
+    })
+    .sort((a, b) => {
+      const at = new Date(a.pubDate || a.updatedAt || a.createdAt).getTime();
+      const bt = new Date(b.pubDate || b.updatedAt || b.createdAt).getTime();
+      return bt - at;
+    })
     : [];
+  articlePage = 1;
   renderAvailableArticles();
-  setMessage(`Loaded ${availableArticles.length} published article(s) for story picking.`);
+  setMessage(`Loaded ${availableArticles.length} published stories from the last 7 days.`);
 }
 
 function clearComposer() {
@@ -415,9 +417,8 @@ function clearComposer() {
   campaignDescriptionInput.value = '';
   campaignSegmentIdsInput.value = '';
   campaignTagIdsInput.value = '';
-  setEditorHtml('');
-  campaignContentTextInput.value = '';
-  clearStorySelection();
+  setCampaignContent('', '');
+  clearStorySelection({ clearContent: true });
 }
 
 function applyCampaign(campaign) {
@@ -433,17 +434,15 @@ function applyCampaign(campaign) {
   campaignTagIdsInput.value = toCsv(campaign.tagIds);
   const html = String(campaign.contentHtml || '').trim();
   if (html) {
-    setEditorHtml(html);
+    setCampaignContent(html, campaign.contentText || '');
   } else {
-    setEditorHtml(textToHtml(campaign.contentText || ''));
+    setCampaignContent(textToHtml(campaign.contentText || ''), campaign.contentText || '');
   }
   clearStorySelection();
 }
 
 function getComposerPayload() {
-  const contentHtml = getEditorHtml();
-  const contentText = getEditorText();
-  campaignContentTextInput.value = contentText;
+  const content = getCampaignContent();
 
   return {
     title: String(campaignTitleInput.value || '').trim(),
@@ -452,8 +451,8 @@ function getComposerPayload() {
     description: String(campaignDescriptionInput.value || '').trim(),
     segmentIds: fromCsv(campaignSegmentIdsInput.value),
     tagIds: fromCsv(campaignTagIdsInput.value),
-    contentHtml,
-    contentText
+    contentHtml: content.html,
+    contentText: content.text
   };
 }
 
@@ -493,7 +492,10 @@ async function unlock() {
     sessionStorage.setItem('de_admin_unlocked_newsletters', '1');
     setLockState(true);
     setMessage('Newsletters unlocked.');
-    if (getToken()) await loadCampaigns();
+    if (getToken()) {
+      await loadCampaigns();
+      await loadAvailableArticles();
+    }
   } catch (error) {
     setMessage(`Unlock failed: ${error.message}`);
   }
@@ -578,6 +580,9 @@ adminUiPasswordInput.addEventListener('keydown', (event) => {
 saveTokenBtn.addEventListener('click', () => {
   localStorage.setItem('de_admin_token', getToken());
   setMessage('Admin token saved.');
+  if (unlocked && getToken()) {
+    loadAvailableArticles().catch((error) => setMessage(`Story load failed: ${error.message}`));
+  }
 });
 
 newCampaignBtn.addEventListener('click', () => {
@@ -624,7 +629,12 @@ loadCampaignsBtn.addEventListener('click', async () => {
   }
 });
 
-loadNewsletterArticlesBtn?.addEventListener('click', async () => {
+newsletterArticleSearchInput?.addEventListener('input', () => {
+  articlePage = 1;
+  renderAvailableArticles();
+});
+
+newsletterArticleSectionInput?.addEventListener('change', async () => {
   try {
     await loadAvailableArticles();
   } catch (error) {
@@ -632,24 +642,14 @@ loadNewsletterArticlesBtn?.addEventListener('click', async () => {
   }
 });
 
-newsletterArticleSearchInput?.addEventListener('input', () => {
+newsletterPagePrevBtn?.addEventListener('click', () => {
+  articlePage -= 1;
   renderAvailableArticles();
 });
 
-clearNewsletterSelectionBtn?.addEventListener('click', () => {
-  clearStorySelection();
-  setMessage('Story picker selection cleared.');
-});
-
-buildNewsletterTemplateBtn?.addEventListener('click', () => {
-  try {
-    const { html, text } = buildNewsletterMarkup();
-    setEditorHtml(html);
-    campaignContentTextInput.value = text;
-    setMessage('Newsletter content rebuilt from selected stories.');
-  } catch (error) {
-    setMessage(`Build failed: ${error.message}`);
-  }
+newsletterPageNextBtn?.addEventListener('click', () => {
+  articlePage += 1;
+  renderAvailableArticles();
 });
 
 newsletterArticleResultsEl?.addEventListener('click', (event) => {
@@ -661,89 +661,48 @@ newsletterArticleResultsEl?.addEventListener('click', (event) => {
   const article = getArticleById(id);
   if (!article) return;
 
-  if (action === 'add-lead') {
-    selectedLeadArticle = article;
-    selectedStoryArticles = selectedStoryArticles.filter((item) => Number(item.id) !== Number(article.id));
-    renderSelectedStories();
-    renderAvailableArticles();
-    return;
-  }
-
-  if (action === 'add-story') {
-    if (selectedLeadArticle && Number(selectedLeadArticle.id) === Number(article.id)) return;
-    if (selectedStoryArticles.some((item) => Number(item.id) === Number(article.id))) return;
-    selectedStoryArticles.push(article);
-    renderSelectedStories();
-    renderAvailableArticles();
-  }
-});
-
-newsletterSelectedLeadEl?.addEventListener('click', (event) => {
-  const button = event.target.closest('button[data-selected-action]');
-  if (!button) return;
-  const action = String(button.dataset.selectedAction || '');
-  if (action === 'remove-lead') {
-    selectedLeadArticle = null;
-    renderSelectedStories();
-    renderAvailableArticles();
-  }
-});
-
-newsletterSelectedStoriesEl?.addEventListener('click', (event) => {
-  const button = event.target.closest('button[data-selected-action]');
-  if (!button) return;
-  const action = String(button.dataset.selectedAction || '');
-  const card = button.closest('[data-selected-story-id]');
-  const id = Number(card?.dataset?.selectedStoryId);
-  const index = selectedStoryArticles.findIndex((article) => Number(article.id) === id);
-  if (index < 0) return;
-
-  if (action === 'remove-story') {
-    selectedStoryArticles.splice(index, 1);
-  } else if (action === 'promote-lead') {
-    const promoted = selectedStoryArticles.splice(index, 1)[0];
-    if (selectedLeadArticle) {
-      selectedStoryArticles.unshift(selectedLeadArticle);
+  if (action === 'set-lead') {
+    if (selectedLeadArticle && Number(selectedLeadArticle.id) === Number(article.id)) {
+      renderAvailableArticles();
+      return;
     }
-    selectedLeadArticle = promoted;
-  } else {
+    selectedStoryArticles = selectedStoryArticles.filter((item) => Number(item.id) !== Number(article.id));
+    if (selectedLeadArticle) {
+      const previousLead = selectedLeadArticle;
+      if (!selectedStoryArticles.some((item) => Number(item.id) === Number(previousLead.id))) {
+        selectedStoryArticles.unshift(previousLead);
+      }
+    }
+    selectedLeadArticle = article;
+    refreshNewsletterFromSelection();
+    renderAvailableArticles();
     return;
   }
 
-  renderSelectedStories();
-  renderAvailableArticles();
-});
-
-campaignEditorToolbar?.addEventListener('click', (event) => {
-  const button = event.target.closest('button');
-  if (!button) return;
-
-  const action = String(button.dataset.action || '');
-  const command = String(button.dataset.cmd || '');
-  const value = button.dataset.value || null;
-
-  if (action === 'link') {
-    const rawUrl = window.prompt('Enter URL');
-    if (rawUrl == null) return;
-    const url = String(rawUrl).trim();
-    if (!url) return;
-    execEditorCommand('createLink', url);
-    return;
-  }
-
-  if (command) {
-    execEditorCommand(command, value);
+  if (action === 'toggle-story') {
+    if (selectedLeadArticle && Number(selectedLeadArticle.id) === Number(article.id)) {
+      selectedLeadArticle = null;
+    } else {
+      const existingIndex = selectedStoryArticles.findIndex((item) => Number(item.id) === Number(article.id));
+      if (existingIndex >= 0) {
+        selectedStoryArticles.splice(existingIndex, 1);
+      } else {
+        selectedStoryArticles.push(article);
+      }
+    }
+    refreshNewsletterFromSelection();
+    renderAvailableArticles();
   }
 });
-
-campaignContentEditor?.addEventListener('input', syncHiddenTextInput);
-campaignContentEditor?.addEventListener('blur', syncHiddenTextInput);
 
 tokenInput.value = localStorage.getItem('de_admin_token') || '';
 setLockState(sessionStorage.getItem('de_admin_unlocked_newsletters') === '1');
-setEditorHtml(textToHtml(campaignContentTextInput.value || ''));
-renderSelectedStories();
+setCampaignContent(
+  campaignContentHtmlInput.value || textToHtml(campaignContentTextInput.value || ''),
+  campaignContentTextInput.value || ''
+);
 renderAvailableArticles();
 if (unlocked && getToken()) {
   loadCampaigns().catch((error) => setMessage(`Initial load failed: ${error.message}`));
+  loadAvailableArticles().catch((error) => setMessage(`Story load failed: ${error.message}`));
 }
