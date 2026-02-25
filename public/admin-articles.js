@@ -42,7 +42,6 @@ const CLOUDINARY_WIDTH = 1600;
 function aiModelSelectHtml(defaultValue = 'anthropic:claude-sonnet-4-6') {
   const options = [
     { value: 'anthropic:claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-    { value: 'anthropic:claude-opus-4-6', label: 'Claude Opus 4.6' },
     { value: 'openai:gpt-5', label: 'ChatGPT (GPT-5)' },
     { value: 'gemini:gemini-3-pro-preview', label: 'Gemini 3 Pro Preview' },
     { value: 'grok:grok-4', label: 'Grok 4' }
@@ -201,6 +200,10 @@ function toggleAiPanel(card, panelClass, anchorButton) {
   const top = Math.max(8, buttonRect.bottom - rootRect.top + 6);
   targetPanel.style.left = `${left}px`;
   targetPanel.style.top = `${top}px`;
+}
+
+function closeAllAiPanels() {
+  document.querySelectorAll('.ai-panel').forEach((panel) => panel.setAttribute('hidden', ''));
 }
 
 function setMessage(text) {
@@ -1118,6 +1121,12 @@ listEl.addEventListener('dragleave', onListDragLeave);
 listEl.addEventListener('drop', onListDrop);
 articleSearchInput.addEventListener('input', applySearchFilter);
 showAllBtn.addEventListener('click', showAllArticles);
+document.addEventListener('click', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+  if (target.closest('.ai-panel') || target.closest('.ai-action-toggle')) return;
+  closeAllAiPanels();
+});
 if (removeConfirmBtn) removeConfirmBtn.addEventListener('click', onRemoveConfirm);
 if (removeCancelBtn) removeCancelBtn.addEventListener('click', closeRemoveModal);
 if (removeModalEl) {
