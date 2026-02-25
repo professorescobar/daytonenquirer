@@ -52,6 +52,10 @@ function aiModelSelectHtml(defaultValue = 'anthropic:claude-sonnet-4-6') {
     .join('');
 }
 
+function rewriteModelSelectHtml() {
+  return `<option value="" selected>Select model...</option>${aiModelSelectHtml('__none__')}`;
+}
+
 const REWRITE_ISSUES = {
   base: {
     headline: [
@@ -139,6 +143,14 @@ function syncRewriteIssueSelect(card, target) {
   const modelSelect = card.querySelector(`.job-model-rewrite-${target}`);
   const issueSelect = card.querySelector(`.rewrite-issues-${target}`);
   if (!modelSelect || !issueSelect) return;
+  const modelValue = String(modelSelect.value || '').trim();
+  const hasModel = modelValue.includes(':');
+  if (!hasModel) {
+    issueSelect.innerHTML = '<option value="">Select model first</option>';
+    issueSelect.disabled = true;
+    return;
+  }
+  issueSelect.disabled = false;
   const provider = getProviderFromModelValue(modelSelect.value);
   const selected = Array.from(issueSelect.selectedOptions).map((opt) => opt.value);
   issueSelect.innerHTML = rewriteIssueOptionsHtml(target, provider);
@@ -159,6 +171,15 @@ function getSelectedIssues(card, target) {
   const issueSelect = card.querySelector(`.rewrite-issues-${target}`);
   if (!issueSelect) return [];
   return Array.from(issueSelect.selectedOptions).map((opt) => String(opt.value || '').trim()).filter(Boolean).slice(0, 3);
+}
+
+function toggleAiPanel(card, panelClass) {
+  if (!card || !panelClass) return;
+  const targetPanel = card.querySelector(`.${panelClass}`);
+  if (!targetPanel) return;
+  const opening = targetPanel.hasAttribute('hidden');
+  card.querySelectorAll('.ai-panel').forEach((panel) => panel.setAttribute('hidden', ''));
+  if (opening) targetPanel.removeAttribute('hidden');
 }
 
 function setMessage(text) {
@@ -444,89 +465,83 @@ function renderArticles(articles) {
       </button>
 
       <div class="draft-form article-editor is-collapsed" hidden>
-        <div class="admin-actions">
+        <div class="headline-options full"></div>
+        <label class="full">
+          <span class="field-label-row">
+            <span>Title</span>
+            <span class="inline-tools">
+              <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-headline-gen">Generate headline...</button>
+              <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-headline-rewrite">Rewrite headline...</button>
+            </span>
+          </span>
+          <input class="field-title" type="text" value="${escapeHtml(article.title || '')}" />
+        </label>
+        <div class="full ai-panel panel-headline-gen" hidden>
           <label>
-            Headline Model
+            Model
             <select class="job-model-headline-gen">
               ${aiModelSelectHtml()}
             </select>
           </label>
-          <button type="button" class="btn btn-primary btn-generate-headlines">Generate headlines...</button>
+          <button type="button" class="btn btn-primary btn-generate-headlines">Run</button>
         </div>
-        <div class="headline-options full"></div>
-        <label class="full">
-          Title
-          <input class="field-title" type="text" value="${escapeHtml(article.title || '')}" />
-        </label>
-        <div class="admin-actions">
+        <div class="full ai-panel panel-headline-rewrite" hidden>
           <label>
-            Rewrite Headline Model
+            Model
             <select class="job-model-rewrite-headline">
-              ${aiModelSelectHtml()}
+              ${rewriteModelSelectHtml()}
             </select>
           </label>
           <label>
-            Headline Issues (max 3)
+            Issues (max 3)
             <select class="rewrite-issues-headline" multiple size="4">
               ${rewriteIssueOptionsHtml('headline', 'anthropic')}
             </select>
           </label>
-          <button type="button" class="btn btn-primary btn-rewrite-headline">Rewrite headline...</button>
+          <button type="button" class="btn btn-primary btn-rewrite-headline">Run</button>
         </div>
-        <div class="admin-actions">
+        <label class="full">
+          <span class="field-label-row">
+            <span>Description</span>
+            <span class="inline-tools">
+              <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-description-gen">Generate description...</button>
+              <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-description-rewrite">Rewrite description...</button>
+            </span>
+          </span>
+          <textarea class="field-description">${escapeHtml(article.description || '')}</textarea>
+        </label>
+        <div class="full ai-panel panel-description-gen" hidden>
           <label>
-            Article Model
-            <select class="job-model-article">
-              ${aiModelSelectHtml()}
-            </select>
-          </label>
-          <button type="button" class="btn btn-primary btn-generate-article">Generate article...</button>
-        </div>
-        <div class="admin-actions">
-          <label>
-            Rewrite Article Model
-            <select class="job-model-rewrite-article">
-              ${aiModelSelectHtml()}
-            </select>
-          </label>
-          <label>
-            Article Issues (max 3)
-            <select class="rewrite-issues-article" multiple size="5">
-              ${rewriteIssueOptionsHtml('article', 'anthropic')}
-            </select>
-          </label>
-          <button type="button" class="btn btn-primary btn-rewrite-article">Rewrite article...</button>
-        </div>
-        <div class="admin-actions">
-          <label>
-            Description Model
+            Model
             <select class="job-model-description">
               ${aiModelSelectHtml()}
             </select>
           </label>
-          <button type="button" class="btn btn-primary btn-generate-description">Generate description...</button>
+          <button type="button" class="btn btn-primary btn-generate-description">Run</button>
         </div>
-        <div class="admin-actions">
+        <div class="full ai-panel panel-description-rewrite" hidden>
           <label>
-            Rewrite Description Model
+            Model
             <select class="job-model-rewrite-description">
-              ${aiModelSelectHtml()}
+              ${rewriteModelSelectHtml()}
             </select>
           </label>
           <label>
-            Description Issues (max 3)
+            Issues (max 3)
             <select class="rewrite-issues-description" multiple size="4">
               ${rewriteIssueOptionsHtml('description', 'anthropic')}
             </select>
           </label>
-          <button type="button" class="btn btn-primary btn-rewrite-description">Rewrite description...</button>
+          <button type="button" class="btn btn-primary btn-rewrite-description">Run</button>
         </div>
         <label class="full">
-          Description
-          <textarea class="field-description">${escapeHtml(article.description || '')}</textarea>
-        </label>
-        <label class="full">
-          Content
+          <span class="field-label-row">
+            <span>Content</span>
+            <span class="inline-tools">
+              <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-article-gen">Generate article...</button>
+              <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-article-rewrite">Rewrite article...</button>
+            </span>
+          </span>
           <div class="rte-wrap">
             <div class="rte-toolbar" role="toolbar" aria-label="Content formatting">
               <button type="button" class="btn rte-btn" data-rte-cmd="bold"><strong>B</strong></button>
@@ -543,6 +558,30 @@ function renderArticles(articles) {
             <textarea class="field-content" hidden>${escapeHtml(article.content || '')}</textarea>
           </div>
         </label>
+        <div class="full ai-panel panel-article-gen" hidden>
+          <label>
+            Model
+            <select class="job-model-article">
+              ${aiModelSelectHtml()}
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary btn-generate-article">Run</button>
+        </div>
+        <div class="full ai-panel panel-article-rewrite" hidden>
+          <label>
+            Model
+            <select class="job-model-rewrite-article">
+              ${rewriteModelSelectHtml()}
+            </select>
+          </label>
+          <label>
+            Issues (max 3)
+            <select class="rewrite-issues-article" multiple size="5">
+              ${rewriteIssueOptionsHtml('article', 'anthropic')}
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary btn-rewrite-article">Run</button>
+        </div>
         <label class="full">
           Image URL
           <input class="field-image" type="text" value="${escapeHtml(article.image || '')}" />
@@ -828,6 +867,11 @@ function onListClick(event) {
   if (!card) return;
   const button = target.closest('button');
   if (!button) return;
+
+  if (button.classList.contains('ai-action-toggle')) {
+    toggleAiPanel(card, String(button.dataset.panel || ''));
+    return;
+  }
 
   if (button.classList.contains('rte-btn')) {
     applyRichTextCommand(button, card);
