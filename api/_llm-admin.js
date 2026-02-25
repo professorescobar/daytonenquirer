@@ -60,29 +60,64 @@ async function callAnthropicJson({ prompt, model, maxOutputTokens = 2400 }) {
 async function callOpenAiJson({ prompt, model, maxOutputTokens = 2400 }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY');
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
+  const fallbackModel = process.env.OPENAI_FALLBACK_MODEL || 'gpt-4.1';
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`
+  };
+  const request = async (body) => {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+    const raw = await response.text();
+    if (!response.ok) {
+      return { ok: false, status: response.status, raw };
+    }
+    const data = safeJsonParse(raw) || {};
+    const text = data?.choices?.[0]?.message?.content || '';
+    const parsed = safeJsonParse(text);
+    if (!parsed) {
+      return { ok: false, status: response.status, raw: 'Model did not return valid JSON' };
+    }
+    return { ok: true, parsed };
+  };
+
+  const attempts = [
+    {
       model,
       temperature: 0.3,
       max_completion_tokens: maxOutputTokens,
       response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }]
-    })
-  });
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`OpenAI API error ${response.status}: ${body.slice(0, 200)}`);
+    },
+    {
+      model,
+      max_completion_tokens: maxOutputTokens,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: prompt }]
+    },
+    {
+      model,
+      max_tokens: maxOutputTokens,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: prompt }]
+    },
+    {
+      model: fallbackModel,
+      max_tokens: maxOutputTokens,
+      messages: [{ role: 'user', content: `${prompt}\n\nReturn valid JSON only.` }]
+    }
+  ];
+
+  let lastError = 'OpenAI request failed';
+  for (const attempt of attempts) {
+    const result = await request(attempt);
+    if (result.ok) return result.parsed;
+    lastError = `OpenAI API error ${result.status}: ${String(result.raw || '').slice(0, 300)}`;
   }
-  const data = await response.json();
-  const text = data?.choices?.[0]?.message?.content || '';
-  const parsed = safeJsonParse(text);
-  if (!parsed) throw new Error('Model did not return valid JSON');
-  return parsed;
+  throw new Error(lastError);
 }
 
 async function callGeminiJson({ prompt, model, maxOutputTokens = 2400 }) {

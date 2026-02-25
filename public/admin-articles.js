@@ -369,6 +369,43 @@ function normalizeEditorHtml(value) {
   return html === '<br>' ? '' : html;
 }
 
+function escapeHtmlForEditor(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function applyInlineMarkdownFormatting(text) {
+  return String(text || '')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(])\*(?!\*)([^*]+?)\*(?=$|[\s).,!?;:])/g, '$1<em>$2</em>')
+    .replace(/(^|[\s(])_(?!_)([^_]+?)_(?=$|[\s).,!?;:])/g, '$1<em>$2</em>');
+}
+
+function plainTextToEditorHtml(text) {
+  const normalized = String(text || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .trim();
+  if (!normalized) return '';
+  const paragraphs = normalized.split(/\n{2,}/).map((chunk) => chunk.trim()).filter(Boolean);
+  return paragraphs
+    .map((chunk) => {
+      const escaped = escapeHtmlForEditor(chunk).replace(/\n/g, '<br>');
+      return `<p>${applyInlineMarkdownFormatting(escaped)}</p>`;
+    })
+    .join('');
+}
+
+function normalizeGeneratedContentForEditor(content) {
+  const raw = String(content || '').trim();
+  if (!raw) return '';
+  if (/<\/?[a-z][\s\S]*>/i.test(raw)) return raw;
+  return plainTextToEditorHtml(raw);
+}
+
 function initializeRichTextEditors(root) {
   if (!root) return;
   root.querySelectorAll('.draft-card').forEach((card) => {
@@ -821,7 +858,7 @@ async function generateArticleForCard(card) {
   const contentEditor = card.querySelector('.field-content-editor');
   const contentTextarea = card.querySelector('.field-content');
   if (descriptionField && description) descriptionField.value = description;
-  if (contentEditor) contentEditor.innerHTML = content;
+  if (contentEditor) contentEditor.innerHTML = normalizeGeneratedContentForEditor(content);
   if (contentTextarea) contentTextarea.value = content;
 }
 
@@ -898,7 +935,7 @@ async function rewriteCardContent(card, target) {
   if (!nextContent) throw new Error('Rewrite returned empty article content');
   const contentEditor = card.querySelector('.field-content-editor');
   const contentTextarea = card.querySelector('.field-content');
-  if (contentEditor) contentEditor.innerHTML = nextContent;
+  if (contentEditor) contentEditor.innerHTML = normalizeGeneratedContentForEditor(nextContent);
   if (contentTextarea) contentTextarea.value = nextContent;
 }
 
