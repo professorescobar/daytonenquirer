@@ -112,6 +112,13 @@ function summarizeText(value, maxLength = 180) {
   return `${text.slice(0, maxLength - 3).trim()}...`;
 }
 
+function getExcerptSource(article) {
+  const description = htmlToText(article?.description || '');
+  const content = htmlToText(article?.content || '');
+  if (content.length > description.length) return content;
+  return description || content;
+}
+
 function formatSection(value) {
   const section = String(value || '').trim().toLowerCase();
   if (!section) return 'general';
@@ -323,7 +330,7 @@ function buildNewsletterMarkup() {
   const lead = selected[0];
   const heading = String(campaignTitleInput.value || '').trim() || 'The Dayton Enquirer Weekly Brief';
   const intro = String(campaignPreviewTextInput.value || '').trim() || 'Top Dayton stories this week.';
-  const leadDescription = summarizeText(lead.description || lead.content || '', 1260);
+  const leadDescription = summarizeText(getExcerptSource(lead), 1260);
 
   const sectionBlocks = orderedSectionKeys.map((sectionKey) => {
     const sectionStories = sections.get(sectionKey) || [];
@@ -381,7 +388,7 @@ function buildNewsletterMarkup() {
                         </tr>` : ''}
                         <tr>
                           <td style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#222222;">
-                            ${escapeHtml(summarizeText(featured.description || featured.content || '', 1950))}
+                            ${escapeHtml(summarizeText(getExcerptSource(featured), 1950))}
                             <br><br>
                             <a href="${escapeHtml(featuredUrl)}" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#0b3d91;text-decoration:underline;">Read full article here...</a>
                           </td>
@@ -452,7 +459,7 @@ function buildNewsletterMarkup() {
     sectionStories.forEach((article, index) => {
       textLines.push(`${index + 1}. ${article.title || '(untitled)'}`);
       textLines.push(getArticleUrl(article));
-      const description = summarizeText(article.description || article.content || '', 960);
+      const description = summarizeText(getExcerptSource(article), 960);
       if (description) textLines.push(description);
       textLines.push('');
     });
