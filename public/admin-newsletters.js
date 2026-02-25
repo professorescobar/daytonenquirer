@@ -323,7 +323,7 @@ function buildNewsletterMarkup() {
   const lead = selected[0];
   const heading = String(campaignTitleInput.value || '').trim() || 'The Dayton Enquirer Weekly Brief';
   const intro = String(campaignPreviewTextInput.value || '').trim() || 'Top Dayton stories this week.';
-  const leadDescription = summarizeText(lead.description || lead.content || '', 240);
+  const leadDescription = summarizeText(lead.description || lead.content || '', 420);
 
   const sectionBlocks = orderedSectionKeys.map((sectionKey) => {
     const sectionStories = sections.get(sectionKey) || [];
@@ -367,7 +367,7 @@ function buildNewsletterMarkup() {
                         ${featuredImage ? `
                         <tr>
                           <td style="padding:0 0 10px 0;">
-                            <a href="${escapeHtml(featuredUrl)}"><img src="${escapeHtml(featuredImage)}" alt="${escapeHtml(featured.title || 'Story image')}" style="display:block;width:100%;height:auto;border:0;border-radius:4px;" /></a>
+                            <a href="${escapeHtml(featuredUrl)}"><img src="${escapeHtml(featuredImage)}" alt="${escapeHtml(featured.title || 'Story image')}" style="display:block;width:100%;height:220px;object-fit:cover;border:0;border-radius:4px;" /></a>
                           </td>
                         </tr>` : ''}
                         <tr>
@@ -381,7 +381,9 @@ function buildNewsletterMarkup() {
                         </tr>` : ''}
                         <tr>
                           <td style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#222222;">
-                            ${escapeHtml(summarizeText(featured.description || featured.content || '', 220))}
+                            ${escapeHtml(summarizeText(featured.description || featured.content || '', 650))}
+                            <br><br>
+                            <a href="${escapeHtml(featuredUrl)}" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#0b3d91;text-decoration:underline;">Read full article here...</a>
                           </td>
                         </tr>
                       </table>
@@ -394,11 +396,6 @@ function buildNewsletterMarkup() {
                     </td>` : ''}
                   </tr>
                 </table>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 16px 14px 16px;">
-                <a href="${escapeHtml(sectionUrl)}" style="display:inline-block;border:1px solid #111111;padding:7px 12px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#111111;text-decoration:none;">See more...</a>
               </td>
             </tr>
           </table>
@@ -455,7 +452,7 @@ function buildNewsletterMarkup() {
     sectionStories.forEach((article, index) => {
       textLines.push(`${index + 1}. ${article.title || '(untitled)'}`);
       textLines.push(getArticleUrl(article));
-      const description = summarizeText(article.description || article.content || '', 180);
+      const description = summarizeText(article.description || article.content || '', 320);
       if (description) textLines.push(description);
       textLines.push('');
     });
