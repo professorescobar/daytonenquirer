@@ -200,6 +200,51 @@ function sectionSelectHtml(selected) {
   }).join('');
 }
 
+function normalizeEditorHtml(value) {
+  const html = String(value || '').trim();
+  return html === '<br>' ? '' : html;
+}
+
+function initializeRichTextEditors(root) {
+  if (!root) return;
+  root.querySelectorAll('.draft-card').forEach((card) => {
+    const textarea = card.querySelector('.field-content');
+    const editor = card.querySelector('.field-content-editor');
+    if (!textarea || !editor) return;
+    editor.innerHTML = textarea.value || '';
+  });
+}
+
+function getCardContentHtml(card) {
+  const textarea = card.querySelector('.field-content');
+  const editor = card.querySelector('.field-content-editor');
+  if (!textarea) return '';
+  if (!editor) return textarea.value;
+  const html = normalizeEditorHtml(editor.innerHTML);
+  textarea.value = html;
+  return html;
+}
+
+function applyRichTextCommand(button, card) {
+  const editor = card.querySelector('.field-content-editor');
+  if (!editor) return;
+  const command = String(button.dataset.rteCmd || '');
+  const value = button.dataset.rteValue || null;
+  if (!command) return;
+
+  editor.focus();
+  if (command === 'createLink') {
+    const rawUrl = window.prompt('Enter URL');
+    if (rawUrl == null) return;
+    const url = String(rawUrl).trim();
+    if (!url) return;
+    document.execCommand(command, false, url);
+  } else {
+    document.execCommand(command, false, value);
+  }
+  getCardContentHtml(card);
+}
+
 function buildCloudinaryOptimizedUrl(publicId) {
   const safeId = String(publicId || '')
     .split('/')
@@ -290,7 +335,21 @@ function renderArticles(articles) {
         </label>
         <label class="full">
           Content
-          <textarea class="field-content">${escapeHtml(article.content || '')}</textarea>
+          <div class="rte-wrap">
+            <div class="rte-toolbar" role="toolbar" aria-label="Content formatting">
+              <button type="button" class="btn rte-btn" data-rte-cmd="bold"><strong>B</strong></button>
+              <button type="button" class="btn rte-btn" data-rte-cmd="italic"><em>I</em></button>
+              <button type="button" class="btn rte-btn" data-rte-cmd="underline"><u>U</u></button>
+              <button type="button" class="btn rte-btn" data-rte-cmd="insertUnorderedList">Bullets</button>
+              <button type="button" class="btn rte-btn" data-rte-cmd="insertOrderedList">Numbers</button>
+              <button type="button" class="btn rte-btn" data-rte-cmd="formatBlock" data-rte-value="h2">H2</button>
+              <button type="button" class="btn rte-btn" data-rte-cmd="formatBlock" data-rte-value="p">P</button>
+              <button type="button" class="btn rte-btn" data-rte-cmd="createLink">Link</button>
+              <button type="button" class="btn rte-btn" data-rte-cmd="removeFormat">Clear</button>
+            </div>
+            <div class="field-content-editor rte-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
+            <textarea class="field-content" hidden>${escapeHtml(article.content || '')}</textarea>
+          </div>
         </label>
         <label class="full">
           Image URL
@@ -330,6 +389,7 @@ function renderArticles(articles) {
       </div>
     </article>
   `).join('');
+  initializeRichTextEditors(listEl);
 }
 
 function articleSearchHaystack(article) {
@@ -397,7 +457,7 @@ async function saveArticle(card) {
       id,
       title: card.querySelector('.field-title').value,
       description: card.querySelector('.field-description').value,
-      content: card.querySelector('.field-content').value,
+      content: getCardContentHtml(card),
       section: card.querySelector('.field-section').value,
       image: card.querySelector('.field-image').value,
       imageCaption: card.querySelector('.field-image-caption').value,
@@ -456,6 +516,11 @@ function onListClick(event) {
   if (!card) return;
   const button = target.closest('button');
   if (!button) return;
+
+  if (button.classList.contains('rte-btn')) {
+    applyRichTextCommand(button, card);
+    return;
+  }
 
   if (button.classList.contains('draft-toggle')) {
     const editors = card.querySelectorAll('.article-editor');
