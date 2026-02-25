@@ -166,13 +166,13 @@ nav a + a::before {
   stroke-linejoin: round;
   transform-box: fill-box;
   transform-origin: center;
-  animation: newsletterEnvelopeSteps 9s linear infinite;
+  animation: newsletterEnvelopeSteps 15s linear infinite;
 }
 
 .newsletter-strip-artwork .ns-arrow {
   fill: var(--newsletter-art-arrow);
   opacity: 0;
-  animation: newsletterArrowSwap 9s linear infinite;
+  animation: newsletterArrowSwap 15s linear infinite;
 }
 
 .newsletter-strip-artwork .ns-label {
@@ -182,46 +182,46 @@ nav a + a::before {
   font-weight: 900;
   letter-spacing: 0.45px;
   opacity: 0;
-  animation: newsletterLabelReveal 9s linear infinite;
+  animation: newsletterLabelReveal 15s linear infinite;
 }
 
 @keyframes newsletterEnvelopeSteps {
-  0%, 4% {
+  0%, 8% {
     transform: translateX(0);
     opacity: 1;
   }
-  6%, 9% {
+  13%, 19% {
     transform: translateX(56px);
     opacity: 1;
   }
-  11%, 14% {
+  23%, 30% {
     transform: translateX(112px);
     opacity: 1;
   }
-  16%, 19% {
+  34%, 40% {
     transform: translateX(168px);
     opacity: 1;
   }
-  20%, 100% {
+  42%, 100% {
     transform: translateX(206px);
     opacity: 0;
   }
 }
 
 @keyframes newsletterArrowSwap {
-  0%, 19% {
+  0%, 40% {
     opacity: 0;
   }
-  20%, 100% {
+  42%, 100% {
     opacity: 1;
   }
 }
 
 @keyframes newsletterLabelReveal {
-  0%, 19% {
+  0%, 40% {
     opacity: 0;
   }
-  20%, 100% {
+  42%, 100% {
     opacity: 1;
   }
 }
