@@ -373,6 +373,33 @@
   font-size: 0.85rem;
 }
 
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.inline-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ai-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+  padding: 0.45rem;
+  border: 1px solid #ddd;
+  background: #f8f8f8;
+}
+
+.ai-panel[hidden] {
+  display: none !important;
+}
+
 .rte-editor {
   min-height: 760px;
   padding: 0.7rem;
