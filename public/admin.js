@@ -382,16 +382,16 @@ function renderDrafts(drafts) {
 
       <div class="draft-form article-editor is-collapsed" hidden>
         <div class="headline-options full"></div>
-        <label class="full">
-          <span class="field-label-row">
+        <div class="full">
+          <div class="field-label-row">
             <span>Title</span>
             <span class="inline-tools">
               <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-headline-gen">Generate headline...</button>
               <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-headline-rewrite">Rewrite headline...</button>
             </span>
-          </span>
+          </div>
           <input class="field-title" type="text" value="${escapeHtml(draft.title || '')}" />
-        </label>
+        </div>
         <div class="full ai-panel panel-headline-gen" hidden>
           <label>
             Model
@@ -416,16 +416,16 @@ function renderDrafts(drafts) {
           </label>
           <button class="btn btn-primary btn-rewrite-headline" type="button">Run</button>
         </div>
-        <label class="full">
-          <span class="field-label-row">
+        <div class="full">
+          <div class="field-label-row">
             <span>Description</span>
             <span class="inline-tools">
               <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-description-gen">Generate description...</button>
               <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-description-rewrite">Rewrite description...</button>
             </span>
-          </span>
+          </div>
           <textarea class="field-description">${escapeHtml(draft.description || '')}</textarea>
-        </label>
+        </div>
         <div class="full ai-panel panel-description-gen" hidden>
           <label>
             Model
@@ -450,14 +450,14 @@ function renderDrafts(drafts) {
           </label>
           <button class="btn btn-primary btn-rewrite-description" type="button">Run</button>
         </div>
-        <label class="full">
-          <span class="field-label-row">
+        <div class="full">
+          <div class="field-label-row">
             <span>Content</span>
             <span class="inline-tools">
               <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-article-gen">Generate article...</button>
               <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-article-rewrite">Rewrite article...</button>
             </span>
-          </span>
+          </div>
           <div class="rte-wrap">
             <div class="rte-toolbar" role="toolbar" aria-label="Content formatting">
               <button type="button" class="btn rte-btn" data-rte-cmd="bold"><strong>B</strong></button>
@@ -473,7 +473,7 @@ function renderDrafts(drafts) {
             <div class="field-content-editor rte-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
             <textarea class="field-content" hidden>${escapeHtml(draft.content || '')}</textarea>
           </div>
-        </label>
+        </div>
         <div class="full ai-panel panel-article-gen" hidden>
           <label>
             Model
