@@ -367,6 +367,10 @@
   background: #f7f7f7;
 }
 
+.rte-toolbar-spacer {
+  margin-left: auto;
+}
+
 .btn.rte-btn {
   padding: 0.25rem 0.55rem;
   border-color: #8f8f8f;
@@ -398,6 +402,13 @@
 
 .ai-panel[hidden] {
   display: none !important;
+}
+
+.ai-panel-inline {
+  border: 0;
+  border-bottom: 1px solid #ddd;
+  background: #fcfcfc;
+  padding: 0.4rem 0.45rem;
 }
 
 .rte-editor {

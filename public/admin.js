@@ -453,10 +453,6 @@ function renderDrafts(drafts) {
         <div class="full">
           <div class="field-label-row">
             <span>Content</span>
-            <span class="inline-tools">
-              <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-article-gen">Generate article...</button>
-              <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-article-rewrite">Rewrite article...</button>
-            </span>
           </div>
           <div class="rte-wrap">
             <div class="rte-toolbar" role="toolbar" aria-label="Content formatting">
@@ -469,34 +465,39 @@ function renderDrafts(drafts) {
               <button type="button" class="btn rte-btn" data-rte-cmd="formatBlock" data-rte-value="p">P</button>
               <button type="button" class="btn rte-btn" data-rte-cmd="createLink">Link</button>
               <button type="button" class="btn rte-btn" data-rte-cmd="removeFormat">Clear</button>
+              <span class="rte-toolbar-spacer"></span>
+              <span class="inline-tools">
+                <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-article-gen">Generate article...</button>
+                <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-article-rewrite">Rewrite article...</button>
+              </span>
+            </div>
+            <div class="ai-panel ai-panel-inline panel-article-gen" hidden>
+              <label>
+                Model
+                <select class="job-model-article">
+                  ${aiModelSelectHtml()}
+                </select>
+              </label>
+              <button class="btn btn-primary btn-generate-article" type="button">Run</button>
+            </div>
+            <div class="ai-panel ai-panel-inline panel-article-rewrite" hidden>
+              <label>
+                Model
+                <select class="job-model-rewrite-article">
+                  ${rewriteModelSelectHtml()}
+                </select>
+              </label>
+              <label>
+                Issues (max 3)
+                <select class="rewrite-issues-article" multiple size="5">
+                  ${rewriteIssueOptionsHtml('article', 'anthropic')}
+                </select>
+              </label>
+              <button class="btn btn-primary btn-rewrite-article" type="button">Run</button>
             </div>
             <div class="field-content-editor rte-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
             <textarea class="field-content" hidden>${escapeHtml(draft.content || '')}</textarea>
           </div>
-        </div>
-        <div class="full ai-panel panel-article-gen" hidden>
-          <label>
-            Model
-            <select class="job-model-article">
-              ${aiModelSelectHtml()}
-            </select>
-          </label>
-          <button class="btn btn-primary btn-generate-article" type="button">Run</button>
-        </div>
-        <div class="full ai-panel panel-article-rewrite" hidden>
-          <label>
-            Model
-            <select class="job-model-rewrite-article">
-              ${rewriteModelSelectHtml()}
-            </select>
-          </label>
-          <label>
-            Issues (max 3)
-            <select class="rewrite-issues-article" multiple size="5">
-              ${rewriteIssueOptionsHtml('article', 'anthropic')}
-            </select>
-          </label>
-          <button class="btn btn-primary btn-rewrite-article" type="button">Run</button>
         </div>
         <label class="full">
           Image URL
