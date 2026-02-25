@@ -191,10 +191,11 @@ nav a + a::before {
 }
 
 .newsletter-strip-artwork .ns-label-desktop {
-  font-size: 15.8px;
-  letter-spacing: 0.42px;
+  font-size: 15.9px;
+  letter-spacing: 0.38px;
+  dominant-baseline: middle;
   transform-origin: left center;
-  transform: scaleY(1.07);
+  transform: scaleY(1.12);
 }
 
 @keyframes newsletterEnvelopeSteps {
