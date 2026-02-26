@@ -193,7 +193,11 @@ function toggleAiPanel(card, panelClass, anchorButton) {
   targetPanel.dataset.anchorClass = panelClass;
   const rootRect = root.getBoundingClientRect();
   const buttonRect = anchorButton.getBoundingClientRect();
-  const panelWidth = Math.min(360, Math.max(240, Math.round(root.clientWidth * 0.42)));
+  const isGeneratePanel = panelClass.endsWith('-gen');
+  const panelWidth = isGeneratePanel
+    ? Math.max(140, Math.round(buttonRect.width))
+    : Math.min(360, Math.max(240, Math.round(root.clientWidth * 0.42)));
+  targetPanel.classList.toggle('ai-panel-compact', isGeneratePanel);
   targetPanel.style.width = `${panelWidth}px`;
   const leftRaw = buttonRect.left - rootRect.left;
   const left = Math.max(8, Math.min(leftRaw, root.clientWidth - panelWidth - 8));
@@ -204,6 +208,43 @@ function toggleAiPanel(card, panelClass, anchorButton) {
 
 function closeAllAiPanels() {
   document.querySelectorAll('.ai-panel').forEach((panel) => panel.setAttribute('hidden', ''));
+}
+
+function getSelectedModelLabel(card, selectorClass) {
+  const select = card?.querySelector(selectorClass);
+  const label = select?.selectedOptions?.[0]?.textContent || '';
+  return String(label).trim() || 'selected model';
+}
+
+function showLoadingOverlay(card, key, targetSelector, label) {
+  const root = card?.querySelector('.draft-form') || card;
+  const target = card?.querySelector(targetSelector);
+  if (!root || !target) return;
+  hideLoadingOverlay(card, key);
+  const rootRect = root.getBoundingClientRect();
+  const rect = target.getBoundingClientRect();
+  const overlay = document.createElement('div');
+  overlay.className = 'field-loading-overlay';
+  overlay.dataset.loadingKey = key;
+  overlay.style.left = `${Math.max(0, rect.left - rootRect.left)}px`;
+  overlay.style.top = `${Math.max(0, rect.top - rootRect.top)}px`;
+  overlay.style.width = `${Math.max(40, rect.width)}px`;
+  overlay.style.height = `${Math.max(40, rect.height)}px`;
+  overlay.innerHTML = `
+    <div class="field-loading-overlay-inner">
+      <span class="field-loading-spinner" aria-hidden="true"></span>
+      <span>${escapeHtml(label || 'Generating...')}</span>
+    </div>
+  `;
+  root.appendChild(overlay);
+}
+
+function hideLoadingOverlay(card, key) {
+  card?.querySelectorAll(`.field-loading-overlay[data-loading-key="${key}"]`).forEach((el) => el.remove());
+}
+
+function clearLoadingOverlays(card, keys) {
+  (keys || []).forEach((key) => hideLoadingOverlay(card, key));
 }
 
 function setMessage(text) {
@@ -985,44 +1026,107 @@ function onListClick(event) {
   }
 
   if (button.classList.contains('btn-generate-article')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-article');
+    setMessage(`Generating article with ${modelLabel}...`);
+    button.disabled = true;
+    showLoadingOverlay(card, 'desc-gen', '.field-description', 'Generating description...');
+    showLoadingOverlay(card, 'content-gen', '.field-content-editor', 'Generating article...');
     generateArticleForCard(card)
-      .then(() => setMessage(`Article #${card.dataset.id}: generated new article copy.`))
-      .catch((err) => setMessage(`Generate article failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Article #${card.dataset.id}: generated new article copy.`);
+      })
+      .catch((err) => setMessage(`Generate article failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+        clearLoadingOverlays(card, ['desc-gen', 'content-gen']);
+      });
     return;
   }
 
   if (button.classList.contains('btn-generate-headlines')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-headline-gen');
+    setMessage(`Generating headlines with ${modelLabel}...`);
+    button.disabled = true;
     generateHeadlinesForCard(card)
-      .then(() => setMessage(`Article #${card.dataset.id}: generated headline options.`))
-      .catch((err) => setMessage(`Generate headlines failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Article #${card.dataset.id}: generated headline options.`);
+      })
+      .catch((err) => setMessage(`Generate headlines failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+      });
     return;
   }
 
   if (button.classList.contains('btn-generate-description')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-description');
+    setMessage(`Generating description with ${modelLabel}...`);
+    button.disabled = true;
+    showLoadingOverlay(card, 'desc-gen', '.field-description', 'Generating description...');
     generateDescriptionForCard(card)
-      .then(() => setMessage(`Article #${card.dataset.id}: generated description.`))
-      .catch((err) => setMessage(`Generate description failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Article #${card.dataset.id}: generated description.`);
+      })
+      .catch((err) => setMessage(`Generate description failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+        clearLoadingOverlays(card, ['desc-gen']);
+      });
     return;
   }
 
   if (button.classList.contains('btn-rewrite-headline')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-rewrite-headline');
+    setMessage(`Rewriting headline with ${modelLabel}...`);
+    button.disabled = true;
     rewriteCardContent(card, 'headline')
-      .then(() => setMessage(`Article #${card.dataset.id}: headline rewritten.`))
-      .catch((err) => setMessage(`Rewrite headline failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Article #${card.dataset.id}: headline rewritten.`);
+      })
+      .catch((err) => setMessage(`Rewrite headline failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+      });
     return;
   }
 
   if (button.classList.contains('btn-rewrite-description')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-rewrite-description');
+    setMessage(`Rewriting description with ${modelLabel}...`);
+    button.disabled = true;
+    showLoadingOverlay(card, 'desc-gen', '.field-description', 'Rewriting description...');
     rewriteCardContent(card, 'description')
-      .then(() => setMessage(`Article #${card.dataset.id}: description rewritten.`))
-      .catch((err) => setMessage(`Rewrite description failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Article #${card.dataset.id}: description rewritten.`);
+      })
+      .catch((err) => setMessage(`Rewrite description failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+        clearLoadingOverlays(card, ['desc-gen']);
+      });
     return;
   }
 
   if (button.classList.contains('btn-rewrite-article')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-rewrite-article');
+    setMessage(`Rewriting article with ${modelLabel}...`);
+    button.disabled = true;
+    showLoadingOverlay(card, 'content-gen', '.field-content-editor', 'Rewriting article...');
     rewriteCardContent(card, 'article')
-      .then(() => setMessage(`Article #${card.dataset.id}: article rewritten.`))
-      .catch((err) => setMessage(`Rewrite article failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Article #${card.dataset.id}: article rewritten.`);
+      })
+      .catch((err) => setMessage(`Rewrite article failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+        clearLoadingOverlays(card, ['content-gen']);
+      });
     return;
   }
 

@@ -47,6 +47,17 @@ const rejectReasonInput = document.getElementById('reject-reason');
 const rejectNotesInput = document.getElementById('reject-notes');
 const rejectConfirmBtn = document.getElementById('reject-confirm-btn');
 const rejectCancelBtn = document.getElementById('reject-cancel-btn');
+const leadsSectionInput = document.getElementById('leads-section');
+const loadLeadsBtn = document.getElementById('load-leads-btn');
+const leadsPrevBtn = document.getElementById('leads-prev-btn');
+const leadsNextBtn = document.getElementById('leads-next-btn');
+const leadsPageLabel = document.getElementById('leads-page-label');
+const leadsMessageEl = document.getElementById('leads-message');
+const leadsGridEl = document.getElementById('leads-grid');
+
+const LEADS_PAGE_SIZE = 18;
+let leadsPage = 1;
+let leadsTotalPages = 1;
 
 const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
 const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
@@ -138,6 +149,8 @@ async function unlockAdminUi() {
     setMessage('Admin unlocked.');
     loadUsageDashboard().catch((err) => setMessage(`Usage load failed: ${err.message}`));
     loadManualUsageSummary().catch(() => {});
+    loadLeads(1).catch(() => {});
+    if (getToken()) loadDrafts().catch(() => {});
   } catch (err) {
     setMessage(`Unlock failed: ${err.message}`);
   }
@@ -320,7 +333,11 @@ function toggleAiPanel(card, panelClass, anchorButton) {
   targetPanel.dataset.anchorClass = panelClass;
   const rootRect = root.getBoundingClientRect();
   const buttonRect = anchorButton.getBoundingClientRect();
-  const panelWidth = Math.min(360, Math.max(240, Math.round(root.clientWidth * 0.42)));
+  const isGeneratePanel = panelClass.endsWith('-gen');
+  const panelWidth = isGeneratePanel
+    ? Math.max(140, Math.round(buttonRect.width))
+    : Math.min(360, Math.max(240, Math.round(root.clientWidth * 0.42)));
+  targetPanel.classList.toggle('ai-panel-compact', isGeneratePanel);
   targetPanel.style.width = `${panelWidth}px`;
   const leftRaw = buttonRect.left - rootRect.left;
   const left = Math.max(8, Math.min(leftRaw, root.clientWidth - panelWidth - 8));
@@ -331,6 +348,43 @@ function toggleAiPanel(card, panelClass, anchorButton) {
 
 function closeAllAiPanels() {
   document.querySelectorAll('.ai-panel').forEach((panel) => panel.setAttribute('hidden', ''));
+}
+
+function getSelectedModelLabel(card, selectorClass) {
+  const select = card?.querySelector(selectorClass);
+  const label = select?.selectedOptions?.[0]?.textContent || '';
+  return String(label).trim() || 'selected model';
+}
+
+function showLoadingOverlay(card, key, targetSelector, label) {
+  const root = card?.querySelector('.draft-form') || card;
+  const target = card?.querySelector(targetSelector);
+  if (!root || !target) return;
+  hideLoadingOverlay(card, key);
+  const rootRect = root.getBoundingClientRect();
+  const rect = target.getBoundingClientRect();
+  const overlay = document.createElement('div');
+  overlay.className = 'field-loading-overlay';
+  overlay.dataset.loadingKey = key;
+  overlay.style.left = `${Math.max(0, rect.left - rootRect.left)}px`;
+  overlay.style.top = `${Math.max(0, rect.top - rootRect.top)}px`;
+  overlay.style.width = `${Math.max(40, rect.width)}px`;
+  overlay.style.height = `${Math.max(40, rect.height)}px`;
+  overlay.innerHTML = `
+    <div class="field-loading-overlay-inner">
+      <span class="field-loading-spinner" aria-hidden="true"></span>
+      <span>${escapeHtml(label || 'Generating...')}</span>
+    </div>
+  `;
+  root.appendChild(overlay);
+}
+
+function hideLoadingOverlay(card, key) {
+  card?.querySelectorAll(`.field-loading-overlay[data-loading-key="${key}"]`).forEach((el) => el.remove());
+}
+
+function clearLoadingOverlays(card, keys) {
+  (keys || []).forEach((key) => hideLoadingOverlay(card, key));
 }
 
 function normalizeEditorHtml(value) {
@@ -701,6 +755,62 @@ async function handleCardImageUpload(card, file) {
   }
 }
 
+function setLeadsMessage(text) {
+  if (!leadsMessageEl) return;
+  leadsMessageEl.textContent = text || '';
+}
+
+function updateLeadsPagination() {
+  if (leadsPrevBtn) leadsPrevBtn.disabled = leadsPage <= 1;
+  if (leadsNextBtn) leadsNextBtn.disabled = leadsPage >= leadsTotalPages;
+  if (leadsPageLabel) leadsPageLabel.textContent = 'Page ' + leadsPage + ' of ' + leadsTotalPages;
+}
+
+function renderLeads(items) {
+  if (!leadsGridEl) return;
+  if (!Array.isArray(items) || items.length === 0) {
+    leadsGridEl.innerHTML = '<p class="draft-meta">No headlines found for this section right now.</p>';
+    return;
+  }
+
+  leadsGridEl.innerHTML = items.map(function (item) {
+    return '<article class="lead-item">'
+      + '<a href="' + escapeHtml(item.link || '#') + '" target="_blank" rel="noopener noreferrer">'
+      + escapeHtml(item.title || '')
+      + '</a>'
+      + '<div class="lead-meta">'
+      + '<span>' + escapeHtml(item.source || 'Unknown source') + '</span>'
+      + '<span>' + escapeHtml(formatDate(item.publishedAt || '')) + ' - '
+      + '<a href="#" class="lead-copy-link" data-headline="' + escapeHtml(item.title || '') + '">COPY</a></span>'
+      + '</div>'
+      + '</article>';
+  }).join('');
+}
+
+async function loadLeads(page) {
+  if (!leadsSectionInput || !leadsGridEl || !adminUiUnlocked) return;
+  try {
+    setLeadsMessage('Loading headlines...');
+    var section = encodeURIComponent(String(leadsSectionInput.value || 'local').trim());
+    var safePage = Math.max(1, Number(page || 1));
+    var url = '/api/admin-leads-feed?section=' + section + '&page=' + safePage + '&perPage=' + LEADS_PAGE_SIZE;
+    var data = await apiRequest(url);
+
+    leadsPage = Number(data.page || 1);
+    leadsTotalPages = Math.max(1, Number(data.totalPages || 1));
+
+    renderLeads(data.items || []);
+    updateLeadsPagination();
+    setLeadsMessage(Number(data.totalItems || 0).toLocaleString() + ' headline(s) found.');
+  } catch (err) {
+    renderLeads([]);
+    leadsPage = 1;
+    leadsTotalPages = 1;
+    updateLeadsPagination();
+    setLeadsMessage('Failed to load headlines: ' + err.message);
+  }
+}
+
 async function loadDrafts() {
   try {
     setMessage('Loading drafts...');
@@ -1062,39 +1172,102 @@ function onDraftListClick(event) {
   }
 
   if (button.classList.contains('btn-generate-article')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-article');
+    setMessage(`Generating article with ${modelLabel}...`);
+    button.disabled = true;
+    showLoadingOverlay(card, 'desc-gen', '.field-description', 'Generating description...');
+    showLoadingOverlay(card, 'content-gen', '.field-content-editor', 'Generating article...');
     generateArticleForDraft(card)
-      .then(() => setMessage(`Draft #${card.dataset.id} article generated.`))
-      .catch((err) => setMessage(`Generate article failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Draft #${card.dataset.id} article generated.`);
+      })
+      .catch((err) => setMessage(`Generate article failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+        clearLoadingOverlays(card, ['desc-gen', 'content-gen']);
+      });
   }
 
   if (button.classList.contains('btn-generate-headlines')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-headline-gen');
+    setMessage(`Generating headlines with ${modelLabel}...`);
+    button.disabled = true;
     generateHeadlinesForDraft(card)
-      .then(() => setMessage(`Draft #${card.dataset.id} headline options generated.`))
-      .catch((err) => setMessage(`Generate headlines failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Draft #${card.dataset.id} headline options generated.`);
+      })
+      .catch((err) => setMessage(`Generate headlines failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+      });
   }
 
   if (button.classList.contains('btn-generate-description')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-description');
+    setMessage(`Generating description with ${modelLabel}...`);
+    button.disabled = true;
+    showLoadingOverlay(card, 'desc-gen', '.field-description', 'Generating description...');
     generateDescriptionForDraft(card)
-      .then(() => setMessage(`Draft #${card.dataset.id} description generated.`))
-      .catch((err) => setMessage(`Generate description failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Draft #${card.dataset.id} description generated.`);
+      })
+      .catch((err) => setMessage(`Generate description failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+        clearLoadingOverlays(card, ['desc-gen']);
+      });
   }
 
   if (button.classList.contains('btn-rewrite-headline')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-rewrite-headline');
+    setMessage(`Rewriting headline with ${modelLabel}...`);
+    button.disabled = true;
     rewriteDraftContent(card, 'headline')
-      .then(() => setMessage(`Draft #${card.dataset.id} headline rewritten.`))
-      .catch((err) => setMessage(`Rewrite headline failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Draft #${card.dataset.id} headline rewritten.`);
+      })
+      .catch((err) => setMessage(`Rewrite headline failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+      });
   }
 
   if (button.classList.contains('btn-rewrite-description')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-rewrite-description');
+    setMessage(`Rewriting description with ${modelLabel}...`);
+    button.disabled = true;
+    showLoadingOverlay(card, 'desc-gen', '.field-description', 'Rewriting description...');
     rewriteDraftContent(card, 'description')
-      .then(() => setMessage(`Draft #${card.dataset.id} description rewritten.`))
-      .catch((err) => setMessage(`Rewrite description failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Draft #${card.dataset.id} description rewritten.`);
+      })
+      .catch((err) => setMessage(`Rewrite description failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+        clearLoadingOverlays(card, ['desc-gen']);
+      });
   }
 
   if (button.classList.contains('btn-rewrite-article')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-rewrite-article');
+    setMessage(`Rewriting article with ${modelLabel}...`);
+    button.disabled = true;
+    showLoadingOverlay(card, 'content-gen', '.field-content-editor', 'Rewriting article...');
     rewriteDraftContent(card, 'article')
-      .then(() => setMessage(`Draft #${card.dataset.id} article rewritten.`))
-      .catch((err) => setMessage(`Rewrite article failed: ${err.message}`));
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Draft #${card.dataset.id} article rewritten.`);
+      })
+      .catch((err) => setMessage(`Rewrite article failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+        clearLoadingOverlays(card, ['content-gen']);
+      });
   }
 
   if (button.classList.contains('btn-delete-draft')) {
@@ -1122,6 +1295,30 @@ function onDraftListClick(event) {
     const titleField = card.querySelector('.field-title');
     const headline = String(button.dataset.headline || '').trim();
     if (titleField && headline) titleField.value = headline;
+  }
+}
+
+async function onLeadsGridClick(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+  const copyLink = target.closest('.lead-copy-link');
+  if (!copyLink) return;
+  event.preventDefault();
+
+  const headline = String(copyLink.getAttribute('data-headline') || '').trim();
+  if (!headline) return;
+  const original = copyLink.textContent || 'COPY';
+  try {
+    await navigator.clipboard.writeText(headline);
+    copyLink.textContent = 'COPIED';
+    setTimeout(() => {
+      copyLink.textContent = original;
+    }, 1200);
+  } catch (_) {
+    copyLink.textContent = 'FAILED';
+    setTimeout(() => {
+      copyLink.textContent = original;
+    }, 1200);
   }
 }
 
@@ -1258,6 +1455,11 @@ if (saveGenTokenBtn) saveGenTokenBtn.addEventListener('click', saveToken);
 loadDraftsBtn.addEventListener('click', loadDrafts);
 generateBtn.addEventListener('click', generateDrafts);
 createDraftBtn.addEventListener('click', createManualDraft);
+if (loadLeadsBtn) loadLeadsBtn.addEventListener('click', () => loadLeads(1));
+if (leadsSectionInput) leadsSectionInput.addEventListener('change', () => loadLeads(1));
+if (leadsPrevBtn) leadsPrevBtn.addEventListener('click', () => loadLeads(Math.max(1, leadsPage - 1)));
+if (leadsNextBtn) leadsNextBtn.addEventListener('click', () => loadLeads(Math.min(leadsTotalPages, leadsPage + 1)));
+if (leadsGridEl) leadsGridEl.addEventListener('click', onLeadsGridClick);
 draftListEl.addEventListener('click', onDraftListClick);
 draftListEl.addEventListener('change', onDraftListChange);
 draftListEl.addEventListener('dragover', onDraftListDragOver);
@@ -1281,4 +1483,6 @@ setLockState(sessionStorage.getItem('de_admin_unlocked') === '1');
 if (adminUiUnlocked) {
   loadUsageDashboard().catch((err) => setMessage(`Usage load failed: ${err.message}`));
   loadManualUsageSummary().catch(() => {});
+  loadLeads(1).catch(() => {});
+  if (getToken()) loadDrafts().catch(() => {});
 }
