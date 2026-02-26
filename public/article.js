@@ -122,11 +122,11 @@ async function loadArticle() {
   
       if (article.imageCaption || imageCredit) {
         imageHTML += `<div class="image-meta">`;
-        if (imageCredit) {
-          imageHTML += `<span class="image-credit">${escapeHtml(imageCredit)}</span>`;
-        }
         if (article.imageCaption) {
           imageHTML += `<span class="image-caption">${escapeHtml(article.imageCaption)}</span>`;
+        }
+        if (imageCredit) {
+          imageHTML += `<span class="image-credit">${escapeHtml(imageCredit)}</span>`;
         }
         imageHTML += `</div>`;
       }
