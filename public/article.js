@@ -4,6 +4,15 @@ const slug = params.get('slug');
 
 console.log('Article.js loaded - slug:', slug);
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function getArticleSlug(article) {
   return article?.slug || article?.url || '';
 }
@@ -108,15 +117,16 @@ async function loadArticle() {
     // Render image with caption/credit
     const imageContainer = document.getElementById('article-image-container');
     if (imageContainer && article.image) {
-      let imageHTML = `<img src="${article.image}" alt="${article.title}" loading="lazy" />`;
+      const imageCredit = (article.imageCredit || article.sourceTitle || '').trim();
+      let imageHTML = `<img src="${escapeHtml(article.image)}" alt="${escapeHtml(article.title)}" loading="lazy" />`;
   
-      if (article.imageCaption || article.imageCredit) {
+      if (article.imageCaption || imageCredit) {
         imageHTML += `<div class="image-meta">`;
-        if (article.imageCredit) {
-          imageHTML += `<span class="image-credit">${article.imageCredit}</span>`;
+        if (imageCredit) {
+          imageHTML += `<span class="image-credit">${escapeHtml(imageCredit)}</span>`;
         }
         if (article.imageCaption) {
-          imageHTML += `<span class="image-caption">${article.imageCaption}</span>`;
+          imageHTML += `<span class="image-caption">${escapeHtml(article.imageCaption)}</span>`;
         }
         imageHTML += `</div>`;
       }
