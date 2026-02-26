@@ -20,12 +20,63 @@ function stripCodeFences(text) {
     .trim();
 }
 
+function extractJsonCandidate(text) {
+  const source = String(text || '');
+  let start = -1;
+  let openChar = '';
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === '{' || ch === '[') {
+      start = i;
+      openChar = ch;
+      break;
+    }
+  }
+  if (start < 0) return '';
+  const closeChar = openChar === '{' ? '}' : ']';
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < source.length; i += 1) {
+    const ch = source[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === openChar) {
+      depth += 1;
+      continue;
+    }
+    if (ch === closeChar) {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, i + 1).trim();
+    }
+  }
+  return '';
+}
+
 function safeJsonParse(text) {
   const cleaned = stripCodeFences(text);
   try {
     return JSON.parse(cleaned);
   } catch (_) {
-    return null;
+    const candidate = extractJsonCandidate(cleaned);
+    if (!candidate) return null;
+    try {
+      return JSON.parse(candidate);
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -143,7 +194,10 @@ async function callGeminiJson({ prompt, model, maxOutputTokens = 2400 }) {
   const data = await response.json();
   const text = data?.candidates?.[0]?.content?.parts?.map((part) => part?.text || '').join('') || '';
   const parsed = safeJsonParse(text);
-  if (!parsed) throw new Error('Model did not return valid JSON');
+  if (!parsed) {
+    const preview = String(text || '').replace(/\s+/g, ' ').slice(0, 220);
+    throw new Error(`Model did not return valid JSON${preview ? `: ${preview}` : ''}`);
+  }
   return parsed;
 }
 

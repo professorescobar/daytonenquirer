@@ -191,7 +191,6 @@ function toggleAiPanel(card, panelClass, anchorButton) {
   if (!opening) return;
   targetPanel.removeAttribute('hidden');
   targetPanel.dataset.anchorClass = panelClass;
-  const rootRect = root.getBoundingClientRect();
   const buttonRect = anchorButton.getBoundingClientRect();
   const isGeneratePanel = panelClass.endsWith('-gen');
   const panelWidth = isGeneratePanel
@@ -199,9 +198,12 @@ function toggleAiPanel(card, panelClass, anchorButton) {
     : Math.min(360, Math.max(240, Math.round(root.clientWidth * 0.42)));
   targetPanel.classList.toggle('ai-panel-compact', isGeneratePanel);
   targetPanel.style.width = `${panelWidth}px`;
-  const leftRaw = buttonRect.left - rootRect.left;
-  const left = Math.max(8, Math.min(leftRaw, root.clientWidth - panelWidth - 8));
-  const top = Math.max(8, buttonRect.bottom - rootRect.top + 6);
+  const parent = targetPanel.offsetParent || root;
+  const parentRect = parent.getBoundingClientRect();
+  const parentWidth = Math.max(120, parent.clientWidth || root.clientWidth || panelWidth);
+  const leftRaw = buttonRect.left - parentRect.left;
+  const left = Math.max(8, Math.min(leftRaw, parentWidth - panelWidth - 8));
+  const top = Math.max(8, buttonRect.bottom - parentRect.top + 6);
   targetPanel.style.left = `${left}px`;
   targetPanel.style.top = `${top}px`;
 }
