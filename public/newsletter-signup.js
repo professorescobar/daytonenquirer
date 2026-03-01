@@ -93,6 +93,15 @@ function bindArticleInlineCtas() {
   });
 }
 
+function collapseArticleInlineCta(cta) {
+  if (!cta) return;
+  cta.classList.remove('is-inline-expanded');
+  const toggle = cta.querySelector('[data-newsletter-inline-toggle]');
+  if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  const form = cta.querySelector('.article-newsletter-form.newsletter-signup-form');
+  if (form) setSignupMessage(form, '', '');
+}
+
 async function getTurnstileSiteKey() {
   if (!turnstileSiteKeyPromise) {
     turnstileSiteKeyPromise = fetch('/api/newsletter-signup-config')
@@ -269,6 +278,7 @@ async function submitNewsletterForm(form) {
 
 function bindNewsletterForms() {
   const forms = Array.from(document.querySelectorAll('.newsletter-signup-form'));
+  const articleInlineCtas = Array.from(document.querySelectorAll('[data-newsletter-cta]'));
   getTurnstileSiteKey().catch(() => '');
   bindArticleInlineCtas();
   syncMobileSignupState(forms);
@@ -295,6 +305,12 @@ function bindNewsletterForms() {
       if (!strip.contains(event.target) && strip.classList.contains('is-mobile-expanded')) {
         setMobileExpanded(form, false);
       }
+    });
+
+    articleInlineCtas.forEach((cta) => {
+      if (!cta.classList.contains('is-inline-expanded')) return;
+      if (cta.contains(event.target)) return;
+      collapseArticleInlineCta(cta);
     });
   });
 
