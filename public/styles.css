@@ -1023,6 +1023,7 @@ nav a + a::before {
 
 .article-newsletter-action {
   width: min(100%, 26rem);
+  max-width: 100%;
   min-height: 2.95rem;
   position: relative;
 }
@@ -1101,6 +1102,21 @@ nav a + a::before {
   margin: 0.15rem 0 0;
   min-height: 1.05rem;
   font-size: 0.8rem;
+}
+
+@media (min-width: 901px) {
+  .article-newsletter-action {
+    width: 13.75rem;
+    transition: width 180ms ease;
+  }
+
+  .article-newsletter-cta:not(.is-inline-expanded) p {
+    white-space: nowrap;
+  }
+
+  .article-newsletter-cta.is-inline-expanded .article-newsletter-action {
+    width: min(100%, 31rem);
+  }
 }
 
 .bottom-articles-title {
