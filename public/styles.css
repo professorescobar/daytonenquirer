@@ -1605,6 +1605,11 @@ nav a + a::before {
 
 /* Mobile */
 @media (max-width: 768px) {
+  .newsletter-strip-form input[type="email"],
+  .article-newsletter-form input[type="email"] {
+    font-size: 16px;
+  }
+
   .article-image-container .image-meta {
     margin-top: -0.12rem !important;
     padding-top: 0 !important;
