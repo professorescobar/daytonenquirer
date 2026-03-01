@@ -1605,6 +1605,10 @@ nav a + a::before {
 
 /* Mobile */
 @media (max-width: 768px) {
+  .news-header {
+    padding-top: 0.4rem;
+  }
+
   .newsletter-strip-form input[type="email"],
   .article-newsletter-form input[type="email"] {
     font-size: 16px;
