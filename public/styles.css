@@ -1503,6 +1503,32 @@ nav a + a::before {
 
 /* Mobile */
 @media (max-width: 768px) {
+  .image-meta {
+    margin-top: -0.02rem;
+    padding-top: 0.04rem;
+    padding-bottom: 0.06rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.5rem;
+    row-gap: 0.08rem;
+    align-items: end;
+  }
+
+  .image-credit {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .image-caption {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0;
+    text-align: left;
+  }
+
   .logo h1 {
     font-size: 2rem;
   }
