@@ -1021,6 +1021,94 @@ nav a + a::before {
   font-size: 1rem;
 }
 
+.article-newsletter-action {
+  width: min(100%, 26rem);
+  min-height: 2.95rem;
+  position: relative;
+}
+
+.article-newsletter-toggle,
+.article-newsletter-form {
+  position: absolute;
+  inset: 0;
+}
+
+.article-newsletter-toggle {
+  width: 100%;
+  border: 1px solid #000;
+  cursor: pointer;
+}
+
+.article-newsletter-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.article-newsletter-cta.is-inline-expanded .article-newsletter-form {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.article-newsletter-cta.is-inline-expanded .article-newsletter-toggle {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.article-newsletter-form input[type="email"] {
+  width: 100%;
+  height: 2.95rem;
+  border: 1px solid #d4d7dd;
+  border-radius: 4px;
+  padding: 0 0.75rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: #111318;
+  background: #fff;
+}
+
+.article-newsletter-form input[type="email"]:focus,
+.article-newsletter-form input[type="email"]:focus-visible {
+  outline: 2px solid rgba(17, 24, 39, 0.3);
+  outline-offset: 0;
+  border-color: #111318;
+}
+
+.article-newsletter-form button[type="submit"] {
+  height: 2.95rem;
+  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 0 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  background: #000;
+  color: #fff;
+  cursor: pointer;
+}
+
+.article-newsletter-form button[type="submit"]:hover {
+  background: #222;
+}
+
+.article-newsletter-form .newsletter-signup-message {
+  grid-column: 1 / -1;
+  margin: 0.15rem 0 0;
+  min-height: 1.05rem;
+  font-size: 0.8rem;
+}
+
+@media (min-width: 769px) {
+  .article-newsletter-cta {
+    display: none;
+  }
+}
+
 .bottom-articles-title {
   font-size: 1.2rem;
   font-weight: bold;
@@ -1499,34 +1587,39 @@ nav a + a::before {
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .article-newsletter-action {
+    width: 100%;
+  }
 }
 
 /* Mobile */
 @media (max-width: 768px) {
-  .image-meta {
-    margin-top: -0.02rem;
-    padding-top: 0.04rem;
-    padding-bottom: 0.06rem;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 0.5rem;
-    row-gap: 0.08rem;
-    align-items: end;
+  .article-image-container .image-meta {
+    margin-top: -0.12rem !important;
+    padding-top: 0 !important;
+    padding-bottom: 0.04rem !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    column-gap: 0.5rem !important;
+    row-gap: 0.02rem !important;
+    align-items: end !important;
   }
 
-  .image-credit {
-    grid-column: 2;
-    grid-row: 1;
-    margin: 0;
-    text-align: right;
-    white-space: nowrap;
+  .article-image-container .image-credit {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    margin: 0 !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+    transform: translateY(-0.16rem);
   }
 
-  .image-caption {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    margin: 0;
-    text-align: left;
+  .article-image-container .image-caption {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    margin: -0.14rem 0 0 !important;
+    text-align: left !important;
   }
 
   .logo h1 {
@@ -2012,6 +2105,28 @@ html[data-theme="dark"] .pagination-btn:hover:not(:disabled),
 html[data-theme="dark"] .load-more-btn:hover,
 html[data-theme="dark"] .read-full-btn:hover,
 html[data-theme="dark"] .article-category a:hover {
+  background: #c7d0de;
+}
+
+html[data-theme="dark"] .article-newsletter-form input[type="email"] {
+  background: #0f141d;
+  color: #eef2f8;
+  border-color: #394352;
+}
+
+html[data-theme="dark"] .article-newsletter-form input[type="email"]:focus,
+html[data-theme="dark"] .article-newsletter-form input[type="email"]:focus-visible {
+  border-color: #9ba6b8;
+  outline-color: rgba(210, 220, 235, 0.35);
+}
+
+html[data-theme="dark"] .article-newsletter-form button[type="submit"] {
+  background: #eef2f8;
+  color: #111318;
+  border-color: #eef2f8;
+}
+
+html[data-theme="dark"] .article-newsletter-form button[type="submit"]:hover {
   background: #c7d0de;
 }
 

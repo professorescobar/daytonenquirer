@@ -70,6 +70,11 @@ async function loadArticle() {
 
     // Update page title
     document.title = `${article.title} | The Dayton Enquirer`;
+
+    const inlineNewsletterForm = document.querySelector('.article-newsletter-form.newsletter-signup-form');
+    if (inlineNewsletterForm && article.section) {
+      inlineNewsletterForm.dataset.section = String(article.section);
+    }
     
     // Render category badge
     const categoryEl = document.getElementById('article-category');
@@ -136,8 +141,15 @@ async function loadArticle() {
     // Render description/content
     const descriptionEl = document.getElementById('article-description');
     if (descriptionEl) {
-      const content = article.content || article.description || '';
-      descriptionEl.innerHTML = `<p>${content.replace(/\n\n/g, '</p><p>')}</p>`;
+      const content = String(article.content || article.description || '').trim();
+      const hasBlockHtml = /<(p|h2|h3|ul|ol|li|blockquote|div)\b/i.test(content);
+      if (!content) {
+        descriptionEl.innerHTML = '';
+      } else if (hasBlockHtml) {
+        descriptionEl.innerHTML = content;
+      } else {
+        descriptionEl.innerHTML = `<p>${content.replace(/\n\n/g, '</p><p>')}</p>`;
+      }
     }
 
     // Hide "Read Full Article" button (all articles are full custom articles now)

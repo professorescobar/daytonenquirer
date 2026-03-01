@@ -76,6 +76,23 @@ function syncMobileSignupState(forms) {
   });
 }
 
+function bindArticleInlineCtas() {
+  const ctas = Array.from(document.querySelectorAll('[data-newsletter-cta]'));
+  ctas.forEach((cta) => {
+    const toggle = cta.querySelector('[data-newsletter-inline-toggle]');
+    const form = cta.querySelector('.article-newsletter-form.newsletter-signup-form');
+    if (!toggle || !form) return;
+
+    toggle.addEventListener('click', () => {
+      cta.classList.add('is-inline-expanded');
+      toggle.setAttribute('aria-expanded', 'true');
+      const emailInput = form.querySelector('input[name="email"]');
+      setTimeout(() => emailInput?.focus(), 0);
+      ensureTurnstileWidget(form).catch(() => null);
+    });
+  });
+}
+
 async function getTurnstileSiteKey() {
   if (!turnstileSiteKeyPromise) {
     turnstileSiteKeyPromise = fetch('/api/newsletter-signup-config')
@@ -253,6 +270,7 @@ async function submitNewsletterForm(form) {
 function bindNewsletterForms() {
   const forms = Array.from(document.querySelectorAll('.newsletter-signup-form'));
   getTurnstileSiteKey().catch(() => '');
+  bindArticleInlineCtas();
   syncMobileSignupState(forms);
 
   forms.forEach((form) => {

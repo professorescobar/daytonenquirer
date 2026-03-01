@@ -94,7 +94,7 @@
   <section id="newsletter-strip" class="newsletter-strip">
     <div class="container newsletter-strip-inner">
       <div class="newsletter-strip-copy">
-        <strong class="newsletter-strip-heading"><span class="newsletter-strip-artwork" aria-hidden="true"><svg viewBox="0 0 272 30" preserveAspectRatio="none" role="img" focusable="false"><g class="ns-envelope"><rect x="4" y="8" width="24" height="14" rx="1.5"></rect><path d="M4 9.5 16 17 28 9.5"></path></g><path class="ns-arrow" d="M232 15h24l-7-7 2.8-2.8L264 15l-12.2 9.8-2.8-2.8 7-7h-24z"></path><text class="ns-label" x="8" y="21" textLength="220" lengthAdjust="spacingAndGlyphs">WEEKLY MAILING LIST</text></svg></span><span class="newsletter-strip-artwork newsletter-strip-artwork-desktop" aria-hidden="true"><svg viewBox="0 0 690 32" preserveAspectRatio="none" role="img" focusable="false"><g class="ns-envelope"><rect x="6" y="9" width="28" height="14" rx="1.5"></rect><path d="M6 10.5 20 18 34 10.5"></path></g><text class="ns-label-desktop" x="10" y="16" textLength="598" lengthAdjust="spacingAndGlyphs">JOIN OUR WEEKLY MAILING LIST</text></svg></span><span class="newsletter-desktop-arrow" aria-hidden="true"><svg viewBox="0 0 40 24" role="img" focusable="false"><path d="M4 12h20l-6-6 2.2-2.2L32 12l-11.8 8.2-2.2-2.2 6-6H4z"></path></svg></span><span class="newsletter-strip-title-text">Weekly Mailing List</span></strong>
+        <strong class="newsletter-strip-heading"><span class="newsletter-strip-artwork" aria-hidden="true"><svg viewBox="0 0 272 30" preserveAspectRatio="none" role="img" focusable="false"><g class="ns-envelope"><rect x="4" y="8" width="24" height="14" rx="1.5"></rect><path d="M4 9.5 16 17 28 9.5"></path></g><path class="ns-arrow" d="M236 15h20l-6-6 2.2-2.2L264 15l-11.8 8.2-2.2-2.2 6-6h-20z"></path><text class="ns-label" x="8" y="21" textLength="220" lengthAdjust="spacingAndGlyphs">WEEKLY MAILING LIST</text></svg></span><span class="newsletter-strip-artwork newsletter-strip-artwork-desktop" aria-hidden="true"><svg viewBox="0 0 690 32" preserveAspectRatio="none" role="img" focusable="false"><g class="ns-envelope"><rect x="6" y="9" width="28" height="14" rx="1.5"></rect><path d="M6 10.5 20 18 34 10.5"></path></g><text class="ns-label-desktop" x="10" y="16" textLength="598" lengthAdjust="spacingAndGlyphs">JOIN OUR WEEKLY MAILING LIST</text></svg></span><span class="newsletter-desktop-arrow" aria-hidden="true"><svg viewBox="0 0 40 24" role="img" focusable="false"><path d="M4 12h20l-6-6 2.2-2.2L32 12l-11.8 8.2-2.2-2.2 6-6H4z"></path></svg></span><span class="newsletter-strip-title-text">Weekly Mailing List</span></strong>
         <span>Get Dayton headlines and major updates in one weekly brief.</span>
       </div>
       <button type="button" class="newsletter-mobile-toggle" data-newsletter-toggle aria-expanded="false">Sign Up</button>
@@ -146,9 +146,24 @@
 
     </article>
 
-    <section class="article-newsletter-cta">
+    <section class="article-newsletter-cta" data-newsletter-cta>
       <p>Get updates on more stories like this from our weekly mailing list.</p>
-      <a href="/index.html#newsletter-strip" class="see-more-btn">Get Weekly Updates</a>
+      <div class="article-newsletter-action">
+        <button
+          type="button"
+          class="see-more-btn article-newsletter-toggle"
+          data-newsletter-inline-toggle
+          aria-expanded="false"
+        >
+          Get Weekly Updates
+        </button>
+        <form class="newsletter-signup-form article-newsletter-form" data-source="article_bottom_cta">
+          <input type="email" name="email" placeholder="Enter your email here" aria-label="Email address" required />
+          <input type="text" name="company" tabindex="-1" autocomplete="off" hidden />
+          <button type="submit">Sign Up</button>
+          <p class="newsletter-signup-message" data-newsletter-message></p>
+        </form>
+      </div>
     </section>
 
     <!-- ARTICLE NAVIGATION -->
