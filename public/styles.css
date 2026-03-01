@@ -1103,12 +1103,6 @@ nav a + a::before {
   font-size: 0.8rem;
 }
 
-@media (min-width: 769px) {
-  .article-newsletter-cta {
-    display: none;
-  }
-}
-
 .bottom-articles-title {
   font-size: 1.2rem;
   font-weight: bold;
