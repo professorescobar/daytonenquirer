@@ -1659,7 +1659,7 @@ nav a + a::before {
 /* Mobile */
 @media (max-width: 768px) {
   :root {
-    --mobile-nav-equal-gap: 0.45rem;
+    --mobile-nav-equal-gap: 0.8rem;
   }
 
   .article-share-row-bottom,
