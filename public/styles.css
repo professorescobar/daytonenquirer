@@ -1000,13 +1000,13 @@ nav a + a::before {
    BOTTOM ARTICLES SECTION
 ================================ */
 .bottom-articles-section {
-  margin: 2rem 0;
-  padding-top: 1.5rem;
+  margin: 0.2rem 0 2rem;
+  padding-top: 0.2rem;
   border-top: 2px solid #000;
 }
 
 .article-newsletter-cta {
-  margin: 1.5rem 0 0.75rem 0;
+  margin: 0.2rem 0 0;
   border: 1px solid #ddd;
   background: #fff;
   padding: 1rem;
@@ -1133,6 +1133,14 @@ nav a + a::before {
 
 .bottom-articles-title a:hover {
   text-decoration: underline;
+}
+
+.article-page #related-section.bottom-articles-section {
+  margin-bottom: 0;
+}
+
+.article-page + .news-footer {
+  margin-top: 1.25rem;
 }
 
 .bottom-articles-grid {
@@ -1333,6 +1341,7 @@ nav a + a::before {
 .article-page {
   max-width: 800px;
   padding: 2rem 1rem;
+  --article-bottom-gap: 0.75rem;
 }
 
 .article-content {
@@ -1379,9 +1388,49 @@ nav a + a::before {
   gap: 1rem;
   color: #666;
   font-size: 0.9rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+  margin-bottom: var(--article-bottom-gap);
+  padding-bottom: 0.2rem;
   border-bottom: 1px solid #ddd;
+}
+
+.article-share-btn {
+  border: 1px solid #c8ccd4;
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 0.2rem 0.62rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.article-share-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: var(--article-bottom-gap);
+}
+
+.article-share-row-top {
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: auto;
+}
+
+.article-share-btn:hover {
+  background: #f1f3f7;
+}
+
+.article-share-btn:active {
+  background: #e8ebf1;
+}
+
+.article-share-btn:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 .article-source {
@@ -1441,7 +1490,7 @@ nav a + a::before {
   font-size: 1.1rem;
   line-height: 1.7;
   color: #333;
-  margin-bottom: 1.5rem;
+  margin-bottom: 4rem;
 }
 
 .article-description p {
@@ -1479,8 +1528,8 @@ nav a + a::before {
 .article-navigation {
   display: flex;
   justify-content: space-between;
-  margin: 2rem 0;
-  padding: 1rem 0;
+  margin: 0.2rem 0 0;
+  padding: 0.5rem 0;
   border-top: 1px solid #ddd;
   border-bottom: 1px solid #ddd;
 }
@@ -2087,6 +2136,19 @@ html[data-theme="dark"] .bottom-article-card .bottom-article-source,
 html[data-theme="dark"] .page-info,
 html[data-theme="dark"] .article-description {
   color: #b6beca;
+}
+
+html[data-theme="dark"] .article-share-btn {
+  border-color: #4a5260;
+  color: #e8edf7;
+}
+
+html[data-theme="dark"] .article-share-btn:hover {
+  background: #252c37;
+}
+
+html[data-theme="dark"] .article-share-btn:active {
+  background: #2d3542;
 }
 
 html[data-theme="dark"] .more-button,

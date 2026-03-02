@@ -33,6 +33,68 @@ function sortArticlesNewestFirst(articles) {
   return [...articles].sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
 }
 
+function toAbsoluteUrl(input) {
+  try {
+    return new URL(String(input || ''), window.location.origin).toString();
+  } catch (_) {
+    return window.location.href;
+  }
+}
+
+async function shareArticle({ title, url }, button) {
+  const payload = { title: title || document.title, url: toAbsoluteUrl(url || window.location.href) };
+  const nativeShareSupported = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+  if (nativeShareSupported) {
+    try {
+      await navigator.share(payload);
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
+  }
+
+  const copySupported = typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function';
+  if (copySupported) {
+    try {
+      await navigator.clipboard.writeText(payload.url);
+      if (button) {
+        const original = button.textContent;
+        button.textContent = 'Copied';
+        setTimeout(() => {
+          button.textContent = original || 'Share';
+        }, 1300);
+      }
+      return;
+    } catch (_) {
+      // fall through to window prompt
+    }
+  }
+
+  window.prompt('Copy this link:', payload.url);
+}
+
+async function copyArticleLink(url, button) {
+  const absoluteUrl = toAbsoluteUrl(url || window.location.href);
+  const copySupported = typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function';
+  if (copySupported) {
+    try {
+      await navigator.clipboard.writeText(absoluteUrl);
+      if (button) {
+        const original = button.textContent;
+        button.textContent = 'Copied';
+        setTimeout(() => {
+          button.textContent = original || 'Copy Link';
+        }, 1300);
+      }
+      return;
+    } catch (_) {
+      // fall through to prompt
+    }
+  }
+  window.prompt('Copy this link:', absoluteUrl);
+}
+
 async function fetchSectionArticles(apiUrl) {
   const res = await fetch(apiUrl);
   if (!res.ok) return [];
@@ -98,6 +160,15 @@ async function loadArticle() {
     // Render headline
     const titleEl = document.getElementById('article-title');
     if (titleEl) titleEl.textContent = article.title;
+
+    const shareButtons = Array.from(document.querySelectorAll('[data-share-action="share"]'));
+    const copyButtons = Array.from(document.querySelectorAll('[data-share-action="copy"]'));
+    shareButtons.forEach((button) => {
+      button.onclick = () => shareArticle({ title: article.title, url: window.location.href }, button);
+    });
+    copyButtons.forEach((button) => {
+      button.onclick = () => copyArticleLink(window.location.href, button);
+    });
 
     // Render byline with date and time
     const dateEl = document.getElementById('article-date');
