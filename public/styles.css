@@ -108,6 +108,7 @@ nav a + a::before {
 .newsletter-strip {
   background: transparent;
   border-bottom: 0;
+  display: none;
 }
 
 .newsletter-strip-inner {
