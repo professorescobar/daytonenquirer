@@ -1654,6 +1654,25 @@ nav a + a::before {
 
 /* Mobile */
 @media (max-width: 768px) {
+  .article-share-row-bottom,
+  .article-newsletter-cta {
+    display: none !important;
+  }
+
+  .article-description {
+    margin-bottom: 1.5rem;
+  }
+
+  .article-navigation {
+    margin: 2rem 0;
+    padding: 1rem 0;
+  }
+
+  .article-page #related-section.bottom-articles-section {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+  }
+
   .article-newsletter-cta {
     padding-top: 0.45rem;
     padding-bottom: 0.45rem;
