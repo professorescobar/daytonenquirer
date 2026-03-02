@@ -93,6 +93,14 @@ function bindArticleInlineCtas() {
   });
 }
 
+function syncArticleInlineCtaLabels() {
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  const labels = Array.from(document.querySelectorAll('[data-newsletter-cta] [data-newsletter-inline-toggle]'));
+  labels.forEach((button) => {
+    button.textContent = isMobile ? 'JOIN OUR NEWSLETTER' : 'Get Weekly Updates';
+  });
+}
+
 function collapseArticleInlineCta(cta) {
   if (!cta) return;
   cta.classList.remove('is-inline-expanded');
@@ -281,6 +289,7 @@ function bindNewsletterForms() {
   const articleInlineCtas = Array.from(document.querySelectorAll('[data-newsletter-cta]'));
   getTurnstileSiteKey().catch(() => '');
   bindArticleInlineCtas();
+  syncArticleInlineCtaLabels();
   syncMobileSignupState(forms);
 
   forms.forEach((form) => {
@@ -315,6 +324,7 @@ function bindNewsletterForms() {
   });
 
   window.addEventListener('resize', () => {
+    syncArticleInlineCtaLabels();
     syncMobileSignupState(forms);
   });
 }

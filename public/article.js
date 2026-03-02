@@ -33,6 +33,14 @@ function sortArticlesNewestFirst(articles) {
   return [...articles].sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
 }
 
+function syncCopyButtonLabels() {
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  const copyButtons = Array.from(document.querySelectorAll('[data-share-action="copy"]'));
+  copyButtons.forEach((button) => {
+    button.textContent = isMobile ? 'Copy' : 'Copy Link';
+  });
+}
+
 function toAbsoluteUrl(input) {
   try {
     return new URL(String(input || ''), window.location.origin).toString();
@@ -163,6 +171,8 @@ async function loadArticle() {
 
     const shareButtons = Array.from(document.querySelectorAll('[data-share-action="share"]'));
     const copyButtons = Array.from(document.querySelectorAll('[data-share-action="copy"]'));
+    syncCopyButtonLabels();
+    window.addEventListener('resize', syncCopyButtonLabels);
     shareButtons.forEach((button) => {
       button.onclick = () => shareArticle({ title: article.title, url: window.location.href }, button);
     });
