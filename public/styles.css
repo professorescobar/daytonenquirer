@@ -1007,7 +1007,7 @@ nav a + a::before {
 }
 
 .article-newsletter-cta {
-  margin: 0.2rem 0 0;
+  margin: 0.35rem 0 0;
   border: 1px solid #ddd;
   background: #fff;
   padding: 1rem;
@@ -1137,6 +1137,7 @@ nav a + a::before {
 }
 
 .article-page #related-section.bottom-articles-section {
+  margin-top: 0.35rem;
   margin-bottom: 0;
 }
 
@@ -1495,7 +1496,7 @@ nav a + a::before {
   font-size: 1.1rem;
   line-height: 1.7;
   color: #333;
-  margin-bottom: 4rem;
+  margin-bottom: 0.8rem;
 }
 
 .article-description p {
@@ -1533,7 +1534,7 @@ nav a + a::before {
 .article-navigation {
   display: flex;
   justify-content: space-between;
-  margin: 0.2rem 0 0;
+  margin: 0.5rem 0 0;
   padding: 0.5rem 0;
   border-top: 1px solid #ddd;
   border-bottom: 1px solid #ddd;
@@ -1660,7 +1661,7 @@ nav a + a::before {
 /* Mobile */
 @media (max-width: 768px) {
   :root {
-    --mobile-nav-equal-gap: 0.8rem;
+    --mobile-nav-equal-gap: 0.5rem;
   }
 
   .article-share-row-bottom,
@@ -1669,16 +1670,16 @@ nav a + a::before {
   }
 
   .article-description {
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.6rem;
   }
 
   .article-navigation {
-    margin: 2rem 0 0;
-    padding: 1rem 0 var(--mobile-nav-equal-gap);
+    margin: 0.5rem 0 0;
+    padding: 0.75rem 0 var(--mobile-nav-equal-gap);
   }
 
   .article-page #related-section.bottom-articles-section {
-    margin-top: 0;
+    margin-top: 0.35rem;
     padding-top: var(--mobile-nav-equal-gap);
   }
 
@@ -1693,7 +1694,7 @@ nav a + a::before {
   }
 
   .news-header {
-    padding-top: 0.4rem;
+    padding-top: 0.55rem;
   }
 
   .newsletter-strip-form input[type="email"],
@@ -1735,6 +1736,11 @@ nav a + a::before {
   nav {
     flex-wrap: wrap;
     justify-content: center;
+    row-gap: 0.5rem;
+  }
+
+  nav a:nth-child(6)::before {
+    content: none;
   }
 
   /* Carousel mobile adjustments */
