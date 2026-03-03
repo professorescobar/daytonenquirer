@@ -282,6 +282,10 @@ function applyAutotagMetadata(meta) {
   if (!String(uploadToneInput?.value || '').trim() && meta.tone) uploadToneInput.value = meta.tone;
 }
 
+function countNewlyFilled(before, after) {
+  return Object.keys(after).filter((key) => !before[key] && after[key]).length;
+}
+
 async function autotagUploadFields() {
   try {
     setUploadStatus('');
@@ -299,12 +303,34 @@ async function autotagUploadFields() {
         beat: uploadBeatInput?.value || '',
         persona: uploadPersonaInput?.value || '',
         title: uploadTitleInput?.value || '',
-        description: uploadDescriptionInput?.value || ''
+        description: uploadDescriptionInput?.value || '',
+        tone: uploadToneInput?.value || '',
+        tags: parseCsv(uploadTagsInput?.value || ''),
+        entities: parseCsv(uploadEntitiesInput?.value || '')
       })
     });
+    const before = {
+      title: String(uploadTitleInput?.value || '').trim(),
+      description: String(uploadDescriptionInput?.value || '').trim(),
+      tags: String(uploadTagsInput?.value || '').trim(),
+      entities: String(uploadEntitiesInput?.value || '').trim(),
+      tone: String(uploadToneInput?.value || '').trim()
+    };
     applyAutotagMetadata(result.metadata || null);
-    setMessage(`Metadata generated with ${result.model || 'Gemini'}.`);
-    setUploadStatus('Metadata ready. Review and click Upload + Save.');
+    const after = {
+      title: String(uploadTitleInput?.value || '').trim(),
+      description: String(uploadDescriptionInput?.value || '').trim(),
+      tags: String(uploadTagsInput?.value || '').trim(),
+      entities: String(uploadEntitiesInput?.value || '').trim(),
+      tone: String(uploadToneInput?.value || '').trim()
+    };
+    const filledCount = countNewlyFilled(before, after);
+    setMessage(`Metadata generated with ${result.model || 'Gemini'} (${filledCount} field${filledCount === 1 ? '' : 's'} filled).`);
+    setUploadStatus(
+      filledCount
+        ? 'Metadata ready. Review and click Upload + Save.'
+        : 'No blank metadata fields were filled. Existing values were preserved.'
+    );
   } catch (error) {
     setMessage(`Auto-tag failed: ${error.message}`);
     setUploadStatus('');
@@ -419,32 +445,57 @@ async function saveImageCard(card) {
 }
 
 async function autotagImageCard(card) {
-  const id = Number(card.dataset.id || 0);
-  if (!id) throw new Error('Missing image id');
+  const imageUrl = String(card.querySelector('.field-image-url')?.value || '').trim();
+  if (!imageUrl) throw new Error('Missing image URL');
   const data = await apiRequest('/api/admin-images-autotag', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, overwrite: false })
+    body: JSON.stringify({
+      imageUrl,
+      section: card.querySelector('.field-section')?.value || '',
+      beat: card.querySelector('.field-beat')?.value || '',
+      persona: card.querySelector('.field-persona')?.value || '',
+      title: card.querySelector('.field-title')?.value || '',
+      description: card.querySelector('.field-description')?.value || '',
+      tone: card.querySelector('.field-tone')?.value || '',
+      tags: parseCsv(card.querySelector('.field-tags')?.value || ''),
+      entities: parseCsv(card.querySelector('.field-entities')?.value || ''),
+      overwrite: false
+    })
   });
-  return data?.image || null;
+  return data?.metadata || null;
 }
 
-function applyImageToCard(card, image) {
-  if (!card || !image) return;
-  card.querySelector('.field-section').value = image.section || '';
-  card.querySelector('.field-beat').value = image.beat || '';
-  card.querySelector('.field-persona').value = image.persona || '';
-  card.querySelector('.field-title').value = image.title || '';
-  card.querySelector('.field-description').value = image.description || '';
-  card.querySelector('.field-tags').value = toCsv(image.tags);
-  card.querySelector('.field-entities').value = toCsv(image.entities);
-  card.querySelector('.field-tone').value = image.tone || '';
-  card.querySelector('.field-credit').value = image.credit || '';
-  card.querySelector('.field-license-type').value = image.licenseType || '';
-  card.querySelector('.field-license-url').value = image.licenseSourceUrl || '';
-  card.querySelector('.field-approved').value = image.approved ? 'true' : 'false';
-  card.querySelector('.field-image-url').value = image.imageUrl || '';
-  card.querySelector('.field-image-public-id').value = image.imagePublicId || '';
+function applyMetadataToCardBlanks(card, meta) {
+  if (!card || !meta) return 0;
+  let filled = 0;
+  const titleField = card.querySelector('.field-title');
+  const descriptionField = card.querySelector('.field-description');
+  const tagsField = card.querySelector('.field-tags');
+  const entitiesField = card.querySelector('.field-entities');
+  const toneField = card.querySelector('.field-tone');
+
+  if (titleField && !String(titleField.value || '').trim() && meta.title) {
+    titleField.value = meta.title;
+    filled += 1;
+  }
+  if (descriptionField && !String(descriptionField.value || '').trim() && meta.description) {
+    descriptionField.value = meta.description;
+    filled += 1;
+  }
+  if (tagsField && !String(tagsField.value || '').trim() && Array.isArray(meta.tags) && meta.tags.length) {
+    tagsField.value = toCsv(meta.tags);
+    filled += 1;
+  }
+  if (entitiesField && !String(entitiesField.value || '').trim() && Array.isArray(meta.entities) && meta.entities.length) {
+    entitiesField.value = toCsv(meta.entities);
+    filled += 1;
+  }
+  if (toneField && !String(toneField.value || '').trim() && meta.tone) {
+    toneField.value = meta.tone;
+    filled += 1;
+  }
+  return filled;
 }
 
 async function deleteImageCard(card) {
@@ -500,9 +551,13 @@ async function onImagesListClick(event) {
     target.setAttribute('disabled', 'true');
     try {
       setMessage('Running Gemini auto-tag...');
-      const image = await autotagImageCard(card);
-      if (image) applyImageToCard(card, image);
-      setMessage('Gemini metadata applied. Review and click Save if you want edits.');
+      const metadata = await autotagImageCard(card);
+      const filledCount = applyMetadataToCardBlanks(card, metadata);
+      if (!filledCount) {
+        setMessage('No blank fields were filled. Existing values were preserved.');
+      } else {
+        setMessage(`Gemini metadata applied (${filledCount} field${filledCount === 1 ? '' : 's'} filled). Click Save to persist.`);
+      }
     } catch (error) {
       setMessage(`Auto-tag failed: ${error.message}`);
     } finally {

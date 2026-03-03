@@ -152,7 +152,17 @@ Rules:
       generationConfig: {
         temperature: 0.2,
         maxOutputTokens: 700,
-        responseMimeType: 'application/json'
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            title: { type: 'STRING' },
+            description: { type: 'STRING' },
+            tags: { type: 'ARRAY', items: { type: 'STRING' } },
+            entities: { type: 'ARRAY', items: { type: 'STRING' } },
+            tone: { type: 'STRING' }
+          }
+        }
       }
     })
   });
@@ -262,6 +272,19 @@ module.exports = async (req, res) => {
       existingTitle: cleanText(row.title || ''),
       existingDescription: cleanText(row.description || '')
     });
+
+    const hasMetadata =
+      !!cleanText(tagged.title || '') ||
+      !!cleanText(tagged.description || '') ||
+      (Array.isArray(tagged.tags) && tagged.tags.length > 0) ||
+      (Array.isArray(tagged.entities) && tagged.entities.length > 0) ||
+      !!cleanText(tagged.tone || '');
+    if (!hasMetadata) {
+      return res.status(422).json({
+        error: 'Gemini returned empty metadata',
+        details: 'No title/description/tags/entities/tone were generated'
+      });
+    }
 
     const existingTags = Array.isArray(row.tags) ? row.tags.map((v) => cleanText(v)).filter(Boolean) : [];
     const existingEntities = Array.isArray(row.entities) ? row.entities.map((v) => cleanText(v)).filter(Boolean) : [];
