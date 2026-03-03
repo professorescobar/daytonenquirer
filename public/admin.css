@@ -714,6 +714,40 @@
   resize: vertical;
 }
 
+.metadata-target {
+  position: relative;
+}
+
+.metadata-target.is-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+}
+
+.metadata-target.is-loading::before {
+  content: '';
+  position: absolute;
+  right: 0.55rem;
+  top: 0.55rem;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #adb8cf;
+  border-top-color: #3e6ac8;
+  animation: adminSpin 0.8s linear infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+
+@keyframes adminSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .btn-autotag-image {
   border-color: #6f95e8;
   background: #eef4ff;
@@ -967,6 +1001,16 @@ html[data-theme="dark"] .btn-autotag-image {
   background: #1d2c45;
   border-color: #6f95e8;
   color: #dbe8ff;
+}
+
+html[data-theme="dark"] .metadata-target.is-loading::after {
+  background: rgba(10, 14, 20, 0.58);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme="dark"] .metadata-target.is-loading::before {
+  border-color: #5b6d8f;
+  border-top-color: #8eb2ff;
 }
 
 html[data-theme="dark"] .admin-modal-card {

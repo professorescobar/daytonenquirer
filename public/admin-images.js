@@ -20,6 +20,8 @@ const uploadLicenseTypeInput = document.getElementById('upload-license-type');
 const uploadLicenseUrlInput = document.getElementById('upload-license-url');
 const uploadApprovedInput = document.getElementById('upload-approved');
 const uploadSaveBtn = document.getElementById('upload-save-btn');
+const uploadAutotagBtn = document.getElementById('upload-autotag-btn');
+const uploadStatusFeedEl = document.getElementById('upload-status-feed');
 
 const filterSectionInput = document.getElementById('filter-section');
 const filterApprovedInput = document.getElementById('filter-approved');
@@ -34,7 +36,23 @@ const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
 const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
 const CLOUDINARY_WIDTH = 1600;
 
+const BEAT_OPTIONS_BY_SECTION = {
+  local: ['general-local'],
+  national: ['general-national'],
+  world: ['general-world'],
+  business: ['general-business'],
+  sports: ['general-sports'],
+  health: ['general-health'],
+  entertainment: ['gaming'],
+  technology: ['general-technology']
+};
+
+const PERSONA_OPTIONS_BY_BEAT = {
+  gaming: ['Tsuki Tamara']
+};
+
 let adminUiUnlocked = false;
+let uploadDraftAsset = null;
 
 function getToken() {
   return String(tokenInput?.value || '').trim();
@@ -44,6 +62,11 @@ function setMessage(text) {
   if (!messageEl) return;
   messageEl.hidden = !text;
   messageEl.textContent = text || '';
+}
+
+function setUploadStatus(text) {
+  if (!uploadStatusFeedEl) return;
+  uploadStatusFeedEl.textContent = text || '';
 }
 
 function setLockState(unlocked) {
@@ -66,6 +89,53 @@ function parseCsv(text) {
     .split(',')
     .map((v) => v.trim())
     .filter(Boolean);
+}
+
+function setSelectOptions(selectEl, values, fallbackLabel) {
+  if (!selectEl) return;
+  const options = (values || []).filter(Boolean);
+  if (!options.length && fallbackLabel) {
+    selectEl.innerHTML = `<option value="${escapeHtml(fallbackLabel)}">${escapeHtml(fallbackLabel)}</option>`;
+    return;
+  }
+  selectEl.innerHTML = options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+}
+
+function getBeatsForSection(section) {
+  return BEAT_OPTIONS_BY_SECTION[section] || ['general'];
+}
+
+function getPersonasForBeat(beat) {
+  return PERSONA_OPTIONS_BY_BEAT[beat] || ['General Desk'];
+}
+
+function syncUploadBeatOptions() {
+  const section = String(uploadSectionInput?.value || 'entertainment').trim();
+  const prev = String(uploadBeatInput?.value || '').trim();
+  const beats = getBeatsForSection(section);
+  setSelectOptions(uploadBeatInput, beats, 'general');
+  if (prev && beats.includes(prev)) uploadBeatInput.value = prev;
+}
+
+function syncUploadPersonaOptions() {
+  const beat = String(uploadBeatInput?.value || '').trim();
+  const prev = String(uploadPersonaInput?.value || '').trim();
+  const personas = getPersonasForBeat(beat);
+  setSelectOptions(uploadPersonaInput, personas, 'General Desk');
+  if (prev && personas.includes(prev)) uploadPersonaInput.value = prev;
+}
+
+function setMetadataLoading(loading) {
+  const targets = document.querySelectorAll('.metadata-target');
+  targets.forEach((el) => {
+    if (loading) el.classList.add('is-loading');
+    else el.classList.remove('is-loading');
+    el.querySelectorAll('input, textarea, select').forEach((field) => {
+      field.disabled = loading;
+    });
+  });
+  if (uploadSaveBtn) uploadSaveBtn.disabled = loading;
+  if (uploadAutotagBtn) uploadAutotagBtn.disabled = loading;
 }
 
 function toCsv(value) {
@@ -105,6 +175,15 @@ async function uploadImageToCloudinary(file) {
     imageUrl: optimizedCloudinaryUrl(data.public_id),
     imagePublicId: data.public_id
   };
+}
+
+async function resolveUploadAsset() {
+  if (uploadDraftAsset?.imageUrl && uploadDraftAsset?.imagePublicId) return uploadDraftAsset;
+  const file = uploadFileInput?.files?.[0];
+  if (!file) throw new Error('Select an image file first.');
+  if (!String(file.type || '').startsWith('image/')) throw new Error('Please choose an image file.');
+  uploadDraftAsset = await uploadImageToCloudinary(file);
+  return uploadDraftAsset;
 }
 
 async function apiRequest(url, options = {}) {
@@ -171,21 +250,10 @@ function collectUploadPayload(uploaded) {
 }
 
 async function createImageRecord() {
-  const file = uploadFileInput?.files?.[0];
-  if (!file) {
-    setMessage('Select an image file first.');
-    return;
-  }
-
-  if (!String(file.type || '').startsWith('image/')) {
-    setMessage('Please choose an image file.');
-    return;
-  }
-
   uploadSaveBtn.disabled = true;
   try {
-    setMessage('Uploading image...');
-    const uploaded = await uploadImageToCloudinary(file);
+    setMessage('Preparing upload...');
+    const uploaded = await resolveUploadAsset();
     setMessage('Saving metadata...');
     await apiRequest('/api/admin-images', {
       method: 'POST',
@@ -194,12 +262,54 @@ async function createImageRecord() {
     });
 
     setMessage('Image saved to media library.');
+    setUploadStatus('');
     uploadFileInput.value = '';
+    uploadDraftAsset = null;
     await loadImages();
   } catch (error) {
     setMessage(`Upload failed: ${error.message}`);
   } finally {
     uploadSaveBtn.disabled = false;
+  }
+}
+
+function applyAutotagMetadata(meta) {
+  if (!meta) return;
+  if (!String(uploadTitleInput?.value || '').trim() && meta.title) uploadTitleInput.value = meta.title;
+  if (!String(uploadDescriptionInput?.value || '').trim() && meta.description) uploadDescriptionInput.value = meta.description;
+  if (!String(uploadTagsInput?.value || '').trim() && Array.isArray(meta.tags) && meta.tags.length) uploadTagsInput.value = toCsv(meta.tags);
+  if (!String(uploadEntitiesInput?.value || '').trim() && Array.isArray(meta.entities) && meta.entities.length) uploadEntitiesInput.value = toCsv(meta.entities);
+  if (!String(uploadToneInput?.value || '').trim() && meta.tone) uploadToneInput.value = meta.tone;
+}
+
+async function autotagUploadFields() {
+  try {
+    setUploadStatus('');
+    setMetadataLoading(true);
+    setMessage('Uploading image for tagging...');
+    const asset = await resolveUploadAsset();
+    setMessage('Generating metadata with Gemini...');
+    setUploadStatus('Generating metadata with Gemini...');
+    const result = await apiRequest('/api/admin-images-autotag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageUrl: asset.imageUrl,
+        section: uploadSectionInput?.value || 'entertainment',
+        beat: uploadBeatInput?.value || '',
+        persona: uploadPersonaInput?.value || '',
+        title: uploadTitleInput?.value || '',
+        description: uploadDescriptionInput?.value || ''
+      })
+    });
+    applyAutotagMetadata(result.metadata || null);
+    setMessage(`Metadata generated with ${result.model || 'Gemini'}.`);
+    setUploadStatus('Metadata ready. Review and click Upload + Save.');
+  } catch (error) {
+    setMessage(`Auto-tag failed: ${error.message}`);
+    setUploadStatus('');
+  } finally {
+    setMetadataLoading(false);
   }
 }
 
@@ -438,8 +548,21 @@ function init() {
   });
   saveTokenBtn?.addEventListener('click', saveToken);
   uploadSaveBtn?.addEventListener('click', createImageRecord);
+  uploadAutotagBtn?.addEventListener('click', autotagUploadFields);
+  uploadSectionInput?.addEventListener('change', () => {
+    syncUploadBeatOptions();
+    syncUploadPersonaOptions();
+  });
+  uploadBeatInput?.addEventListener('change', syncUploadPersonaOptions);
+  uploadFileInput?.addEventListener('change', () => {
+    uploadDraftAsset = null;
+    setUploadStatus('');
+  });
   loadImagesBtn?.addEventListener('click', loadImages);
   imagesListEl?.addEventListener('click', onImagesListClick);
+
+  syncUploadBeatOptions();
+  syncUploadPersonaOptions();
 }
 
 init();

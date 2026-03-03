@@ -185,33 +185,57 @@ module.exports = async (req, res) => {
 
   try {
     const id = Number(req.body?.id || 0);
+    const imageUrlInput = truncate(cleanText(req.body?.imageUrl || ''), 3000);
+    const hasId = Number.isInteger(id) && id > 0;
+    const hasImageUrl = !!imageUrlInput;
+    if (!hasId && !hasImageUrl) {
+      return res.status(400).json({ error: 'Provide id or imageUrl' });
+    }
+
     if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({ error: 'Valid image id is required' });
+      // preview mode is allowed with imageUrl only
+      if (!hasImageUrl) return res.status(400).json({ error: 'Valid image id is required' });
     }
     const overwrite = req.body?.overwrite === true;
 
     const sql = neon(process.env.DATABASE_URL);
     await ensureMediaLibraryTable(sql);
 
-    const rows = await sql`
-      SELECT
-        id,
-        section,
-        beat,
-        persona,
-        title,
-        description,
-        tags,
-        entities,
-        tone,
-        image_url as "imageUrl"
-      FROM media_library
-      WHERE id = ${id}
-      LIMIT 1
-    `;
-    const row = rows[0];
-    if (!row) return res.status(404).json({ error: 'Image not found' });
-    if (!row.imageUrl) return res.status(400).json({ error: 'Image URL is missing' });
+    let row = null;
+    if (hasId) {
+      const rows = await sql`
+        SELECT
+          id,
+          section,
+          beat,
+          persona,
+          title,
+          description,
+          tags,
+          entities,
+          tone,
+          image_url as "imageUrl"
+        FROM media_library
+        WHERE id = ${id}
+        LIMIT 1
+      `;
+      row = rows[0];
+      if (!row) return res.status(404).json({ error: 'Image not found' });
+      if (!row.imageUrl) return res.status(400).json({ error: 'Image URL is missing' });
+    } else {
+      row = {
+        id: 0,
+        section: normalizeSection(req.body?.section || 'entertainment'),
+        beat: cleanText(req.body?.beat || ''),
+        persona: cleanText(req.body?.persona || ''),
+        title: cleanText(req.body?.title || ''),
+        description: cleanText(req.body?.description || ''),
+        tags: asList(req.body?.tags || []),
+        entities: asList(req.body?.entities || []),
+        tone: cleanText(req.body?.tone || ''),
+        imageUrl: imageUrlInput
+      };
+    }
 
     const imageRes = await fetch(row.imageUrl);
     if (!imageRes.ok) {
@@ -248,45 +272,66 @@ module.exports = async (req, res) => {
     const tags = overwrite ? tagged.tags : (existingTags.length ? existingTags : tagged.tags);
     const entities = overwrite ? tagged.entities : (existingEntities.length ? existingEntities : tagged.entities);
 
-    await sql`
-      UPDATE media_library
-      SET
-        title = ${title || null},
-        description = ${description || null},
-        tone = ${tone || null},
-        tags = ${JSON.stringify(tags)}::jsonb,
-        entities = ${JSON.stringify(entities)}::jsonb,
-        updated_at = NOW()
-      WHERE id = ${id}
-    `;
+    if (hasId) {
+      await sql`
+        UPDATE media_library
+        SET
+          title = ${title || null},
+          description = ${description || null},
+          tone = ${tone || null},
+          tags = ${JSON.stringify(tags)}::jsonb,
+          entities = ${JSON.stringify(entities)}::jsonb,
+          updated_at = NOW()
+        WHERE id = ${id}
+      `;
 
-    const updated = await sql`
-      SELECT
-        id,
-        section,
-        beat,
-        persona,
-        title,
-        description,
-        tags,
-        entities,
-        tone,
-        image_url as "imageUrl",
-        image_public_id as "imagePublicId",
-        credit,
-        license_type as "licenseType",
-        license_source_url as "licenseSourceUrl",
-        approved,
-        created_at as "createdAt",
-        updated_at as "updatedAt"
-      FROM media_library
-      WHERE id = ${id}
-      LIMIT 1
-    `;
+      const updated = await sql`
+        SELECT
+          id,
+          section,
+          beat,
+          persona,
+          title,
+          description,
+          tags,
+          entities,
+          tone,
+          image_url as "imageUrl",
+          image_public_id as "imagePublicId",
+          credit,
+          license_type as "licenseType",
+          license_source_url as "licenseSourceUrl",
+          approved,
+          created_at as "createdAt",
+          updated_at as "updatedAt"
+        FROM media_library
+        WHERE id = ${id}
+        LIMIT 1
+      `;
+
+      return res.status(200).json({
+        ok: true,
+        image: updated[0],
+        metadata: {
+          title: title || '',
+          description: description || '',
+          tags,
+          entities,
+          tone: tone || ''
+        },
+        model: cleanText(process.env.GEMINI_VISION_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-pro')
+      });
+    }
 
     return res.status(200).json({
       ok: true,
-      image: updated[0],
+      metadata: {
+        title: title || '',
+        description: description || '',
+        tags,
+        entities,
+        tone: tone || ''
+      },
       model: cleanText(process.env.GEMINI_VISION_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-pro')
     });
   } catch (error) {

@@ -106,31 +106,31 @@
                   <option value="technology">technology</option>
                 </select>
               </label>
-              <label>
+              <label class="metadata-context">
                 Beat
-                <input id="upload-beat" type="text" placeholder="gaming" />
+                <select id="upload-beat"></select>
               </label>
-              <label>
+              <label class="metadata-context">
                 Persona
-                <input id="upload-persona" type="text" placeholder="Tsuki Tamara" />
+                <select id="upload-persona"></select>
               </label>
-              <label>
+              <label class="metadata-target" data-meta-field="title">
                 Title
                 <input id="upload-title" type="text" placeholder="Internal media title" />
               </label>
-              <label class="full">
+              <label class="full metadata-target" data-meta-field="description">
                 Description
                 <textarea id="upload-description" placeholder="What is in this image?"></textarea>
               </label>
-              <label>
+              <label class="metadata-target" data-meta-field="tags">
                 Tags (comma list)
                 <input id="upload-tags" type="text" placeholder="gaming,ps5,launch" />
               </label>
-              <label>
+              <label class="metadata-target" data-meta-field="entities">
                 Entities (comma list)
                 <input id="upload-entities" type="text" placeholder="Nintendo,Capcom" />
               </label>
-              <label>
+              <label class="metadata-target" data-meta-field="tone">
                 Tone
                 <input id="upload-tone" type="text" placeholder="hype,serious,neutral" />
               </label>
@@ -155,8 +155,10 @@
               </label>
             </div>
             <div class="admin-actions">
+              <button id="upload-autotag-btn" class="btn btn-autotag-image" type="button">Auto-tag (Gemini)</button>
               <button id="upload-save-btn" class="btn btn-primary">Upload + Save</button>
             </div>
+            <p id="upload-status-feed" class="draft-meta"></p>
           </div>
         </article>
 
