@@ -1,0 +1,445 @@
+const lockSection = document.getElementById('admin-lock');
+const appSection = document.getElementById('admin-app');
+const adminUiPasswordInput = document.getElementById('admin-ui-password');
+const unlockAdminBtn = document.getElementById('unlock-admin-btn');
+const tokenInput = document.getElementById('admin-token');
+const saveTokenBtn = document.getElementById('save-token-btn');
+const messageEl = document.getElementById('admin-message');
+
+const uploadFileInput = document.getElementById('upload-file');
+const uploadSectionInput = document.getElementById('upload-section');
+const uploadBeatInput = document.getElementById('upload-beat');
+const uploadPersonaInput = document.getElementById('upload-persona');
+const uploadTitleInput = document.getElementById('upload-title');
+const uploadDescriptionInput = document.getElementById('upload-description');
+const uploadTagsInput = document.getElementById('upload-tags');
+const uploadEntitiesInput = document.getElementById('upload-entities');
+const uploadToneInput = document.getElementById('upload-tone');
+const uploadCreditInput = document.getElementById('upload-credit');
+const uploadLicenseTypeInput = document.getElementById('upload-license-type');
+const uploadLicenseUrlInput = document.getElementById('upload-license-url');
+const uploadApprovedInput = document.getElementById('upload-approved');
+const uploadSaveBtn = document.getElementById('upload-save-btn');
+
+const filterSectionInput = document.getElementById('filter-section');
+const filterApprovedInput = document.getElementById('filter-approved');
+const filterPersonaInput = document.getElementById('filter-persona');
+const filterBeatInput = document.getElementById('filter-beat');
+const filterQInput = document.getElementById('filter-q');
+const filterLimitInput = document.getElementById('filter-limit');
+const loadImagesBtn = document.getElementById('load-images-btn');
+const imagesListEl = document.getElementById('images-list');
+
+const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
+const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
+const CLOUDINARY_WIDTH = 1600;
+
+let adminUiUnlocked = false;
+
+function getToken() {
+  return String(tokenInput?.value || '').trim();
+}
+
+function setMessage(text) {
+  if (!messageEl) return;
+  messageEl.hidden = !text;
+  messageEl.textContent = text || '';
+}
+
+function setLockState(unlocked) {
+  adminUiUnlocked = unlocked;
+  if (lockSection) lockSection.hidden = unlocked;
+  if (appSection) appSection.hidden = !unlocked;
+}
+
+function escapeHtml(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function parseCsv(text) {
+  return String(text || '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function toCsv(value) {
+  if (!Array.isArray(value)) return '';
+  return value.map((v) => String(v || '').trim()).filter(Boolean).join(', ');
+}
+
+function toBool(value, fallback = false) {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return fallback;
+  if (['true', '1', 'yes'].includes(raw)) return true;
+  if (['false', '0', 'no'].includes(raw)) return false;
+  return fallback;
+}
+
+function optimizedCloudinaryUrl(publicId) {
+  const safeId = encodeURIComponent(publicId || '').replace(/%2F/g, '/');
+  return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/f_auto,q_auto,c_limit,w_${CLOUDINARY_WIDTH}/${safeId}`;
+}
+
+async function uploadImageToCloudinary(file) {
+  if (!file) throw new Error('Select an image file first.');
+  const form = new FormData();
+  form.append('file', file);
+  form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: 'POST', body: form }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.public_id) {
+    throw new Error(data.error?.message || 'Cloudinary upload failed');
+  }
+
+  return {
+    imageUrl: optimizedCloudinaryUrl(data.public_id),
+    imagePublicId: data.public_id
+  };
+}
+
+async function apiRequest(url, options = {}) {
+  if (!adminUiUnlocked) throw new Error('Admin UI is locked');
+  const token = getToken();
+  if (!token) throw new Error('Missing admin token');
+
+  const headers = {
+    'x-admin-token': token,
+    ...(options.headers || {})
+  };
+
+  const res = await fetch(url, { ...options, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = data.error || `Request failed (${res.status})`;
+    throw new Error(data.details ? `${message}: ${data.details}` : message);
+  }
+  return data;
+}
+
+async function unlockAdminUi() {
+  try {
+    setMessage('');
+    const password = String(adminUiPasswordInput?.value || '').trim();
+    if (!password) {
+      setMessage('Enter the admin UI password.');
+      return;
+    }
+
+    const res = await fetch('/api/admin-ui-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Unlock failed');
+
+    sessionStorage.setItem('de_admin_unlocked', '1');
+    setLockState(true);
+    setMessage('Admin unlocked.');
+  } catch (error) {
+    setMessage(`Unlock failed: ${error.message}`);
+  }
+}
+
+function collectUploadPayload(uploaded) {
+  return {
+    section: uploadSectionInput?.value || 'entertainment',
+    beat: uploadBeatInput?.value || '',
+    persona: uploadPersonaInput?.value || '',
+    title: uploadTitleInput?.value || '',
+    description: uploadDescriptionInput?.value || '',
+    tags: parseCsv(uploadTagsInput?.value || ''),
+    entities: parseCsv(uploadEntitiesInput?.value || ''),
+    tone: uploadToneInput?.value || '',
+    credit: uploadCreditInput?.value || '',
+    licenseType: uploadLicenseTypeInput?.value || '',
+    licenseSourceUrl: uploadLicenseUrlInput?.value || '',
+    approved: toBool(uploadApprovedInput?.value || 'false', false),
+    imageUrl: uploaded.imageUrl,
+    imagePublicId: uploaded.imagePublicId
+  };
+}
+
+async function createImageRecord() {
+  const file = uploadFileInput?.files?.[0];
+  if (!file) {
+    setMessage('Select an image file first.');
+    return;
+  }
+
+  if (!String(file.type || '').startsWith('image/')) {
+    setMessage('Please choose an image file.');
+    return;
+  }
+
+  uploadSaveBtn.disabled = true;
+  try {
+    setMessage('Uploading image...');
+    const uploaded = await uploadImageToCloudinary(file);
+    setMessage('Saving metadata...');
+    await apiRequest('/api/admin-images', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(collectUploadPayload(uploaded))
+    });
+
+    setMessage('Image saved to media library.');
+    uploadFileInput.value = '';
+    await loadImages();
+  } catch (error) {
+    setMessage(`Upload failed: ${error.message}`);
+  } finally {
+    uploadSaveBtn.disabled = false;
+  }
+}
+
+function renderImageCard(image) {
+  const card = document.createElement('article');
+  card.className = 'image-library-card';
+  card.dataset.id = String(image.id || '');
+  card.innerHTML = `
+    <img src="${escapeHtml(image.imageUrl)}" alt="${escapeHtml(image.title || 'Library image')}" loading="lazy" />
+    <div class="image-library-fields">
+      <label>
+        Section
+        <input class="field-section" type="text" value="${escapeHtml(image.section || '')}" />
+      </label>
+      <label>
+        Beat
+        <input class="field-beat" type="text" value="${escapeHtml(image.beat || '')}" />
+      </label>
+      <label>
+        Persona
+        <input class="field-persona" type="text" value="${escapeHtml(image.persona || '')}" />
+      </label>
+      <label class="full">
+        Title
+        <input class="field-title" type="text" value="${escapeHtml(image.title || '')}" />
+      </label>
+      <label class="full">
+        Description
+        <textarea class="field-description">${escapeHtml(image.description || '')}</textarea>
+      </label>
+      <label class="full">
+        Tags (comma list)
+        <input class="field-tags" type="text" value="${escapeHtml(toCsv(image.tags))}" />
+      </label>
+      <label class="full">
+        Entities (comma list)
+        <input class="field-entities" type="text" value="${escapeHtml(toCsv(image.entities))}" />
+      </label>
+      <label>
+        Tone
+        <input class="field-tone" type="text" value="${escapeHtml(image.tone || '')}" />
+      </label>
+      <label>
+        Credit
+        <input class="field-credit" type="text" value="${escapeHtml(image.credit || '')}" />
+      </label>
+      <label>
+        License Type
+        <input class="field-license-type" type="text" value="${escapeHtml(image.licenseType || '')}" />
+      </label>
+      <label class="full">
+        License URL
+        <input class="field-license-url" type="url" value="${escapeHtml(image.licenseSourceUrl || '')}" />
+      </label>
+      <label>
+        Approved
+        <select class="field-approved">
+          <option value="true" ${image.approved ? 'selected' : ''}>true</option>
+          <option value="false" ${!image.approved ? 'selected' : ''}>false</option>
+        </select>
+      </label>
+      <label class="full">
+        Image URL
+        <input class="field-image-url" type="url" value="${escapeHtml(image.imageUrl || '')}" />
+      </label>
+      <label class="full">
+        Cloudinary Public ID
+        <input class="field-image-public-id" type="text" value="${escapeHtml(image.imagePublicId || '')}" />
+      </label>
+    </div>
+    <div class="admin-actions">
+      <button class="btn btn-autotag-image" type="button">Auto-tag (Gemini)</button>
+      <button class="btn btn-save-image" type="button">Save</button>
+      <button class="btn btn-danger btn-delete-image" type="button">Delete</button>
+    </div>
+  `;
+  return card;
+}
+
+function collectCardPayload(card) {
+  return {
+    id: Number(card.dataset.id || 0),
+    section: card.querySelector('.field-section')?.value || '',
+    beat: card.querySelector('.field-beat')?.value || '',
+    persona: card.querySelector('.field-persona')?.value || '',
+    title: card.querySelector('.field-title')?.value || '',
+    description: card.querySelector('.field-description')?.value || '',
+    tags: parseCsv(card.querySelector('.field-tags')?.value || ''),
+    entities: parseCsv(card.querySelector('.field-entities')?.value || ''),
+    tone: card.querySelector('.field-tone')?.value || '',
+    credit: card.querySelector('.field-credit')?.value || '',
+    licenseType: card.querySelector('.field-license-type')?.value || '',
+    licenseSourceUrl: card.querySelector('.field-license-url')?.value || '',
+    approved: toBool(card.querySelector('.field-approved')?.value || 'false', false),
+    imageUrl: card.querySelector('.field-image-url')?.value || '',
+    imagePublicId: card.querySelector('.field-image-public-id')?.value || ''
+  };
+}
+
+async function saveImageCard(card) {
+  const payload = collectCardPayload(card);
+  await apiRequest('/api/admin-images', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+async function autotagImageCard(card) {
+  const id = Number(card.dataset.id || 0);
+  if (!id) throw new Error('Missing image id');
+  const data = await apiRequest('/api/admin-images-autotag', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, overwrite: false })
+  });
+  return data?.image || null;
+}
+
+function applyImageToCard(card, image) {
+  if (!card || !image) return;
+  card.querySelector('.field-section').value = image.section || '';
+  card.querySelector('.field-beat').value = image.beat || '';
+  card.querySelector('.field-persona').value = image.persona || '';
+  card.querySelector('.field-title').value = image.title || '';
+  card.querySelector('.field-description').value = image.description || '';
+  card.querySelector('.field-tags').value = toCsv(image.tags);
+  card.querySelector('.field-entities').value = toCsv(image.entities);
+  card.querySelector('.field-tone').value = image.tone || '';
+  card.querySelector('.field-credit').value = image.credit || '';
+  card.querySelector('.field-license-type').value = image.licenseType || '';
+  card.querySelector('.field-license-url').value = image.licenseSourceUrl || '';
+  card.querySelector('.field-approved').value = image.approved ? 'true' : 'false';
+  card.querySelector('.field-image-url').value = image.imageUrl || '';
+  card.querySelector('.field-image-public-id').value = image.imagePublicId || '';
+}
+
+async function deleteImageCard(card) {
+  const id = Number(card.dataset.id || 0);
+  if (!id) return;
+  await apiRequest(`/api/admin-images?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  card.remove();
+}
+
+async function loadImages() {
+  try {
+    setMessage('Loading images...');
+    const params = new URLSearchParams();
+    if (filterSectionInput?.value) params.set('section', filterSectionInput.value);
+    if (filterApprovedInput?.value) params.set('approved', filterApprovedInput.value);
+    if (filterPersonaInput?.value.trim()) params.set('persona', filterPersonaInput.value.trim());
+    if (filterBeatInput?.value.trim()) params.set('beat', filterBeatInput.value.trim());
+    if (filterQInput?.value.trim()) params.set('q', filterQInput.value.trim());
+    if (filterLimitInput?.value) params.set('limit', filterLimitInput.value);
+
+    const query = params.toString();
+    const data = await apiRequest(`/api/admin-images${query ? `?${query}` : ''}`);
+    const images = Array.isArray(data.images) ? data.images : [];
+
+    imagesListEl.innerHTML = '';
+    images.forEach((image) => imagesListEl.appendChild(renderImageCard(image)));
+    setMessage(`Loaded ${images.length} image${images.length === 1 ? '' : 's'}.`);
+  } catch (error) {
+    setMessage(`Load failed: ${error.message}`);
+  }
+}
+
+async function onImagesListClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const card = target.closest('.image-library-card');
+  if (!card) return;
+
+  if (target.classList.contains('btn-save-image')) {
+    target.setAttribute('disabled', 'true');
+    try {
+      await saveImageCard(card);
+      setMessage('Image metadata saved.');
+    } catch (error) {
+      setMessage(`Save failed: ${error.message}`);
+    } finally {
+      target.removeAttribute('disabled');
+    }
+    return;
+  }
+
+  if (target.classList.contains('btn-autotag-image')) {
+    target.setAttribute('disabled', 'true');
+    try {
+      setMessage('Running Gemini auto-tag...');
+      const image = await autotagImageCard(card);
+      if (image) applyImageToCard(card, image);
+      setMessage('Gemini metadata applied. Review and click Save if you want edits.');
+    } catch (error) {
+      setMessage(`Auto-tag failed: ${error.message}`);
+    } finally {
+      target.removeAttribute('disabled');
+    }
+    return;
+  }
+
+  if (target.classList.contains('btn-delete-image')) {
+    const ok = window.confirm('Permanently delete this image record?');
+    if (!ok) return;
+    target.setAttribute('disabled', 'true');
+    try {
+      await deleteImageCard(card);
+      setMessage('Image record deleted.');
+    } catch (error) {
+      setMessage(`Delete failed: ${error.message}`);
+      target.removeAttribute('disabled');
+    }
+  }
+}
+
+function saveToken() {
+  const token = getToken();
+  if (!token) {
+    setMessage('Enter an admin token first.');
+    return;
+  }
+  localStorage.setItem('de_admin_token', token);
+  setMessage('Admin token saved locally.');
+}
+
+function init() {
+  const savedToken = localStorage.getItem('de_admin_token');
+  if (savedToken && tokenInput) tokenInput.value = savedToken;
+
+  setLockState(sessionStorage.getItem('de_admin_unlocked') === '1');
+  if (adminUiUnlocked) setMessage('Admin unlocked.');
+
+  unlockAdminBtn?.addEventListener('click', unlockAdminUi);
+  adminUiPasswordInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') unlockAdminUi();
+  });
+  saveTokenBtn?.addEventListener('click', saveToken);
+  uploadSaveBtn?.addEventListener('click', createImageRecord);
+  loadImagesBtn?.addEventListener('click', loadImages);
+  imagesListEl?.addEventListener('click', onImagesListClick);
+}
+
+init();

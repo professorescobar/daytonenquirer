@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Library Admin | The Dayton Enquirer</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/admin.css" />
+  <script>
+    (function () {
+      try {
+        var key = 'de_theme';
+        var stored = localStorage.getItem(key);
+        var theme = (stored === 'light' || stored === 'dark')
+          ? stored
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+      } catch (_) {}
+    })();
+  </script>
+</head>
+<body>
+  <header class="news-header">
+    <div class="container header-inner">
+      <div class="logo">
+        <a href="/index.html"><h1>The Dayton Enquirer</h1></a>
+      </div>
+      <nav>
+        <a href="/admin.html">Draft</a>
+        <a href="/admin-articles.html">Edit</a>
+        <a href="/admin-images.html">Images</a>
+        <a href="/admin-settings.html">Settings</a>
+        <a href="/admin-newsletters.html">Newsletters</a>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch theme" aria-pressed="false">
+          <span class="theme-toggle-icon" aria-hidden="true">
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+              <path d="M21.64 13a1 1 0 0 0-1.05-.14 8 8 0 0 1-10.45-10.45 1 1 0 0 0-1.2-1.3A10 10 0 1 0 23 15.06a1 1 0 0 0-1.36-2.06Z"/>
+            </svg>
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2.5v2.3M12 19.2v2.3M21.5 12h-2.3M4.8 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3"></path>
+            </svg>
+          </span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container admin-page">
+    <section id="admin-lock" class="admin-panel admin-lock">
+      <h2>Admin Access Required</h2>
+      <p class="hint">Enter your admin UI password to unlock this page.</p>
+      <div class="admin-grid single">
+        <label>
+          Admin UI Password
+          <input id="admin-ui-password" type="password" placeholder="Enter password" />
+        </label>
+      </div>
+      <div class="admin-actions">
+        <button id="unlock-admin-btn" class="btn btn-primary">Unlock Admin</button>
+      </div>
+    </section>
+
+    <section id="admin-app" hidden>
+      <section class="admin-panel">
+        <article class="draft-card">
+          <div class="draft-header">
+            <strong>Media Library</strong>
+            <span class="draft-meta">Upload and organize approved images by section/beat/persona.</span>
+          </div>
+          <div class="article-editor">
+            <div class="admin-grid">
+              <label>
+                Admin Token
+                <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
+              </label>
+            </div>
+            <div class="admin-actions">
+              <button id="save-token-btn" class="btn">Save Token</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="draft-card">
+          <div class="draft-header">
+            <strong>Upload Image</strong>
+            <span class="draft-meta">Upload to Cloudinary and save metadata in the media library.</span>
+          </div>
+          <div class="article-editor">
+            <div class="admin-grid">
+              <label>
+                Image File
+                <input id="upload-file" type="file" accept="image/*" />
+              </label>
+              <label>
+                Section
+                <select id="upload-section">
+                  <option value="local">local</option>
+                  <option value="national">national</option>
+                  <option value="world">world</option>
+                  <option value="business">business</option>
+                  <option value="sports">sports</option>
+                  <option value="health">health</option>
+                  <option value="entertainment" selected>entertainment</option>
+                  <option value="technology">technology</option>
+                </select>
+              </label>
+              <label>
+                Beat
+                <input id="upload-beat" type="text" placeholder="gaming" />
+              </label>
+              <label>
+                Persona
+                <input id="upload-persona" type="text" placeholder="Tsuki Tamara" />
+              </label>
+              <label>
+                Title
+                <input id="upload-title" type="text" placeholder="Internal media title" />
+              </label>
+              <label class="full">
+                Description
+                <textarea id="upload-description" placeholder="What is in this image?"></textarea>
+              </label>
+              <label>
+                Tags (comma list)
+                <input id="upload-tags" type="text" placeholder="gaming,ps5,launch" />
+              </label>
+              <label>
+                Entities (comma list)
+                <input id="upload-entities" type="text" placeholder="Nintendo,Capcom" />
+              </label>
+              <label>
+                Tone
+                <input id="upload-tone" type="text" placeholder="hype,serious,neutral" />
+              </label>
+              <label>
+                Credit
+                <input id="upload-credit" type="text" placeholder="Photo: Example Source" />
+              </label>
+              <label>
+                License Type
+                <input id="upload-license-type" type="text" placeholder="owned / unsplash / press-kit" />
+              </label>
+              <label class="full">
+                License Source URL
+                <input id="upload-license-url" type="url" placeholder="https://..." />
+              </label>
+              <label>
+                Approved
+                <select id="upload-approved">
+                  <option value="false" selected>false</option>
+                  <option value="true">true</option>
+                </select>
+              </label>
+            </div>
+            <div class="admin-actions">
+              <button id="upload-save-btn" class="btn btn-primary">Upload + Save</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="draft-card">
+          <div class="draft-header">
+            <strong>Browse Library</strong>
+            <span class="draft-meta">Filter and edit/delete image records.</span>
+          </div>
+          <div class="article-editor">
+            <div class="admin-grid">
+              <label>
+                Section Filter
+                <select id="filter-section">
+                  <option value="">all</option>
+                  <option value="local">local</option>
+                  <option value="national">national</option>
+                  <option value="world">world</option>
+                  <option value="business">business</option>
+                  <option value="sports">sports</option>
+                  <option value="health">health</option>
+                  <option value="entertainment">entertainment</option>
+                  <option value="technology">technology</option>
+                </select>
+              </label>
+              <label>
+                Approved Filter
+                <select id="filter-approved">
+                  <option value="">all</option>
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              </label>
+              <label>
+                Persona Filter
+                <input id="filter-persona" type="text" placeholder="Tsuki Tamara" />
+              </label>
+              <label>
+                Beat Filter
+                <input id="filter-beat" type="text" placeholder="gaming" />
+              </label>
+              <label>
+                Search
+                <input id="filter-q" type="text" placeholder="title/description/beat/persona" />
+              </label>
+              <label>
+                Limit
+                <input id="filter-limit" type="number" min="1" max="200" value="80" />
+              </label>
+            </div>
+            <div class="admin-actions">
+              <button id="load-images-btn" class="btn">Load Images</button>
+            </div>
+            <div id="admin-message" class="message" hidden></div>
+            <div id="images-list" class="image-library-grid"></div>
+          </div>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <script src="/theme.js"></script>
+  <script src="/admin-images.js"></script>
+</body>
+</html>

@@ -669,6 +669,56 @@
   border: 1px solid #ddd;
 }
 
+.image-library-grid {
+  margin-top: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 0.8rem;
+}
+
+.image-library-card {
+  border: 1px solid #ddd;
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 0.7rem;
+}
+
+.image-library-card img {
+  width: 100%;
+  max-height: 230px;
+  object-fit: cover;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 0.65rem;
+}
+
+.image-library-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.image-library-fields .full {
+  grid-column: 1 / -1;
+}
+
+.image-library-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: 700;
+}
+
+.image-library-fields textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.btn-autotag-image {
+  border-color: #6f95e8;
+  background: #eef4ff;
+}
+
 @media (max-width: 900px) {
   .admin-grid,
   .draft-form,
@@ -904,6 +954,21 @@ html[data-theme="dark"] .upload-preview img {
   border-color: #3a4250;
 }
 
+html[data-theme="dark"] .image-library-card {
+  background: #171d27;
+  border-color: #3a4250;
+}
+
+html[data-theme="dark"] .image-library-card img {
+  border-color: #3a4250;
+}
+
+html[data-theme="dark"] .btn-autotag-image {
+  background: #1d2c45;
+  border-color: #6f95e8;
+  color: #dbe8ff;
+}
+
 html[data-theme="dark"] .admin-modal-card {
   background: #171b22;
   border-color: #3a4250;
@@ -1005,6 +1070,10 @@ html[data-theme="dark"] .lead-copy-link {
 
 @media (max-width: 640px) {
   .leads-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .image-library-fields {
     grid-template-columns: 1fr;
   }
 }
