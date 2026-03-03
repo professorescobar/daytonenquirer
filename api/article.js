@@ -43,15 +43,15 @@ module.exports = async (req, res) => {
 
     if (article.persona) {
       try {
-        const { rows: [personaData] } = await sql`
+        const personaRows = await sql`
           SELECT avatar_url, disclosure FROM personas WHERE id = ${article.persona}
         `;
+        const personaData = personaRows[0];
         if (personaData) {
           author.avatarUrl = personaData.avatar_url || author.avatarUrl;
           author.disclosure = personaData.disclosure || author.disclosure;
         }
       } catch (personaError) {
-        // Log the error but don't crash the request. Fallback to default author.
         console.error(`Persona data fetch failed for '${article.persona}':`, personaError.message);
       }
     }

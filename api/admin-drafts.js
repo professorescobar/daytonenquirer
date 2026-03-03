@@ -21,6 +21,8 @@ module.exports = async (req, res) => {
         description,
         content,
         section,
+        beat,
+        persona,
         image,
         image_caption as "imageCaption",
         image_credit as "imageCredit",

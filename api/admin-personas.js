@@ -1,15 +1,14 @@
-import { sql } from '@neondatabase/serverless';
+const { neon } = require('@neondatabase/serverless');
+const { requireAdmin } = require('./_admin-auth');
 
-export default async function handler(req, res) {
-  // Basic admin token check
-  const token = req.headers['x-admin-token'];
-  if (process.env.ADMIN_TOKEN && token !== process.env.ADMIN_TOKEN) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+module.exports = async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const sql = neon(process.env.DATABASE_URL);
 
   if (req.method === 'GET') {
     try {
-      const { rows } = await sql`SELECT id, avatar_url as "avatarUrl", disclosure FROM personas`;
+      const rows = await sql`SELECT id, avatar_url as "avatarUrl", disclosure FROM personas`;
       return res.status(200).json({ personas: rows });
     } catch (error) {
       console.error('Error fetching personas:', error);
@@ -28,7 +27,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Persona ID is required' });
       }
 
-      const { rows } = await sql`
+      const rows = await sql`
         INSERT INTO personas (id, avatar_url, disclosure)
         VALUES (${id}, ${avatarUrl}, ${disclosure})
         ON CONFLICT (id) DO UPDATE
@@ -47,4 +46,4 @@ export default async function handler(req, res) {
 
   res.setHeader('Allow', ['GET', 'PUT']);
   return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
-}
+};

@@ -1,6 +1,6 @@
 const { neon } = require('@neondatabase/serverless');
 
-async function getArticlesBySection(section, status = 'published') {
+async function getArticlesBySection(section) {
   const sql = neon(process.env.DATABASE_URL);
   
   const articles = await sql`
@@ -16,7 +16,7 @@ async function getArticlesBySection(section, status = 'published') {
       image_credit as "imageCredit",
       pub_date as "pubDate"
     FROM articles
-    WHERE section = ${section} AND status = ${status}
+    WHERE section = ${section} AND status = 'published'
     ORDER BY pub_date DESC
   `;
   

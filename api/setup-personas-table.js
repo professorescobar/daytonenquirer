@@ -1,6 +1,7 @@
-import { sql } from '@neondatabase/serverless';
+const { neon } = require('@neondatabase/serverless');
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
+  const sql = neon(process.env.DATABASE_URL);
   try {
     await sql`
       CREATE TABLE IF NOT EXISTS personas (
@@ -15,4 +16,4 @@ export default async function handler(req, res) {
     console.error('Setup failed:', error);
     return res.status(500).json({ error: error.message });
   }
-}
+};

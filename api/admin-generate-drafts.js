@@ -1,7 +1,7 @@
 const { neon } = require('@neondatabase/serverless');
 const Parser = require('rss-parser');
 const { requireAdmin } = require('./_admin-auth');
-const { getDailyTokenBudget } = require('./_admin-settings');
+const { getDailyTokenBudgets } = require('./_admin-settings');
 const {
   cleanText,
   generateSlug,
@@ -1864,9 +1864,13 @@ module.exports = async (req, res) => {
     await ensureEditorialRejectionsTable(sql);
     await ensureModelTrackingReset(sql);
     await ensureDraftGenerationRunsTable(sql);
-    const dailyTokenBudget = dailyTokenBudgetOverride
-      ? Math.max(1, Math.min(parseInt(String(dailyTokenBudgetOverride), 10), 1000000))
-      : await getDailyTokenBudget(sql);
+    let dailyTokenBudget = 0;
+    if (dailyTokenBudgetOverride) {
+      dailyTokenBudget = Math.max(1, Math.min(parseInt(String(dailyTokenBudgetOverride), 10), 1000000));
+    } else {
+      const budgets = await getDailyTokenBudgets(sql);
+      dailyTokenBudget = budgets.manual;
+    }
     const etNowParts = getNowInEtParts();
     const sportsFocusMode = resolveSportsFocusMode(req.body?.sportsFocusMode || req.query.sportsFocusMode, etNowParts);
     const etTime = getEtTimeKey(etNowParts);

@@ -9,8 +9,6 @@ const saveTokenBtn = document.getElementById('save-token-btn');
 const saveManualBudgetBtn = document.getElementById('save-manual-budget-btn');
 const loadRunsBtn = document.getElementById('load-runs-btn');
 const messageEl = document.getElementById('settings-message');
-const loadPersonasBtn = document.getElementById('load-personas-btn');
-const personaListEl = document.getElementById('persona-settings-list');
 const generationRunListEl = document.getElementById('generation-run-list');
 const runFilterInput = document.getElementById('run-filter');
 
@@ -190,7 +188,74 @@ async function handlePersonaImageUpload(card, file) {
   }
 }
 
+function injectPersonaStyles() {
+  const styleId = 'persona-settings-styles';
+  if (document.getElementById(styleId)) return;
+  const style = document.createElement('style');
+  style.id = styleId;
+  style.textContent = `
+    .persona-editor-grid {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .persona-avatar-preview {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #f0f0f0;
+      margin-bottom: 0.5rem;
+      border: 1px solid #ccc;
+    }
+    .persona-avatar-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .persona-avatar-editor {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .persona-card h3 {
+      margin-top: 0;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    @media (max-width: 600px) {
+      .persona-editor-grid {
+        grid-template-columns: 1fr;
+      }
+      .persona-avatar-preview {
+        margin: 0 auto 0.5rem auto;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function ensurePersonaUi() {
+  if (document.getElementById('persona-settings-list')) return;
+  const appSection = document.getElementById('settings-app');
+  if (!appSection) return;
+  const container = document.createElement('section');
+  container.className = 'admin-section';
+  container.innerHTML = `
+    <div class="section-header">
+      <h2>Persona Management</h2>
+      <button id="load-personas-btn" class="btn btn-secondary" type="button">Refresh Personas</button>
+    </div>
+    <p class="hint">Customize the avatar and disclosure text for each author persona.</p>
+    <div id="persona-settings-list" class="draft-list"></div>
+  `;
+  appSection.appendChild(container);
+}
+
 function renderPersonas(personas) {
+  const personaListEl = document.getElementById('persona-settings-list');
   if (!personaListEl) return;
   const definedPersonas = getAllDefinedPersonas();
   const personaDataMap = new Map(personas.map(p => [p.id, p]));
@@ -441,32 +506,46 @@ function onPersonaListChange(event) {
   }
 }
 
-if (unlockAdminBtn) unlockAdminBtn.addEventListener('click', unlock);
-if (saveTokenBtn) saveTokenBtn.addEventListener('click', saveToken);
-if (saveManualBudgetBtn) {
-  saveManualBudgetBtn.addEventListener('click', () => {
-    saveManualBudget()
-      .then(loadManualBudget)
-      .then(() => setMessage('Manual budget updated.'))
-      .catch((err) => setMessage(`Manual budget update failed: ${err.message}`));
-  });
-}
-if (loadRunsBtn) {
-  loadRunsBtn.addEventListener('click', () => {
-    loadGenerationRuns()
-      .then((count) => setMessage(`Loaded ${count} generation run(s).`))
-      .catch((err) => setMessage(`Load failed: ${err.message}`));
-  });
-}
-if (runFilterInput) runFilterInput.addEventListener('change', () => renderGenerationRuns(generationRuns));
-if (appSection) appSection.addEventListener('click', onAppSectionClick);
-if (loadPersonasBtn) loadPersonasBtn.addEventListener('click', loadPersonas);
-if (personaListEl) personaListEl.addEventListener('click', onPersonaListClick);
-if (personaListEl) personaListEl.addEventListener('change', onPersonaListChange);
+function init() {
+  if (unlockAdminBtn) unlockAdminBtn.addEventListener('click', unlock);
+  if (saveTokenBtn) saveTokenBtn.addEventListener('click', saveToken);
+  if (saveManualBudgetBtn) {
+    saveManualBudgetBtn.addEventListener('click', () => {
+      saveManualBudget()
+        .then(loadManualBudget)
+        .then(() => setMessage('Manual budget updated.'))
+        .catch((err) => setMessage(`Manual budget update failed: ${err.message}`));
+    });
+  }
+  if (loadRunsBtn) {
+    loadRunsBtn.addEventListener('click', () => {
+      loadGenerationRuns()
+        .then((count) => setMessage(`Loaded ${count} generation run(s).`))
+        .catch((err) => setMessage(`Load failed: ${err.message}`));
+    });
+  }
+  if (runFilterInput) runFilterInput.addEventListener('change', () => renderGenerationRuns(generationRuns));
+  if (appSection) appSection.addEventListener('click', onAppSectionClick);
 
-loadToken();
-setLockState(sessionStorage.getItem('de_admin_unlocked_settings') === '1');
-if (unlocked && getToken()) {
-  Promise.all([loadManualBudget(), loadGenerationRuns(), loadPersonas()])
-    .catch((err) => setMessage(`Load failed: ${err.message}`));
+  // Inject UI and Styles
+  injectPersonaStyles();
+  ensurePersonaUi();
+
+  // Bind Persona Events
+  const loadPersonasBtn = document.getElementById('load-personas-btn');
+  const personaListEl = document.getElementById('persona-settings-list');
+  if (loadPersonasBtn) loadPersonasBtn.addEventListener('click', loadPersonas);
+  if (personaListEl) {
+    personaListEl.addEventListener('click', onPersonaListClick);
+    personaListEl.addEventListener('change', onPersonaListChange);
+  }
+
+  loadToken();
+  setLockState(sessionStorage.getItem('de_admin_unlocked_settings') === '1');
+  if (unlocked && getToken()) {
+    Promise.all([loadManualBudget(), loadGenerationRuns(), loadPersonas()])
+      .catch((err) => setMessage(`Load failed: ${err.message}`));
+  }
 }
+
+init();
