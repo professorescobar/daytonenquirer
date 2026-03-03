@@ -279,7 +279,7 @@ async function submitNewsletterForm(form) {
     }
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = originalBtnText || 'Sign Up!';
+      submitBtn.textContent = originalBtnText || 'Sign Up';
     }
   }
 }
