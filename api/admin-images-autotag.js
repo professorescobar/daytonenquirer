@@ -57,14 +57,76 @@ function safeJsonParse(text) {
   try {
     return JSON.parse(cleaned);
   } catch (_) {
+    const repaired = repairJsonStringControls(cleaned);
+    if (repaired && repaired !== cleaned) {
+      try {
+        return JSON.parse(repaired);
+      } catch (_) {}
+    }
     const candidate = extractJsonCandidate(cleaned);
     if (!candidate) return null;
     try {
       return JSON.parse(candidate);
     } catch (_) {
+      const repairedCandidate = repairJsonStringControls(candidate);
+      if (repairedCandidate && repairedCandidate !== candidate) {
+        try {
+          return JSON.parse(repairedCandidate);
+        } catch (_) {}
+      }
       return null;
     }
   }
+}
+
+function repairJsonStringControls(text) {
+  const source = String(text || '');
+  if (!source) return source;
+  let inString = false;
+  let escaped = false;
+  let out = '';
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    if (inString) {
+      if (escaped) {
+        out += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        out += ch;
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        out += ch;
+        inString = false;
+        continue;
+      }
+      if (ch === '\n') {
+        out += '\\n';
+        continue;
+      }
+      if (ch === '\r') {
+        out += '\\r';
+        continue;
+      }
+      if (ch === '\t') {
+        out += '\\t';
+        continue;
+      }
+      out += ch;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      out += ch;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
 }
 
 function asList(value, maxItems = 20, maxLen = 80) {

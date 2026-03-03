@@ -22,6 +22,8 @@ const uploadApprovedInput = document.getElementById('upload-approved');
 const uploadSaveBtn = document.getElementById('upload-save-btn');
 const uploadAutotagBtn = document.getElementById('upload-autotag-btn');
 const uploadStatusFeedEl = document.getElementById('upload-status-feed');
+const uploadPreviewWrap = document.getElementById('upload-preview-wrap');
+const uploadPreviewImg = document.getElementById('upload-preview-img');
 
 const filterSectionInput = document.getElementById('filter-section');
 const filterApprovedInput = document.getElementById('filter-approved');
@@ -53,6 +55,7 @@ const PERSONA_OPTIONS_BY_BEAT = {
 
 let adminUiUnlocked = false;
 let uploadDraftAsset = null;
+let uploadPreviewObjectUrl = '';
 
 function getToken() {
   return String(tokenInput?.value || '').trim();
@@ -154,6 +157,23 @@ function toBool(value, fallback = false) {
 function optimizedCloudinaryUrl(publicId) {
   const safeId = encodeURIComponent(publicId || '').replace(/%2F/g, '/');
   return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/f_auto,q_auto,c_limit,w_${CLOUDINARY_WIDTH}/${safeId}`;
+}
+
+function clearUploadPreview() {
+  if (uploadPreviewObjectUrl) {
+    URL.revokeObjectURL(uploadPreviewObjectUrl);
+    uploadPreviewObjectUrl = '';
+  }
+  if (uploadPreviewImg) uploadPreviewImg.src = '';
+  if (uploadPreviewWrap) uploadPreviewWrap.setAttribute('hidden', '');
+}
+
+function showUploadPreviewFromFile(file) {
+  if (!file || !uploadPreviewImg || !uploadPreviewWrap) return;
+  clearUploadPreview();
+  uploadPreviewObjectUrl = URL.createObjectURL(file);
+  uploadPreviewImg.src = uploadPreviewObjectUrl;
+  uploadPreviewWrap.removeAttribute('hidden');
 }
 
 async function uploadImageToCloudinary(file) {
@@ -265,6 +285,7 @@ async function createImageRecord() {
     setUploadStatus('');
     uploadFileInput.value = '';
     uploadDraftAsset = null;
+    clearUploadPreview();
     await loadImages();
   } catch (error) {
     setMessage(`Upload failed: ${error.message}`);
@@ -610,8 +631,14 @@ function init() {
   });
   uploadBeatInput?.addEventListener('change', syncUploadPersonaOptions);
   uploadFileInput?.addEventListener('change', () => {
+    const file = uploadFileInput?.files?.[0];
     uploadDraftAsset = null;
     setUploadStatus('');
+    if (file && String(file.type || '').startsWith('image/')) {
+      showUploadPreviewFromFile(file);
+    } else {
+      clearUploadPreview();
+    }
   });
   loadImagesBtn?.addEventListener('click', loadImages);
   imagesListEl?.addEventListener('click', onImagesListClick);
