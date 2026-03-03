@@ -16,7 +16,7 @@ async function getArticlesBySection(section) {
       image_credit as "imageCredit",
       pub_date as "pubDate"
     FROM articles
-    WHERE section = ${section} AND status = 'published'
+    WHERE section = ${section} AND COALESCE(status, 'published') = 'published'
     ORDER BY pub_date DESC
   `;
   

@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
         image_credit as "imageCredit",
         pub_date as "pubDate"
       FROM articles
-      WHERE slug = ${slug} AND status = 'published'
+      WHERE slug = ${slug} AND COALESCE(status, 'published') = 'published'
       LIMIT 1
     `;
 
@@ -73,7 +73,7 @@ module.exports = async (req, res) => {
         pub_date as "pubDate"
       FROM articles
       WHERE section = ${article.section}
-        AND status = 'published'
+        AND COALESCE(status, 'published') = 'published'
         AND (
           pub_date > ${article.pubDate}
           OR (pub_date = ${article.pubDate} AND id > ${article.id})
@@ -97,7 +97,7 @@ module.exports = async (req, res) => {
         pub_date as "pubDate"
       FROM articles
       WHERE section = ${article.section}
-        AND status = 'published'
+        AND COALESCE(status, 'published') = 'published'
         AND (
           pub_date < ${article.pubDate}
           OR (pub_date = ${article.pubDate} AND id < ${article.id})

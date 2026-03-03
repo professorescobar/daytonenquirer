@@ -30,7 +30,7 @@ export default async function handler(req, res) {
           pub_date as "pubDate"
         FROM articles
         WHERE section = ${section} 
-          AND status = 'published'
+          AND COALESCE(status, 'published') = 'published'
           AND image IS NOT NULL 
           AND image != ''
         ORDER BY pub_date DESC
