@@ -140,8 +140,8 @@ function injectTopicEngineStyles() {
     }
     .topic-engine-messages {
       padding: 1.25rem;
-      height: 400px;
       overflow-y: auto;
+      max-height: 400px;
     }
 
     .topic-engine-message {
@@ -166,7 +166,12 @@ function injectTopicEngineStyles() {
       border-bottom-right-radius: 2px;
     }
     .topic-engine-message.is-bot p {
-      /* No bubble for bot messages, plain text */
+      display: inline-block;
+      background-color: var(--bg-color-secondary);
+      padding: 0.6rem 0.9rem;
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      border-bottom-left-radius: 2px;
     }
     .topic-engine-message.is-thinking p {
       display: inline-block;
