@@ -109,7 +109,6 @@ function injectTopicEngineStyles() {
   const style = document.createElement('style');
   style.id = styleId;
   style.textContent = `
-
     .topic-engine-section {
       margin: 3rem auto;
       max-width: 800px;
@@ -118,34 +117,39 @@ function injectTopicEngineStyles() {
       box-sizing: border-box;
     }
     .topic-engine-wrap {
-      border: 1px solid var(--border-color);
+      border: 1px solid var(--border-color, #e5e7eb);
       border-radius: 12px;
-
-      background-color: var(--card-bg-color);
+      background-color: var(--card-bg-color, #ffffff);
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     .topic-engine-header {
       padding: 1rem 1.25rem;
-      border-bottom: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color, #e5e7eb);
+      background-color: var(--card-bg-color, #ffffff);
     }
     .topic-engine-header h3 {
       margin: 0 0 0.25rem 0;
       font-size: 1.25rem;
+      color: var(--text-color, #111827);
     }
     .topic-engine-disclosure {
       font-size: 0.875rem;
-      color: var(--text-color-secondary);
+      color: var(--text-color-secondary, #6b7280);
       margin: 0;
     }
     .topic-engine-messages {
       padding: 1.25rem;
       overflow-y: auto;
       max-height: 400px;
+      background-color: var(--bg-color, #ffffff);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
     }
-
     .topic-engine-message {
-      margin-bottom: 1rem;
       max-width: 85%;
     }
     .topic-engine-message p {
@@ -153,7 +157,7 @@ function injectTopicEngineStyles() {
       line-height: 1.5;
     }
     .topic-engine-message.is-user {
-      margin-left: auto;
+      align-self: flex-end;
       text-align: right;
     }
     .topic-engine-message.is-user p {
@@ -161,13 +165,18 @@ function injectTopicEngineStyles() {
       padding: 0.6rem 0.9rem;
       border-radius: 12px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-      background-color: var(--primary-color);
+      background-color: var(--primary-color, #2563eb);
       color: white;
       border-bottom-right-radius: 2px;
+      text-align: left;
+    }
+    .topic-engine-message.is-bot {
+      align-self: flex-start;
     }
     .topic-engine-message.is-bot p {
       display: inline-block;
-      background-color: var(--bg-color-secondary);
+      background-color: var(--bg-color-secondary, #f3f4f6);
+      color: var(--text-color, #111827);
       padding: 0.6rem 0.9rem;
       border-radius: 12px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -175,9 +184,10 @@ function injectTopicEngineStyles() {
     }
     .topic-engine-message.is-thinking p {
       display: inline-block;
-      color: var(--text-color-secondary);
+      color: var(--text-color-secondary, #6b7280);
       background-color: transparent;
       padding-left: 0;
+      box-shadow: none;
     }
     .topic-engine-message.is-thinking .spinner {
       display: inline-block;
@@ -187,7 +197,6 @@ function injectTopicEngineStyles() {
       border-right-color: transparent;
       border-radius: 50%;
       animation: spin 1s linear infinite;
-
       margin-right: 0.5em;
       vertical-align: -0.125em;
     }
@@ -195,14 +204,15 @@ function injectTopicEngineStyles() {
     .topic-engine-form {
       display: flex;
       padding: 1rem;
-      border-top: 1px solid var(--border-color);
+      border-top: 1px solid var(--border-color, #e5e7eb);
       gap: 0.5rem;
+      background-color: var(--card-bg-color, #ffffff);
     }
     .topic-engine-form input {
       flex-grow: 1;
-      border: 1px solid var(--border-color);
-      background-color: var(--bg-color);
-      color: var(--text-color);
+      border: 1px solid var(--border-color, #e5e7eb);
+      background-color: var(--bg-color, #ffffff);
+      color: var(--text-color, #111827);
       padding: 0.75rem;
       border-radius: 6px;
     }
@@ -210,13 +220,13 @@ function injectTopicEngineStyles() {
       padding: 0.75rem 1.25rem;
       border: 0;
       border-radius: 6px;
-      background-color: var(--primary-color);
+      background-color: var(--primary-color, #2563eb);
       color: white;
       font-weight: bold;
       cursor: pointer;
     }
     .topic-engine-form button:disabled {
-      background-color: var(--text-color-secondary);
+      background-color: var(--text-color-secondary, #6b7280);
       cursor: not-allowed;
     }
   `;
