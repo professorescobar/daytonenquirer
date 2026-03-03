@@ -1,5 +1,5 @@
 const { neon } = require('@neondatabase/serverless');
-const { getPersonaLabel } = require('../../lib/personas');
+const { getPersonaLabel } = require('../lib/personas');
 
 module.exports = async (req, res) => {
   const { slug, og } = req.query;
