@@ -137,6 +137,39 @@ function asList(value, maxItems = 20, maxLen = 80) {
     .slice(0, maxItems);
 }
 
+function normalizeTaggedFields(rawTitle, rawDescription) {
+  let title = truncate(cleanText(rawTitle || ''), 240);
+  let description = truncate(cleanText(rawDescription || ''), 2000);
+  if (!title) return { title, description };
+
+  const sentenceBreak = title.search(/[.!?]\s+/);
+  if (sentenceBreak >= 40) {
+    const first = title.slice(0, sentenceBreak + 1).trim();
+    const rest = title.slice(sentenceBreak + 1).trim();
+    title = truncate(first, 240);
+    description = truncate([rest, description].filter(Boolean).join(' ').trim(), 2000);
+  }
+
+  if (title.length > 120) {
+    const cut = title.slice(0, 120);
+    const splitIdx = Math.max(cut.lastIndexOf(' - '), cut.lastIndexOf(': '), cut.lastIndexOf(', '));
+    if (splitIdx > 35) {
+      const head = title.slice(0, splitIdx).trim();
+      const tail = title.slice(splitIdx + 1).trim();
+      title = truncate(head, 120);
+      description = truncate([tail, description].filter(Boolean).join(' ').trim(), 2000);
+    } else {
+      title = truncate(title, 120);
+    }
+  }
+
+  if (description && title && description.toLowerCase() === title.toLowerCase()) {
+    description = '';
+  }
+
+  return { title, description };
+}
+
 async function ensureMediaLibraryTable(sql) {
   await sql`
     CREATE TABLE IF NOT EXISTS media_library (
@@ -242,9 +275,10 @@ Rules:
     throw new Error(`Gemini returned invalid JSON${preview ? `: ${preview}` : ''}`);
   }
 
+  const normalized = normalizeTaggedFields(parsed.title || '', parsed.description || '');
   return {
-    title: truncate(cleanText(parsed.title || ''), 240),
-    description: truncate(cleanText(parsed.description || ''), 2000),
+    title: normalized.title,
+    description: normalized.description,
     tags: asList(parsed.tags, 20, 80),
     entities: asList(parsed.entities, 20, 80),
     tone: truncate(cleanText(parsed.tone || ''), 80)
