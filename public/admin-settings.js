@@ -9,6 +9,8 @@ const saveTokenBtn = document.getElementById('save-token-btn');
 const saveManualBudgetBtn = document.getElementById('save-manual-budget-btn');
 const loadRunsBtn = document.getElementById('load-runs-btn');
 const messageEl = document.getElementById('settings-message');
+const loadPersonasBtn = document.getElementById('load-personas-btn');
+const personaListEl = document.getElementById('persona-settings-list');
 const generationRunListEl = document.getElementById('generation-run-list');
 const runFilterInput = document.getElementById('run-filter');
 
@@ -16,6 +18,7 @@ let unlocked = false;
 let generationRuns = [];
 
 function setMessage(text) {
+  if (!messageEl) return;
   messageEl.hidden = !text;
   messageEl.textContent = text || '';
 }
@@ -28,6 +31,76 @@ function setLockState(value) {
   unlocked = value;
   lockSection.hidden = value;
   appSection.hidden = !value;
+}
+
+const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
+const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
+const CLOUDINARY_WIDTH = 1600;
+
+const BEAT_OPTIONS_BY_SECTION = {
+  local: [{ value: 'general-local', label: 'General Local' }],
+  national: [{ value: 'general-national', label: 'General National' }],
+  world: [{ value: 'general-world', label: 'General World' }],
+  business: [
+    { value: 'general-business', label: 'General Business' },
+    { value: 'local-business', label: 'Local Business' }
+  ],
+  sports: [
+    { value: 'general-sports', label: 'General Sports' },
+    { value: 'high-school', label: 'High School' }
+  ],
+  health: [
+    { value: 'general-health', label: 'General Health' },
+    { value: 'local-health', label: 'Local Health' }
+  ],
+  entertainment: [
+    { value: 'general-entertainment', label: 'General Entertainment' },
+    { value: 'local-entertainment', label: 'Local Entertainment' },
+    { value: 'gaming', label: 'Gaming' }
+  ],
+  technology: [
+    { value: 'general-technology', label: 'General Technology' },
+    { value: 'local-tech', label: 'Local Tech' },
+    { value: 'ai', label: 'AI' }
+  ]
+};
+
+const PERSONA_OPTIONS_BY_BEAT = {
+  'general-local': [{ value: 'local-reporter', label: 'Local Reporter' }],
+  'general-national': [{ value: 'national-correspondent', label: 'National Correspondent' }],
+  'general-world': [{ value: 'foreign-correspondent', label: 'Foreign Correspondent' }],
+  'general-business': [{ value: 'business-reporter', label: 'Business Reporter' }],
+  'local-business': [{ value: 'local-business-reporter', label: 'Local Business Reporter' }],
+  'general-sports': [{ value: 'sports-reporter', label: 'Sports Reporter' }],
+  'high-school': [{ value: 'local-sports-writer', label: 'Local Sports Writer' }],
+  'general-health': [{ value: 'health-science-reporter', label: 'Health & Science Reporter' }],
+  'local-health': [{ value: 'local-health-reporter', label: 'Local Health Reporter' }],
+  'general-entertainment': [{ value: 'entertainment-reporter', label: 'Entertainment Reporter' }],
+  'local-entertainment': [{ value: 'local-culture-critic', label: 'Local Culture Critic' }],
+  gaming: [{ value: 'tsuki-tamara', label: 'Tsuki Tamara (Gaming Journalist)' }],
+  'general-technology': [{ value: 'tech-reporter', label: 'Tech Reporter' }],
+  'local-tech': [{ value: 'local-tech-reporter', label: 'Local Tech Reporter' }],
+  ai: [{ value: 'ai-future-tech-analyst', label: 'AI & Future Tech Analyst' }]
+};
+
+function getAllDefinedPersonas() {
+  const allPersonas = new Map();
+  for (const beat of Object.keys(PERSONA_OPTIONS_BY_BEAT)) {
+    for (const persona of PERSONA_OPTIONS_BY_BEAT[beat]) {
+      if (!allPersonas.has(persona.value)) {
+        allPersonas.set(persona.value, persona.label);
+      }
+    }
+  }
+  return Array.from(allPersonas.entries()).map(([id, label]) => ({ id, label }));
+}
+
+function buildCloudinaryOptimizedUrl(publicId) {
+  const safeId = String(publicId || '')
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/f_auto,q_auto,c_limit,w_${CLOUDINARY_WIDTH}/${safeId}`;
 }
 
 function formatDate(dateString) {
@@ -71,6 +144,110 @@ function shouldIncludeRunByFilter(run, filterValue) {
   return true;
 }
 
+async function uploadImageToCloudinary(file) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: 'POST', body: form }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error?.message || 'Upload failed');
+  }
+  if (!data.public_id) {
+    throw new Error('Upload succeeded but no public_id returned');
+  }
+  return {
+    optimizedUrl: buildCloudinaryOptimizedUrl(data.public_id),
+    secureUrl: data.secure_url || '',
+    publicId: data.public_id
+  };
+}
+
+async function handlePersonaImageUpload(card, file) {
+  const imageInput = card.querySelector('.field-avatar-url');
+  const status = card.querySelector('.upload-status');
+  const previewImg = card.querySelector('.persona-avatar-preview img');
+  if (!file) return;
+
+  const mime = String(file.type || '');
+  if (!mime.startsWith('image/')) {
+    status.textContent = 'Please select an image file.';
+    return;
+  }
+
+  try {
+    status.textContent = 'Uploading...';
+    const result = await uploadImageToCloudinary(file);
+    imageInput.value = result.optimizedUrl;
+    if (previewImg) previewImg.src = result.optimizedUrl;
+    status.textContent = 'Upload complete. Save to apply.';
+  } catch (err) {
+    status.textContent = `Upload failed: ${err.message}`;
+  }
+}
+
+function renderPersonas(personas) {
+  if (!personaListEl) return;
+  const definedPersonas = getAllDefinedPersonas();
+  const personaDataMap = new Map(personas.map(p => [p.id, p]));
+
+  personaListEl.innerHTML = definedPersonas.map(p => {
+    const data = personaDataMap.get(p.id) || {};
+    return `
+      <article class="draft-card persona-card" data-id="${p.id}">
+        <div class="draft-form">
+          <h3>${escapeHtml(p.label)} <small>(${p.id})</small></h3>
+          <div class="persona-editor-grid">
+            <div class="persona-avatar-editor">
+              <div class="persona-avatar-preview">
+                <img src="${escapeHtml(data.avatarUrl || '/images/personas/default-avatar.svg')}" alt="Avatar for ${escapeHtml(p.label)}">
+              </div>
+              <input type="text" class="field-avatar-url" value="${escapeHtml(data.avatarUrl || '')}" placeholder="Avatar URL">
+              <input type="file" class="file-image" accept="image/*" hidden>
+              <button type="button" class="btn btn-secondary btn-upload-avatar">Upload New Avatar</button>
+              <p class="upload-status"></p>
+            </div>
+            <div class="persona-disclosure-editor">
+              <label>Disclosure Text</label>
+              <textarea class="field-disclosure" rows="4" placeholder="This article was generated by a topic engine...">${escapeHtml(data.disclosure || '')}</textarea>
+            </div>
+          </div>
+          <div class="admin-actions">
+            <button type="button" class="btn btn-primary btn-save-persona">Save Persona</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+async function loadPersonas() {
+  try {
+    setMessage('Loading personas...');
+    const data = await apiRequest('/api/admin-personas');
+    renderPersonas(data.personas || []);
+    setMessage(`Loaded ${data.personas?.length || 0} persona configurations.`);
+  } catch (err) {
+    setMessage(`Failed to load personas: ${err.message}`);
+  }
+}
+
+async function savePersona(card) {
+  const id = card.dataset.id;
+  const avatarUrl = card.querySelector('.field-avatar-url').value;
+  const disclosure = card.querySelector('.field-disclosure').value;
+
+  await apiRequest('/api/admin-personas', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, avatarUrl, disclosure })
+  });
+}
+
 async function unlock() {
   try {
     const password = (adminUiPasswordInput.value || '').trim();
@@ -88,7 +265,7 @@ async function unlock() {
     setLockState(true);
     setMessage('Settings unlocked.');
     if (getToken()) {
-      await Promise.all([loadManualBudget(), loadGenerationRuns()]);
+      await Promise.all([loadManualBudget(), loadGenerationRuns(), loadPersonas()]);
     }
   } catch (err) {
     setMessage(`Unlock failed: ${err.message}`);
@@ -232,6 +409,38 @@ function onAppSectionClick(event) {
   });
 }
 
+function onPersonaListClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+
+  const card = target.closest('.persona-card');
+  if (!card) return;
+
+  if (target.classList.contains('btn-upload-avatar')) {
+    card.querySelector('.file-image')?.click();
+    return;
+  }
+
+  if (target.classList.contains('btn-save-persona')) {
+    target.disabled = true;
+    savePersona(card)
+      .then(() => setMessage(`Persona '${card.dataset.id}' saved.`))
+      .catch(err => setMessage(`Save failed: ${err.message}`))
+      .finally(() => { target.disabled = false; });
+  }
+}
+
+function onPersonaListChange(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || target.type !== 'file') return;
+
+  const card = target.closest('.persona-card');
+  const file = target.files?.[0];
+  if (card && file) {
+    handlePersonaImageUpload(card, file);
+  }
+}
+
 if (unlockAdminBtn) unlockAdminBtn.addEventListener('click', unlock);
 if (saveTokenBtn) saveTokenBtn.addEventListener('click', saveToken);
 if (saveManualBudgetBtn) {
@@ -251,10 +460,13 @@ if (loadRunsBtn) {
 }
 if (runFilterInput) runFilterInput.addEventListener('change', () => renderGenerationRuns(generationRuns));
 if (appSection) appSection.addEventListener('click', onAppSectionClick);
+if (loadPersonasBtn) loadPersonasBtn.addEventListener('click', loadPersonas);
+if (personaListEl) personaListEl.addEventListener('click', onPersonaListClick);
+if (personaListEl) personaListEl.addEventListener('change', onPersonaListChange);
 
 loadToken();
 setLockState(sessionStorage.getItem('de_admin_unlocked_settings') === '1');
 if (unlocked && getToken()) {
-  Promise.all([loadManualBudget(), loadGenerationRuns()])
+  Promise.all([loadManualBudget(), loadGenerationRuns(), loadPersonas()])
     .catch((err) => setMessage(`Load failed: ${err.message}`));
 }
