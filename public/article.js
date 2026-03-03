@@ -317,7 +317,14 @@ async function loadArticle() {
 
     // Fetch article from database
     const res = await fetch(`/api/article?slug=${encodeURIComponent(slug)}`);
-    if (!res.ok) throw new Error('Article not found');
+    if (!res.ok) {
+      let message = `Article request failed (${res.status})`;
+      try {
+        const errData = await res.json();
+        if (errData?.error) message = errData.error;
+      } catch (_) {}
+      throw new Error(message);
+    }
     const data = await res.json();
     const article = data.article;
 
@@ -441,7 +448,7 @@ async function loadArticle() {
 
   } catch (err) {
     console.error('Article load error:', err);
-    if (loadingEl) loadingEl.innerHTML = '<p>Article not found.</p>';
+    if (loadingEl) loadingEl.innerHTML = `<p>${escapeHtml(err?.message || 'Article not found.')}</p>`;
   }
 }
 

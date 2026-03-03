@@ -1,6 +1,10 @@
 const { neon } = require('@neondatabase/serverless');
 const { getPersonaLabel } = require('../lib/personas');
 
+function isMissingColumn(error, columnName) {
+  return new RegExp(`column\\s+"?${columnName}"?\\s+does\\s+not\\s+exist`, 'i').test(String(error?.message || ''));
+}
+
 module.exports = async (req, res) => {
   const { slug, og } = req.query;
   
@@ -10,24 +14,290 @@ module.exports = async (req, res) => {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    let hasStatusColumn = true;
+    let hasPersonaColumn = true;
 
-    const rows = await sql`
-      SELECT
-        id,
-        slug,
-        title,
-        description,
-        content,
-        section,
-        persona,
-        image,
-        image_caption as "imageCaption",
-        image_credit as "imageCredit",
-        pub_date as "pubDate"
-      FROM articles
-      WHERE slug = ${slug} AND COALESCE(status, 'published') = 'published'
-      LIMIT 1
-    `;
+    async function queryBySlug() {
+      if (hasPersonaColumn && hasStatusColumn) {
+        return sql`
+          SELECT
+            id,
+            slug,
+            title,
+            description,
+            content,
+            section,
+            persona,
+            image,
+            image_caption as "imageCaption",
+            image_credit as "imageCredit",
+            pub_date as "pubDate"
+          FROM articles
+          WHERE slug = ${slug} AND COALESCE(status, 'published') = 'published'
+          LIMIT 1
+        `;
+      }
+      if (hasPersonaColumn && !hasStatusColumn) {
+        return sql`
+          SELECT
+            id,
+            slug,
+            title,
+            description,
+            content,
+            section,
+            persona,
+            image,
+            image_caption as "imageCaption",
+            image_credit as "imageCredit",
+            pub_date as "pubDate"
+          FROM articles
+          WHERE slug = ${slug}
+          LIMIT 1
+        `;
+      }
+      if (!hasPersonaColumn && hasStatusColumn) {
+        return sql`
+          SELECT
+            id,
+            slug,
+            title,
+            description,
+            content,
+            section,
+            NULL::text as persona,
+            image,
+            image_caption as "imageCaption",
+            image_credit as "imageCredit",
+            pub_date as "pubDate"
+          FROM articles
+          WHERE slug = ${slug} AND COALESCE(status, 'published') = 'published'
+          LIMIT 1
+        `;
+      }
+      return sql`
+        SELECT
+          id,
+          slug,
+          title,
+          description,
+          content,
+          section,
+          NULL::text as persona,
+          image,
+          image_caption as "imageCaption",
+          image_credit as "imageCredit",
+          pub_date as "pubDate"
+        FROM articles
+        WHERE slug = ${slug}
+        LIMIT 1
+      `;
+    }
+
+    async function queryNeighbor(section, pubDate, id, direction) {
+      const isPrev = direction === 'prev';
+      if (hasPersonaColumn && hasStatusColumn) {
+        return isPrev
+          ? sql`
+              SELECT
+                id,
+                slug,
+                title,
+                description,
+                content,
+                section,
+                persona,
+                image,
+                image_caption as "imageCaption",
+                image_credit as "imageCredit",
+                pub_date as "pubDate"
+              FROM articles
+              WHERE section = ${section}
+                AND COALESCE(status, 'published') = 'published'
+                AND (
+                  pub_date > ${pubDate}
+                  OR (pub_date = ${pubDate} AND id > ${id})
+                )
+              ORDER BY pub_date ASC, id ASC
+              LIMIT 1
+            `
+          : sql`
+              SELECT
+                id,
+                slug,
+                title,
+                description,
+                content,
+                section,
+                persona,
+                image,
+                image_caption as "imageCaption",
+                image_credit as "imageCredit",
+                pub_date as "pubDate"
+              FROM articles
+              WHERE section = ${section}
+                AND COALESCE(status, 'published') = 'published'
+                AND (
+                  pub_date < ${pubDate}
+                  OR (pub_date = ${pubDate} AND id < ${id})
+                )
+              ORDER BY pub_date DESC, id DESC
+              LIMIT 1
+            `;
+      }
+      if (hasPersonaColumn && !hasStatusColumn) {
+        return isPrev
+          ? sql`
+              SELECT
+                id,
+                slug,
+                title,
+                description,
+                content,
+                section,
+                persona,
+                image,
+                image_caption as "imageCaption",
+                image_credit as "imageCredit",
+                pub_date as "pubDate"
+              FROM articles
+              WHERE section = ${section}
+                AND (
+                  pub_date > ${pubDate}
+                  OR (pub_date = ${pubDate} AND id > ${id})
+                )
+              ORDER BY pub_date ASC, id ASC
+              LIMIT 1
+            `
+          : sql`
+              SELECT
+                id,
+                slug,
+                title,
+                description,
+                content,
+                section,
+                persona,
+                image,
+                image_caption as "imageCaption",
+                image_credit as "imageCredit",
+                pub_date as "pubDate"
+              FROM articles
+              WHERE section = ${section}
+                AND (
+                  pub_date < ${pubDate}
+                  OR (pub_date = ${pubDate} AND id < ${id})
+                )
+              ORDER BY pub_date DESC, id DESC
+              LIMIT 1
+            `;
+      }
+      if (!hasPersonaColumn && hasStatusColumn) {
+        return isPrev
+          ? sql`
+              SELECT
+                id,
+                slug,
+                title,
+                description,
+                content,
+                section,
+                NULL::text as persona,
+                image,
+                image_caption as "imageCaption",
+                image_credit as "imageCredit",
+                pub_date as "pubDate"
+              FROM articles
+              WHERE section = ${section}
+                AND COALESCE(status, 'published') = 'published'
+                AND (
+                  pub_date > ${pubDate}
+                  OR (pub_date = ${pubDate} AND id > ${id})
+                )
+              ORDER BY pub_date ASC, id ASC
+              LIMIT 1
+            `
+          : sql`
+              SELECT
+                id,
+                slug,
+                title,
+                description,
+                content,
+                section,
+                NULL::text as persona,
+                image,
+                image_caption as "imageCaption",
+                image_credit as "imageCredit",
+                pub_date as "pubDate"
+              FROM articles
+              WHERE section = ${section}
+                AND COALESCE(status, 'published') = 'published'
+                AND (
+                  pub_date < ${pubDate}
+                  OR (pub_date = ${pubDate} AND id < ${id})
+                )
+              ORDER BY pub_date DESC, id DESC
+              LIMIT 1
+            `;
+      }
+      return isPrev
+        ? sql`
+            SELECT
+              id,
+              slug,
+              title,
+              description,
+              content,
+              section,
+              NULL::text as persona,
+              image,
+              image_caption as "imageCaption",
+              image_credit as "imageCredit",
+              pub_date as "pubDate"
+            FROM articles
+            WHERE section = ${section}
+              AND (
+                pub_date > ${pubDate}
+                OR (pub_date = ${pubDate} AND id > ${id})
+              )
+            ORDER BY pub_date ASC, id ASC
+            LIMIT 1
+          `
+        : sql`
+            SELECT
+              id,
+              slug,
+              title,
+              description,
+              content,
+              section,
+              NULL::text as persona,
+              image,
+              image_caption as "imageCaption",
+              image_credit as "imageCredit",
+              pub_date as "pubDate"
+            FROM articles
+            WHERE section = ${section}
+              AND (
+                pub_date < ${pubDate}
+                OR (pub_date = ${pubDate} AND id < ${id})
+              )
+            ORDER BY pub_date DESC, id DESC
+            LIMIT 1
+          `;
+    }
+    let rows;
+    try {
+      rows = await queryBySlug();
+    } catch (error) {
+      const missingStatus = isMissingColumn(error, 'status');
+      const missingPersona = isMissingColumn(error, 'persona');
+      if (!missingStatus && !missingPersona) throw error;
+      if (missingStatus) hasStatusColumn = false;
+      if (missingPersona) hasPersonaColumn = false;
+      rows = await queryBySlug();
+    }
 
     const article = rows[0];
     if (!article) {
@@ -58,53 +328,8 @@ module.exports = async (req, res) => {
     article.author = author;
 
     // Prev = newer in same section, Next = older in same section
-    const prevRows = await sql`
-      SELECT
-        id,
-        slug,
-        title,
-        description,
-        content,
-        section,
-        persona,
-        image,
-        image_caption as "imageCaption",
-        image_credit as "imageCredit",
-        pub_date as "pubDate"
-      FROM articles
-      WHERE section = ${article.section}
-        AND COALESCE(status, 'published') = 'published'
-        AND (
-          pub_date > ${article.pubDate}
-          OR (pub_date = ${article.pubDate} AND id > ${article.id})
-        )
-      ORDER BY pub_date ASC, id ASC
-      LIMIT 1
-    `;
-
-    const nextRows = await sql`
-      SELECT
-        id,
-        slug,
-        title,
-        description,
-        content,
-        section,
-        persona,
-        image,
-        image_caption as "imageCaption",
-        image_credit as "imageCredit",
-        pub_date as "pubDate"
-      FROM articles
-      WHERE section = ${article.section}
-        AND COALESCE(status, 'published') = 'published'
-        AND (
-          pub_date < ${article.pubDate}
-          OR (pub_date = ${article.pubDate} AND id < ${article.id})
-        )
-      ORDER BY pub_date DESC, id DESC
-      LIMIT 1
-    `;
+    const prevRows = await queryNeighbor(article.section, article.pubDate, article.id, 'prev');
+    const nextRows = await queryNeighbor(article.section, article.pubDate, article.id, 'next');
 
     const prevArticle = prevRows[0] || null;
     const nextArticle = nextRows[0] || null;
