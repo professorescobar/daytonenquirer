@@ -34,9 +34,9 @@ function setMobileExpanded(form, isExpanded, options = {}) {
   strip.classList.toggle('is-mobile-expanded', isExpanded);
   strip.classList.toggle('is-mobile-collapsed', !isExpanded);
   toggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
-  toggle.classList.remove('is-close');
-  toggle.textContent = 'Sign Up';
-  toggle.setAttribute('aria-label', 'Open newsletter signup');
+  toggle.classList.toggle('is-close', isExpanded);
+  toggle.textContent = isExpanded ? 'Close' : 'Sign Up';
+  toggle.setAttribute('aria-label', isExpanded ? 'Close newsletter signup' : 'Open newsletter signup');
 
   if (isExpanded && options.focusInput) {
     const emailInput = form.querySelector('input[name="email"]');
@@ -54,14 +54,14 @@ function syncMobileSignupState(forms) {
     if (isMobileSignupLayout()) {
       if (strip.classList.contains('is-mobile-expanded')) {
         toggle.setAttribute('aria-expanded', 'true');
-        toggle.classList.remove('is-close');
-        toggle.textContent = 'Sign Up';
-        toggle.setAttribute('aria-label', 'Open newsletter signup');
+        toggle.classList.add('is-close');
+        toggle.textContent = 'Close';
+        toggle.setAttribute('aria-label', 'Close newsletter signup');
       } else {
         strip.classList.add('is-mobile-collapsed');
         strip.classList.remove('is-mobile-expanded');
         toggle.setAttribute('aria-expanded', 'false');
-        toggle.classList.remove('is-close');
+        toggle.classList.remove('is-close'); // This is fine, it should not be 'is-close' when collapsed
         toggle.textContent = 'Sign Up';
         toggle.setAttribute('aria-label', 'Open newsletter signup');
       }
@@ -94,7 +94,7 @@ function bindArticleInlineCtas() {
 }
 
 function syncArticleInlineCtaLabels() {
-  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  const isMobile = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
   const labels = Array.from(document.querySelectorAll('[data-newsletter-cta] [data-newsletter-inline-toggle]'));
   labels.forEach((button) => {
     button.textContent = isMobile ? 'JOIN OUR NEWSLETTER' : 'Get Weekly Updates';
@@ -297,7 +297,9 @@ function bindNewsletterForms() {
     if (toggle) {
       toggle.addEventListener('click', () => {
         if (!isMobileSignupLayout()) return;
-        setMobileExpanded(form, true, { focusInput: true });
+        const strip = getSignupStrip(form);
+        const isExpanded = strip?.classList.contains('is-mobile-expanded');
+        setMobileExpanded(form, !isExpanded, { focusInput: !isExpanded });
       });
     }
 

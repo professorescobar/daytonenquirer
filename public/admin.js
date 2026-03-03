@@ -74,6 +74,90 @@ const SECTION_OPTIONS = [
   'technology'
 ];
 
+const BEAT_OPTIONS_BY_SECTION = {
+  local: [
+    { value: 'general-local', label: 'General Local' },
+    { value: 'government', label: 'Government' },
+    { value: 'crime', label: 'Crime' },
+    { value: 'education', label: 'Education' }
+  ],
+  national: [
+    { value: 'general-national', label: 'General National' },
+    { value: 'politics', label: 'Politics' },
+    { value: 'social-issues', label: 'Social Issues' }
+  ],
+  world: [
+    { value: 'general-world', label: 'General World' },
+    { value: 'conflict', label: 'Conflict' },
+    { value: 'diplomacy', label: 'Diplomacy' }
+  ],
+  business: [
+    { value: 'general-business', label: 'General Business' },
+    { value: 'local-business', label: 'Local Business' },
+    { value: 'markets', label: 'Markets' },
+    { value: 'real-estate', label: 'Real Estate' }
+  ],
+  sports: [
+    { value: 'general-sports', label: 'General Sports' },
+    { value: 'high-school', label: 'High School' },
+    { value: 'college', label: 'College' },
+    { value: 'professional', label: 'Professional' }
+  ],
+  health: [
+    { value: 'general-health', label: 'General Health' },
+    { value: 'local-health', label: 'Local Health' },
+    { value: 'wellness', label: 'Wellness' },
+    { value: 'medical-research', label: 'Medical Research' }
+  ],
+  entertainment: [
+    { value: 'general-entertainment', label: 'General Entertainment' },
+    { value: 'local-entertainment', label: 'Local Entertainment' },
+    { value: 'movies', label: 'Movies' },
+    { value: 'music', label: 'Music' },
+    { value: 'gaming', label: 'Gaming' }
+  ],
+  technology: [
+    { value: 'general-technology', label: 'General Technology' },
+    { value: 'local-tech', label: 'Local Tech' },
+    { value: 'ai', label: 'AI' },
+    { value: 'consumer-tech', label: 'Consumer Tech' }
+  ]
+};
+
+const PERSONA_OPTIONS_BY_BEAT = {
+  'general-local': [{ value: 'local-reporter', label: 'Local Reporter' }],
+  government: [{ value: 'city-hall-reporter', label: 'City Hall Beat Reporter' }],
+  crime: [{ value: 'crime-justice-reporter', label: 'Crime & Justice Reporter' }],
+  education: [{ value: 'education-reporter', label: 'Education Beat Reporter' }],
+  'general-national': [{ value: 'national-correspondent', label: 'National Correspondent' }],
+  politics: [{ value: 'political-analyst', label: 'Political Analyst' }],
+  'social-issues': [{ value: 'feature-writer-human-interest', label: 'Feature Writer (Human Interest)' }],
+  'general-world': [{ value: 'foreign-correspondent', label: 'Foreign Correspondent' }],
+  conflict: [{ value: 'conflict-zone-reporter', label: 'Conflict Zone Reporter' }],
+  diplomacy: [{ value: 'diplomatic-correspondent', label: 'Diplomatic Correspondent' }],
+  'general-business': [{ value: 'business-reporter', label: 'Business Reporter' }],
+  'local-business': [{ value: 'local-business-reporter', label: 'Local Business Reporter' }],
+  markets: [{ value: 'financial-analyst', label: 'Financial Analyst' }],
+  'real-estate': [{ value: 'real-estate-analyst', label: 'Real Estate Analyst' }],
+  'general-sports': [{ value: 'sports-reporter', label: 'Sports Reporter' }],
+  'high-school': [{ value: 'local-sports-writer', label: 'Local Sports Writer' }],
+  college: [{ value: 'ncaa-beat-writer', label: 'NCAA Beat Writer' }],
+  professional: [{ value: 'pro-sports-analyst', label: 'Pro Sports Analyst' }],
+  'general-health': [{ value: 'health-science-reporter', label: 'Health & Science Reporter' }],
+  'local-health': [{ value: 'local-health-reporter', label: 'Local Health Reporter' }],
+  wellness: [{ value: 'wellness-lifestyle-writer', label: 'Wellness & Lifestyle Writer' }],
+  'medical-research': [{ value: 'medical-journal-analyst', label: 'Medical Journal Analyst' }],
+  'general-entertainment': [{ value: 'entertainment-reporter', label: 'Entertainment Reporter' }],
+  'local-entertainment': [{ value: 'local-culture-critic', label: 'Local Culture Critic' }],
+  movies: [{ value: 'film-critic', label: 'Film Critic' }],
+  music: [{ value: 'music-critic', label: 'Music Critic' }],
+  gaming: [{ value: 'tsuki-tamara', label: 'Tsuki Tamara (Gaming Journalist)' }],
+  'general-technology': [{ value: 'tech-reporter', label: 'Tech Reporter' }],
+  'local-tech': [{ value: 'local-tech-reporter', label: 'Local Tech Reporter' }],
+  ai: [{ value: 'ai-future-tech-analyst', label: 'AI & Future Tech Analyst' }],
+  'consumer-tech': [{ value: 'gadget-reviewer', label: 'Gadget Reviewer' }]
+};
+
 let adminUiUnlocked = false;
 let rejectTargetDraftId = 0;
 
@@ -179,6 +263,16 @@ function sectionSelectHtml(selected) {
   }).join('');
 }
 
+function setSelectOptions(selectEl, options, fallbackOption) {
+  if (!selectEl) return;
+  const validOptions = (options || []).filter((opt) => opt && opt.value && opt.label);
+  if (!validOptions.length && fallbackOption) {
+    selectEl.innerHTML = `<option value="${escapeHtml(fallbackOption.value)}">${escapeHtml(fallbackOption.label)}</option>`;
+    return;
+  }
+  selectEl.innerHTML = validOptions.map((opt) => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
+}
+
 function aiModelSelectHtml(defaultValue = 'anthropic:claude-sonnet-4-6') {
   const options = [
     { value: 'anthropic:claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
@@ -276,6 +370,28 @@ function setHeadlineOptions(card, headlineList) {
       `).join('')}
     </div>
   `;
+}
+
+function syncBeatOptions(card) {
+  const section = card.querySelector('.field-section')?.value;
+  const beatSelect = card.querySelector('.field-beat');
+  const currentBeat = beatSelect?.value;
+  const beats = BEAT_OPTIONS_BY_SECTION[section] || [];
+  setSelectOptions(beatSelect, beats, beats[0]);
+  if (currentBeat && beats.some((b) => b.value === currentBeat)) {
+    beatSelect.value = currentBeat;
+  }
+}
+
+function syncPersonaOptions(card) {
+  const beat = card.querySelector('.field-beat')?.value;
+  const personaSelect = card.querySelector('.field-persona');
+  const currentPersona = personaSelect?.value;
+  const personas = PERSONA_OPTIONS_BY_BEAT[beat] || [];
+  setSelectOptions(personaSelect, personas, personas[0]);
+  if (currentPersona && personas.some((p) => p.value === currentPersona)) {
+    personaSelect.value = currentPersona;
+  }
 }
 
 function syncRewriteIssueSelect(card, target) {
@@ -581,6 +697,24 @@ function renderDrafts(drafts) {
         </div>
         <div class="full">
           <div class="field-label-row">
+            <span>Research / Notes</span>
+            <span class="inline-tools">
+              <button class="btn rte-btn ai-action-toggle" type="button" data-panel="panel-research-gen">Generate Research...</button>
+            </span>
+          </div>
+          <textarea class="field-research" rows="6">${escapeHtml(draft.research || '')}</textarea>
+        </div>
+        <div class="full ai-panel panel-research-gen" hidden>
+          <label>
+            Model
+            <select class="job-model-research">
+              ${aiModelSelectHtml()}
+            </select>
+          </label>
+          <button class="btn btn-primary btn-generate-research" type="button">Run Research</button>
+        </div>
+        <div class="full">
+          <div class="field-label-row">
             <span>Content</span>
           </div>
           <div class="rte-wrap">
@@ -634,10 +768,10 @@ function renderDrafts(drafts) {
             <textarea class="field-content" hidden>${escapeHtml(draft.content || '')}</textarea>
           </div>
         </div>
-        <label class="full">
-          Image URL
+        <div class="full">
+          <div class="field-label-row"><span>Image URL</span> <button type="button" class="btn rte-btn btn-source-image">Auto-Source from Library</button></div>
           <input class="field-image" type="text" value="${escapeHtml(draft.image || '')}" />
-        </label>
+        </div>
         <div class="full image-uploader">
           <button type="button" class="upload-dropzone btn-reset">
             Drop image here or click to upload
@@ -685,7 +819,12 @@ function renderDrafts(drafts) {
     </article>
   `).join('');
   initializeRichTextEditors(draftListEl);
-  draftListEl.querySelectorAll('.draft-card').forEach(hydrateJobModelSelections);
+  draftListEl.querySelectorAll('.draft-card').forEach((card) => {
+    hydrateJobModelSelections(card);
+    syncBeatOptions(card);
+    syncPersonaOptions(card);
+    hydratePersonaSelections(card);
+  });
 }
 
 function buildCloudinaryOptimizedUrl(publicId) {
@@ -934,6 +1073,9 @@ async function saveDraft(card) {
     id,
     title: card.querySelector('.field-title').value,
     description: card.querySelector('.field-description').value,
+    research: card.querySelector('.field-research').value,
+    beat: card.querySelector('.field-beat').value,
+    persona: card.querySelector('.field-persona').value,
     content: getCardContentHtml(card),
     image: card.querySelector('.field-image').value,
     imageCaption: card.querySelector('.field-image-caption').value,
@@ -983,9 +1125,24 @@ function persistJobModelSelection(card, selectorClass, storageKey) {
   if (selected) localStorage.setItem(storageKey, selected);
 }
 
+function hydratePersonaSelections(card) {
+  const draftId = card.dataset.id;
+  const beat = localStorage.getItem(`de_draft_${draftId}_beat`) || '';
+  const persona = localStorage.getItem(`de_draft_${draftId}_persona`) || '';
+  if (beat) {
+    const select = card.querySelector('.field-beat');
+    if (select) select.value = beat;
+  }
+  if (persona) {
+    const select = card.querySelector('.field-persona');
+    if (select) select.value = persona;
+  }
+}
+
 function hydrateJobModelSelections(card) {
   const headlineGenModel = localStorage.getItem('de_job_model_headline_gen') || '';
   const articleModel = localStorage.getItem('de_job_model_article') || '';
+  const researchModel = localStorage.getItem('de_job_model_research') || '';
   const descriptionModel = localStorage.getItem('de_job_model_description') || '';
   const rewriteHeadlineModel = localStorage.getItem('de_job_model_rewrite_headline') || '';
   const rewriteArticleModel = localStorage.getItem('de_job_model_rewrite_article') || '';
@@ -997,6 +1154,10 @@ function hydrateJobModelSelections(card) {
   if (articleModel) {
     const select = card.querySelector('.job-model-article');
     if (select) select.value = articleModel;
+  }
+  if (researchModel) {
+    const select = card.querySelector('.job-model-research');
+    if (select) select.value = researchModel;
   }
   if (descriptionModel) {
     const select = card.querySelector('.job-model-description');
@@ -1019,19 +1180,48 @@ function hydrateJobModelSelections(card) {
   syncRewriteIssueSelect(card, 'description');
 }
 
+async function generateResearchForDraft(card) {
+  const title = String(card.querySelector('.field-title')?.value || '').trim();
+  const section = String(card.querySelector('.field-section')?.value || 'local').trim();
+  const sourceUrl = String(card.querySelector('.draft-meta a')?.getAttribute('href') || '').trim();
+  if (!title) throw new Error('Title is required before generating research');
+  
+  const { provider, model } = getJobModelSelection(card, '.job-model-research');
+  const beat = card.querySelector('.field-beat')?.value || '';
+  const persona = card.querySelector('.field-persona')?.value || '';
+  persistJobModelSelection(card, '.job-model-research', 'de_job_model_research');
+
+  const data = await apiRequest('/api/admin-generate-research', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, section, beat, persona, provider, model, sourceUrl })
+  });
+
+  const research = String(data?.research || '').trim();
+  if (!research) throw new Error('Generation returned empty research');
+  const researchField = card.querySelector('.field-research');
+  if (researchField) researchField.value = research;
+}
+
 async function generateArticleForDraft(card) {
   const title = String(card.querySelector('.field-title')?.value || '').trim();
   const section = String(card.querySelector('.field-section')?.value || 'local').trim();
   const sourceTitle = String(card.querySelector('.draft-meta a')?.textContent || '').trim();
   const sourceUrl = String(card.querySelector('.draft-meta a')?.getAttribute('href') || '').trim();
   if (!title) throw new Error('Title is required before generating article');
+  const draftId = card.dataset.id;
   const { provider, model } = getJobModelSelection(card, '.job-model-article');
+  const beat = card.querySelector('.field-beat')?.value || '';
+  const persona = card.querySelector('.field-persona')?.value || '';
+  const research = card.querySelector('.field-research')?.value || '';
   persistJobModelSelection(card, '.job-model-article', 'de_job_model_article');
+  if (draftId && beat) localStorage.setItem(`de_draft_${draftId}_beat`, beat);
+  if (draftId && persona) localStorage.setItem(`de_draft_${draftId}_persona`, persona);
 
   const data = await apiRequest('/api/admin-generate-article', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, section, provider, model, sourceTitle, sourceUrl })
+    body: JSON.stringify({ title, section, beat, persona, research, provider, model, sourceTitle, sourceUrl })
   });
 
   const description = String(data?.article?.description || '').trim();
@@ -1070,18 +1260,41 @@ async function generateDescriptionForDraft(card) {
 async function generateHeadlinesForDraft(card) {
   const topic = String(card.querySelector('.field-title')?.value || '').trim();
   const section = String(card.querySelector('.field-section')?.value || 'local').trim();
+  const beat = card.querySelector('.field-beat')?.value || '';
+  const persona = card.querySelector('.field-persona')?.value || '';
   const { provider, model } = getJobModelSelection(card, '.job-model-headline-gen');
   persistJobModelSelection(card, '.job-model-headline-gen', 'de_job_model_headline_gen');
   const data = await apiRequest('/api/admin-generate-headlines', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic, title: topic, section, provider, model })
+    body: JSON.stringify({ topic, title: topic, section, beat, persona, provider, model })
   });
   const best = String(data?.bestHeadline || '').trim();
   const alternates = Array.isArray(data?.alternates) ? data.alternates.map((v) => String(v || '').trim()).filter(Boolean) : [];
   const titleField = card.querySelector('.field-title');
   if (titleField && best) titleField.value = best;
   setHeadlineOptions(card, [best, ...alternates]);
+}
+
+async function sourceImageForDraft(card) {
+  const title = String(card.querySelector('.field-title')?.value || '').trim();
+  const section = String(card.querySelector('.field-section')?.value || 'local').trim();
+  if (!title) throw new Error('Title is required to source an image');
+
+  const data = await apiRequest('/api/admin-source-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, section })
+  });
+
+  if (!data.imageUrl) throw new Error('No matching image found in library');
+
+  const imageInput = card.querySelector('.field-image');
+  const previewWrap = card.querySelector('.upload-preview');
+  const previewImg = card.querySelector('.upload-preview img');
+  if (imageInput) imageInput.value = data.imageUrl;
+  if (previewImg) previewImg.src = data.imageUrl;
+  if (previewWrap) previewWrap.hidden = false;
 }
 
 async function rewriteDraftContent(card, target) {
@@ -1188,6 +1401,23 @@ function onDraftListClick(event) {
       .finally(() => {
         button.disabled = false;
         clearLoadingOverlays(card, ['desc-gen', 'content-gen']);
+      });
+  }
+
+  if (button.classList.contains('btn-generate-research')) {
+    const modelLabel = getSelectedModelLabel(card, '.job-model-research');
+    setMessage(`Generating research with ${modelLabel}...`);
+    button.disabled = true;
+    showLoadingOverlay(card, 'research-gen', '.field-research', 'Researching...');
+    generateResearchForDraft(card)
+      .then(() => {
+        closeAllAiPanels();
+        setMessage(`Draft #${card.dataset.id} research generated.`);
+      })
+      .catch((err) => setMessage(`Generate research failed: ${err.message}`))
+      .finally(() => {
+        button.disabled = false;
+        clearLoadingOverlays(card, ['research-gen']);
       });
   }
 
@@ -1298,6 +1528,15 @@ function onDraftListClick(event) {
     const headline = String(button.dataset.headline || '').trim();
     if (titleField && headline) titleField.value = headline;
   }
+
+  if (button.classList.contains('btn-source-image')) {
+    setMessage('Searching image library...');
+    button.disabled = true;
+    sourceImageForDraft(card)
+      .then(() => setMessage('Image sourced from library.'))
+      .catch((err) => setMessage(`Source image failed: ${err.message}`))
+      .finally(() => { button.disabled = false; });
+  }
 }
 
 async function onLeadsGridClick(event) {
@@ -1354,8 +1593,25 @@ function onDraftListChange(event) {
     localStorage.setItem('de_job_model_article', String(input.value || ''));
     return;
   }
+  if (input.classList.contains('job-model-research')) {
+    localStorage.setItem('de_job_model_research', String(input.value || ''));
+    return;
+  }
   if (input.classList.contains('job-model-description')) {
     localStorage.setItem('de_job_model_description', String(input.value || ''));
+    return;
+  }
+  if (input.classList.contains('field-section')) {
+    const card = input.closest('.draft-card');
+    if (card) {
+      syncBeatOptions(card);
+      syncPersonaOptions(card);
+    }
+    return;
+  }
+  if (input.classList.contains('field-beat')) {
+    const card = input.closest('.draft-card');
+    if (card) syncPersonaOptions(card);
     return;
   }
   if (input.classList.contains('job-model-rewrite-headline')) {

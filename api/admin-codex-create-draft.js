@@ -65,6 +65,7 @@ module.exports = async (req, res) => {
 
     const sql = neon(process.env.DATABASE_URL);
 
+    const draftId = Number(req.body?.id || req.body?.draftId || 0);
     const section = normalizeSection(req.body?.section || 'local');
     const title = truncate(cleanText(req.body?.title || ''), 240);
     const description = truncate(cleanText(req.body?.description || ''), 1200);
@@ -76,10 +77,84 @@ module.exports = async (req, res) => {
     const sourceUrlInput = truncate(cleanText(req.body?.sourceUrl || ''), 2000);
     const model = truncate(cleanText(req.body?.model || 'codex'), 160);
     const idempotencyKey = sanitizeKey(req.body?.idempotencyKey || '');
+    const updateOnDuplicate = req.body?.updateOnDuplicate !== false;
     const sourcePublishedAt = normalizeDate(req.body?.sourcePublishedAt || '');
 
     if (!title) return res.status(400).json({ error: 'Title is required' });
     if (!content) return res.status(400).json({ error: 'Content is required' });
+
+    async function resolveUniqueSlug(nextTitle, currentId) {
+      let nextSlug = generateSlug(nextTitle);
+      if (!nextSlug) nextSlug = `codex-draft-${Date.now()}`;
+
+      const existingSlug = await sql`
+        SELECT id
+        FROM article_drafts
+        WHERE slug = ${nextSlug}
+          AND id <> ${currentId}
+        LIMIT 1
+      `;
+      if (existingSlug.length > 0) {
+        nextSlug = `${nextSlug}-${Date.now().toString().slice(-6)}`;
+      }
+      return nextSlug;
+    }
+
+    async function updateDraftById(targetId, options = {}) {
+      const currentRows = await sql`
+        SELECT id, slug, title, section, status
+        FROM article_drafts
+        WHERE id = ${targetId}
+          AND created_via = 'codex_automation'
+        LIMIT 1
+      `;
+      const current = currentRows[0];
+      if (!current) {
+        return null;
+      }
+
+      const nextSlug = title
+        ? await resolveUniqueSlug(title, current.id)
+        : current.slug;
+
+      await sql`
+        UPDATE article_drafts
+        SET
+          slug = ${nextSlug},
+          title = ${title},
+          description = ${description},
+          content = ${content},
+          section = ${section},
+          image = ${image || null},
+          image_caption = ${imageCaption || null},
+          image_credit = ${imageCredit || null},
+          source_url = ${options.nextSourceUrl || null},
+          source_title = ${sourceTitle || null},
+          source_published_at = ${sourcePublishedAt},
+          model = ${model},
+          status = 'pending_review',
+          updated_at = NOW()
+        WHERE id = ${current.id}
+      `;
+
+      const updatedRows = await sql`
+        SELECT id, slug, title, section, status
+        FROM article_drafts
+        WHERE id = ${current.id}
+        LIMIT 1
+      `;
+      return updatedRows[0];
+    }
+
+    if (Number.isInteger(draftId) && draftId > 0) {
+      const updatedDraft = await updateDraftById(draftId, {
+        nextSourceUrl: sourceUrlInput || null
+      });
+      if (!updatedDraft) {
+        return res.status(404).json({ error: 'Codex draft not found' });
+      }
+      return res.status(200).json({ ok: true, updated: true, deduped: false, draft: updatedDraft });
+    }
 
     const syntheticSourceUrl = idempotencyKey ? `codex://automation/${idempotencyKey}` : '';
     const sourceUrl = sourceUrlInput || syntheticSourceUrl;
@@ -94,7 +169,17 @@ module.exports = async (req, res) => {
         LIMIT 1
       `;
       if (duplicateByKey[0]) {
-        return res.status(200).json({ ok: true, deduped: true, draft: duplicateByKey[0] });
+        if (!updateOnDuplicate) {
+          return res.status(200).json({ ok: true, deduped: true, draft: duplicateByKey[0] });
+        }
+
+        const updatedDraft = await updateDraftById(duplicateByKey[0].id, {
+          nextSourceUrl: sourceUrlInput || syntheticSourceUrl
+        });
+        if (!updatedDraft) {
+          return res.status(404).json({ error: 'Codex draft not found' });
+        }
+        return res.status(200).json({ ok: true, deduped: true, updated: true, draft: updatedDraft });
       }
     }
 
@@ -112,11 +197,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, deduped: true, draft: duplicateByTitle[0] });
     }
 
-    let slug = generateSlug(title);
-    if (!slug) slug = `codex-draft-${Date.now()}`;
-
-    const existingSlug = await sql`SELECT id FROM article_drafts WHERE slug = ${slug} LIMIT 1`;
-    if (existingSlug.length > 0) slug = `${slug}-${Date.now().toString().slice(-6)}`;
+    const slug = await resolveUniqueSlug(title, 0);
 
     const inserted = await sql`
       INSERT INTO article_drafts (

@@ -39,18 +39,87 @@ const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
 const CLOUDINARY_WIDTH = 1600;
 
 const BEAT_OPTIONS_BY_SECTION = {
-  local: ['general-local'],
-  national: ['general-national'],
-  world: ['general-world'],
-  business: ['general-business'],
-  sports: ['general-sports'],
-  health: ['general-health'],
-  entertainment: ['gaming'],
-  technology: ['general-technology']
+  local: [
+    { value: 'general-local', label: 'General Local' },
+    { value: 'government', label: 'Government' },
+    { value: 'crime', label: 'Crime' },
+    { value: 'education', label: 'Education' }
+  ],
+  national: [
+    { value: 'general-national', label: 'General National' },
+    { value: 'politics', label: 'Politics' },
+    { value: 'social-issues', label: 'Social Issues' }
+  ],
+  world: [
+    { value: 'general-world', label: 'General World' },
+    { value: 'conflict', label: 'Conflict' },
+    { value: 'diplomacy', label: 'Diplomacy' }
+  ],
+  business: [
+    { value: 'general-business', label: 'General Business' },
+    { value: 'local-business', label: 'Local Business' },
+    { value: 'markets', label: 'Markets' },
+    { value: 'real-estate', label: 'Real Estate' }
+  ],
+  sports: [
+    { value: 'general-sports', label: 'General Sports' },
+    { value: 'high-school', label: 'High School' },
+    { value: 'college', label: 'College' },
+    { value: 'professional', label: 'Professional' }
+  ],
+  health: [
+    { value: 'general-health', label: 'General Health' },
+    { value: 'local-health', label: 'Local Health' },
+    { value: 'wellness', label: 'Wellness' },
+    { value: 'medical-research', label: 'Medical Research' }
+  ],
+  entertainment: [
+    { value: 'general-entertainment', label: 'General Entertainment' },
+    { value: 'local-entertainment', label: 'Local Entertainment' },
+    { value: 'movies', label: 'Movies' },
+    { value: 'music', label: 'Music' },
+    { value: 'gaming', label: 'Gaming' }
+  ],
+  technology: [
+    { value: 'general-technology', label: 'General Technology' },
+    { value: 'local-tech', label: 'Local Tech' },
+    { value: 'ai', label: 'AI' },
+    { value: 'consumer-tech', label: 'Consumer Tech' }
+  ]
 };
 
 const PERSONA_OPTIONS_BY_BEAT = {
-  gaming: ['Tsuki Tamara']
+  'general-local': [{ value: 'local-reporter', label: 'Local Reporter' }],
+  government: [{ value: 'city-hall-reporter', label: 'City Hall Beat Reporter' }],
+  crime: [{ value: 'crime-justice-reporter', label: 'Crime & Justice Reporter' }],
+  education: [{ value: 'education-reporter', label: 'Education Beat Reporter' }],
+  'general-national': [{ value: 'national-correspondent', label: 'National Correspondent' }],
+  politics: [{ value: 'political-analyst', label: 'Political Analyst' }],
+  'social-issues': [{ value: 'feature-writer-human-interest', label: 'Feature Writer (Human Interest)' }],
+  'general-world': [{ value: 'foreign-correspondent', label: 'Foreign Correspondent' }],
+  conflict: [{ value: 'conflict-zone-reporter', label: 'Conflict Zone Reporter' }],
+  diplomacy: [{ value: 'diplomatic-correspondent', label: 'Diplomatic Correspondent' }],
+  'general-business': [{ value: 'business-reporter', label: 'Business Reporter' }],
+  'local-business': [{ value: 'local-business-reporter', label: 'Local Business Reporter' }],
+  markets: [{ value: 'financial-analyst', label: 'Financial Analyst' }],
+  'real-estate': [{ value: 'real-estate-analyst', label: 'Real Estate Analyst' }],
+  'general-sports': [{ value: 'sports-reporter', label: 'Sports Reporter' }],
+  'high-school': [{ value: 'local-sports-writer', label: 'Local Sports Writer' }],
+  college: [{ value: 'ncaa-beat-writer', label: 'NCAA Beat Writer' }],
+  professional: [{ value: 'pro-sports-analyst', label: 'Pro Sports Analyst' }],
+  'general-health': [{ value: 'health-science-reporter', label: 'Health & Science Reporter' }],
+  'local-health': [{ value: 'local-health-reporter', label: 'Local Health Reporter' }],
+  wellness: [{ value: 'wellness-lifestyle-writer', label: 'Wellness & Lifestyle Writer' }],
+  'medical-research': [{ value: 'medical-journal-analyst', label: 'Medical Journal Analyst' }],
+  'general-entertainment': [{ value: 'entertainment-reporter', label: 'Entertainment Reporter' }],
+  'local-entertainment': [{ value: 'local-culture-critic', label: 'Local Culture Critic' }],
+  movies: [{ value: 'film-critic', label: 'Film Critic' }],
+  music: [{ value: 'music-critic', label: 'Music Critic' }],
+  gaming: [{ value: 'tsuki-tamara', label: 'Tsuki Tamara (Gaming Journalist)' }],
+  'general-technology': [{ value: 'tech-reporter', label: 'Tech Reporter' }],
+  'local-tech': [{ value: 'local-tech-reporter', label: 'Local Tech Reporter' }],
+  ai: [{ value: 'ai-future-tech-analyst', label: 'AI & Future Tech Analyst' }],
+  'consumer-tech': [{ value: 'gadget-reviewer', label: 'Gadget Reviewer' }]
 };
 
 let adminUiUnlocked = false;
@@ -94,38 +163,38 @@ function parseCsv(text) {
     .filter(Boolean);
 }
 
-function setSelectOptions(selectEl, values, fallbackLabel) {
+function setSelectOptions(selectEl, options, fallbackOption) {
   if (!selectEl) return;
-  const options = (values || []).filter(Boolean);
-  if (!options.length && fallbackLabel) {
-    selectEl.innerHTML = `<option value="${escapeHtml(fallbackLabel)}">${escapeHtml(fallbackLabel)}</option>`;
+  const validOptions = (options || []).filter((opt) => opt && opt.value && opt.label);
+  if (!validOptions.length && fallbackOption) {
+    selectEl.innerHTML = `<option value="${escapeHtml(fallbackOption.value)}">${escapeHtml(fallbackOption.label)}</option>`;
     return;
   }
-  selectEl.innerHTML = options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+  selectEl.innerHTML = validOptions.map((opt) => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
 }
 
 function getBeatsForSection(section) {
-  return BEAT_OPTIONS_BY_SECTION[section] || ['general'];
+  return BEAT_OPTIONS_BY_SECTION[section] || BEAT_OPTIONS_BY_SECTION.local;
 }
 
 function getPersonasForBeat(beat) {
-  return PERSONA_OPTIONS_BY_BEAT[beat] || ['General Desk'];
+  return PERSONA_OPTIONS_BY_BEAT[beat] || PERSONA_OPTIONS_BY_BEAT['general-local'];
 }
 
 function syncUploadBeatOptions() {
   const section = String(uploadSectionInput?.value || 'entertainment').trim();
   const prev = String(uploadBeatInput?.value || '').trim();
   const beats = getBeatsForSection(section);
-  setSelectOptions(uploadBeatInput, beats, 'general');
-  if (prev && beats.includes(prev)) uploadBeatInput.value = prev;
+  setSelectOptions(uploadBeatInput, beats, beats[0]);
+  if (prev && beats.some((b) => b.value === prev)) uploadBeatInput.value = prev;
 }
 
 function syncUploadPersonaOptions() {
   const beat = String(uploadBeatInput?.value || '').trim();
   const prev = String(uploadPersonaInput?.value || '').trim();
   const personas = getPersonasForBeat(beat);
-  setSelectOptions(uploadPersonaInput, personas, 'General Desk');
-  if (prev && personas.includes(prev)) uploadPersonaInput.value = prev;
+  setSelectOptions(uploadPersonaInput, personas, personas[0]);
+  if (prev && personas.some((p) => p.value === prev)) uploadPersonaInput.value = prev;
 }
 
 function setMetadataLoading(loading) {
