@@ -291,6 +291,9 @@ function injectTopicEngineStyles() {
       .topic-engine-messages {
         height: 108px;
       }
+      .topic-engine-form input {
+        font-size: 16px;
+      }
     }
   `;
   document.head.appendChild(style);
