@@ -157,7 +157,8 @@ function injectTopicEngineStyles() {
     .topic-engine-messages {
       padding: 1.25rem;
       overflow-y: auto;
-      max-height: 400px;
+      height: min(52vh, 400px);
+      min-height: 230px;
       background-color: var(--bg-color, #ffffff);
       display: flex;
       flex-direction: column;
