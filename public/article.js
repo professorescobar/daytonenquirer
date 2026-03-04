@@ -157,14 +157,11 @@ function injectTopicEngineStyles() {
     .topic-engine-messages {
       padding: 1.25rem;
       overflow-y: auto;
-      height: 170px;
-      min-height: 0;
-      max-height: 360px;
+      height: 320px;
       background-color: var(--bg-color, #ffffff);
       display: flex;
       flex-direction: column;
       gap: 1rem;
-      transition: height 140ms ease;
     }
     .topic-engine-message {
       max-width: 85%;
@@ -292,37 +289,11 @@ function injectTopicEngineStyles() {
     }
     @media (max-width: 768px) {
       .topic-engine-messages {
-        height: 150px;
-        max-height: 260px;
+        height: 240px;
       }
     }
   `;
   document.head.appendChild(style);
-}
-
-function getTopicEngineMessageHeightBounds() {
-  const isMobile = window.matchMedia('(max-width: 768px)').matches;
-  return isMobile
-    ? { min: 150, max: 260 }
-    : { min: 170, max: 360 };
-}
-
-function resizeTopicEngineMessages(messagesEl, formEl, preserveInputPosition = true) {
-  if (!messagesEl) return;
-  const beforeTop = preserveInputPosition && formEl ? formEl.getBoundingClientRect().top : null;
-  const { min, max } = getTopicEngineMessageHeightBounds();
-  const targetHeight = Math.max(min, Math.min(messagesEl.scrollHeight, max));
-  messagesEl.style.height = `${targetHeight}px`;
-  if (messagesEl.scrollHeight > targetHeight) {
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
-  if (beforeTop !== null && formEl) {
-    const afterTop = formEl.getBoundingClientRect().top;
-    const delta = afterTop - beforeTop;
-    if (Math.abs(delta) > 1) {
-      window.scrollBy(0, delta);
-    }
-  }
 }
 
 async function fetchSectionArticles(apiUrl) {
@@ -568,8 +539,6 @@ function renderTopicEngine(article) {
   const input = form.querySelector('input[name="query"]');
   const button = form.querySelector('button');
   const messagesEl = document.getElementById('topic-engine-messages');
-  resizeTopicEngineMessages(messagesEl, form, false);
-  window.addEventListener('resize', () => resizeTopicEngineMessages(messagesEl, form, false), { passive: true });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -605,7 +574,6 @@ function renderTopicEngine(article) {
       messageEl.innerHTML = `<p>${escapeHtml(text)}</p>`;
     }
     messagesEl.appendChild(messageEl);
-    resizeTopicEngineMessages(messagesEl, form, true);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return messageEl;
   }

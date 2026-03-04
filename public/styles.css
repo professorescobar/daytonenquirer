@@ -1015,11 +1015,14 @@ nav a + a::before {
   align-items: center;
   justify-content: space-between;
   gap: 0.9rem;
+  min-width: 0;
 }
 
 .article-newsletter-cta p {
   margin: 0;
   font-size: 1rem;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .article-newsletter-action {
@@ -1115,7 +1118,7 @@ nav a + a::before {
   }
 
   .article-newsletter-cta:not(.is-inline-expanded) p {
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .article-newsletter-cta.is-inline-expanded .article-newsletter-action {
