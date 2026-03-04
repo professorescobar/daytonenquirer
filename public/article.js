@@ -162,7 +162,6 @@ function injectTopicEngineStyles() {
       display: flex;
       flex-direction: column;
       gap: 1rem;
-      transition: height 160ms ease;
     }
     .topic-engine-message {
       max-width: 85%;
