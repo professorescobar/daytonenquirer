@@ -1578,12 +1578,9 @@ nav a + a::before {
   line-height: 1.02;
   display: inline-flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
   gap: 0.02rem;
-}
-
-.next-arrow .nav-label {
-  align-items: flex-end;
 }
 
 /* ===============================

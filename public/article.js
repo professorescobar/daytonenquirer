@@ -242,6 +242,29 @@ function injectTopicEngineStyles() {
       background-color: var(--text-color-secondary, #6b7280);
       cursor: not-allowed;
     }
+    .topic-engine-related {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 0.35rem;
+    }
+    .topic-engine-related a {
+      display: inline-block;
+      border: 1px solid var(--border-color, #e5e7eb);
+      background: var(--card-bg-color, #ffffff);
+      color: var(--text-color, #111827);
+      border-radius: 999px;
+      padding: 0.35rem 0.65rem;
+      font-size: 0.82rem;
+      text-decoration: none;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .topic-engine-related a:hover {
+      background: var(--bg-color-secondary, #f3f4f6);
+    }
 
     /* Dark Mode Overrides */
     :root[data-theme="dark"] .topic-engine-wrap {
@@ -286,6 +309,14 @@ function injectTopicEngineStyles() {
     :root[data-theme="dark"] .topic-engine-message.is-user p {
       background-color: #4b5563;
       color: #f9fafb;
+    }
+    :root[data-theme="dark"] .topic-engine-related a {
+      border-color: #4b5563;
+      background: #1f2937;
+      color: #f9fafb;
+    }
+    :root[data-theme="dark"] .topic-engine-related a:hover {
+      background: #374151;
     }
     @media (max-width: 768px) {
       .topic-engine-messages {
@@ -571,6 +602,7 @@ function renderTopicEngine(article) {
   const input = form.querySelector('input[name="query"]');
   const button = form.querySelector('button');
   const messagesEl = document.getElementById('topic-engine-messages');
+  const conversationHistory = [];
   resizeTopicEngineMessages(messagesEl, form, false);
 
   form.addEventListener('submit', async (e) => {
@@ -582,12 +614,21 @@ function renderTopicEngine(article) {
     button.disabled = true;
 
     appendMessage(query, 'user');
+    conversationHistory.push({ role: 'user', content: query });
     const thinkingEl = appendMessage('Thinking...', 'bot', true);
 
     try {
-      const answer = await getTopicEngineResponse(query, article);
+      const response = await getTopicEngineResponse(query, article, conversationHistory);
       thinkingEl.remove();
-      appendMessage(answer, 'bot');
+      appendMessage(response.answer, 'bot');
+      conversationHistory.push({ role: 'assistant', content: response.answer });
+      if (
+        (response.intent === 'out_of_bounds' || response.intent === 'off_topic') &&
+        Array.isArray(response.relatedArticles) &&
+        response.relatedArticles.length
+      ) {
+        appendRelatedArticles(response.relatedArticles);
+      }
     } catch (err) {
       thinkingEl.remove();
       appendMessage('Sorry, I encountered an error. Please try again.', 'bot');
@@ -611,40 +652,57 @@ function renderTopicEngine(article) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return messageEl;
   }
+
+  function appendRelatedArticles(articles) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'topic-engine-message is-bot';
+    const links = articles
+      .slice(0, 3)
+      .map((item) => {
+        const itemSlug = String(item?.slug || '').trim();
+        const itemTitle = String(item?.title || '').trim();
+        if (!itemSlug || !itemTitle) return '';
+        return `<a href="article.html?slug=${encodeURIComponent(itemSlug)}" title="${escapeHtml(itemTitle)}">${escapeHtml(itemTitle)}</a>`;
+      })
+      .filter(Boolean)
+      .join('');
+    if (!links) return;
+    wrapper.innerHTML = `
+      <p>There is another article like that you might be interested in:</p>
+      <div class="topic-engine-related">${links}</div>
+    `;
+    messagesEl.appendChild(wrapper);
+    resizeTopicEngineMessages(messagesEl, form, true);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
 }
 
-async function getTopicEngineResponse(query, article) {
-  // This is a placeholder. In the future, this will make an API call.
-  // The API will use the article content and persona to generate a response.
-  //
-  // const res = await fetch('/api/article-chat', {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({
-  //     query,
-  //     articleContent: article.content,
-  //     persona: article.persona,
-  //     slug: article.slug
-  //   })
-  // });
-  // if (!res.ok) throw new Error('API request failed');
-  // const data = await res.json();
-  // return data.answer;
-
-  // --- Placeholder Logic ---
-  await new Promise(resolve => setTimeout(resolve, 1500));
-
-  const lowerQuery = query.toLowerCase();
-  if (lowerQuery.includes('next topic') || lowerQuery.includes('new article') || lowerQuery.includes('write about')) {
-    // This simulates the "new topic" feedback loop
-    return "That's an interesting question, but it seems to be outside the scope of this article. Would you like me to suggest this as a topic for a future article?";
+async function getTopicEngineResponse(query, article, history) {
+  const res = await fetch('/api/article-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query,
+      slug: article?.slug || slug,
+      history: Array.isArray(history) ? history.slice(-8) : []
+    })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || `Chat request failed (${res.status})`);
   }
-
-  if (article.title && article.title.toLowerCase().includes(lowerQuery)) {
-    return `Yes, this article is about "${article.title}". It covers the main points and provides context on the subject.`;
+  const answer = String(data.answer || '').trim();
+  if (!answer) {
+    throw new Error('Empty chat response');
   }
-
-  return `This is a placeholder response. The full Q&A functionality is being built. Based on the article, I can confirm that the topic of "${query}" is mentioned. The system will soon be able to provide more detailed answers.`;
+  return {
+    answer,
+    intent: String(data.intent || '').trim().toLowerCase() || (data.outOfScope ? 'out_of_bounds' : 'article_question'),
+    inBounds: String(data.inBounds || '').trim().toLowerCase() || (data.outOfScope ? 'out_of_bounds' : 'article'),
+    relatedArticles: Array.isArray(data.relatedArticles) ? data.relatedArticles : [],
+    outOfScope: Boolean(data.outOfScope),
+    suggestedTopic: data.suggestedTopic || null
+  };
 }
 
 function formatDate(dateString) {

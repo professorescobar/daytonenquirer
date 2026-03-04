@@ -8,6 +8,7 @@ module.exports = async (req, res) => {
         id VARCHAR(255) PRIMARY KEY,
         avatar_url TEXT,
         disclosure TEXT,
+        activation_mode TEXT DEFAULT 'both',
         updated_at TIMESTAMPTZ DEFAULT now()
       );
     `;
