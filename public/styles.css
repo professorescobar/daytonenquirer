@@ -1027,6 +1027,7 @@ nav a + a::before {
   max-width: 100%;
   min-height: 2.95rem;
   position: relative;
+  flex-shrink: 0;
 }
 
 .article-newsletter-toggle,
@@ -1039,6 +1040,8 @@ nav a + a::before {
   width: 100%;
   border: 1px solid #000;
   cursor: pointer;
+  box-sizing: border-box;
+  white-space: nowrap;
 }
 
 .article-newsletter-form {
