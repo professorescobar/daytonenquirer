@@ -10,7 +10,7 @@ function cleanText(value, max = 2000) {
 async function emitManualNextStepEvent(payload) {
   const endpoint = cleanText(process.env.INNGEST_EVENT_URL || '', 1000);
   if (!endpoint) {
-    return { attempted: false, sent: false, reason: 'missing_inggest_event_url' };
+    return { attempted: false, sent: false, reason: 'missing_inngest_event_url' };
   }
   const key = cleanText(process.env.INNGEST_EVENT_KEY || '', 500);
 
@@ -60,28 +60,52 @@ module.exports = async (req, res) => {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const currentRows = await sql`
+      SELECT
+        s.id,
+        s.persona_id as "personaId",
+        s.relation_to_archive as "relationToArchive",
+        COALESCE(te.is_auto_promote_enabled, false) as "isAutoPromoteEnabled",
+        s.policy_flags as "policyFlags"
+      FROM topic_signals s
+      LEFT JOIN topic_engines te
+        ON te.persona_id = s.persona_id
+      WHERE s.id = ${id}
+      LIMIT 1
+    `;
+    const current = currentRows[0];
+    if (!current) {
+      return res.status(404).json({ error: 'Signal not found' });
+    }
+
+    const forcedWatchByBrake = action === 'promote' && current.isAutoPromoteEnabled !== true;
+    const finalAction = forcedWatchByBrake ? 'watch' : action;
+    const finalNextStep = finalAction === 'promote'
+      ? (current.relationToArchive === 'update' ? 'cluster_update' : 'research_discovery')
+      : 'none';
+    const finalReviewDecision = finalAction === 'promote'
+      ? 'promoted'
+      : finalAction === 'reject'
+        ? 'rejected'
+        : 'pending_review';
+
+    const existingFlags = Array.isArray(current.policyFlags) ? current.policyFlags : [];
+    const nextFlags = forcedWatchByBrake && !existingFlags.includes('auto_promote_disabled')
+      ? [...existingFlags, 'auto_promote_disabled']
+      : existingFlags;
+
     const rows = await sql`
       UPDATE topic_signals
       SET
-        action = ${action},
-        next_step = CASE
-          WHEN ${action} = 'promote'
-            THEN CASE
-              WHEN relation_to_archive = 'update' THEN 'cluster_update'
-              ELSE 'research_discovery'
-            END
-          ELSE 'none'
-        END,
-        review_decision = CASE
-          WHEN ${action} = 'promote' THEN 'promoted'
-          WHEN ${action} = 'reject' THEN 'rejected'
-          ELSE review_decision
-        END,
+        action = ${finalAction},
+        next_step = ${finalNextStep},
+        review_decision = ${finalReviewDecision},
         review_notes = CASE
-          WHEN ${reviewNotes || null} IS NULL THEN review_notes
-          WHEN length(trim(COALESCE(review_notes, ''))) = 0 THEN ${reviewNotes || null}
-          ELSE review_notes || ' | ' || ${reviewNotes || null}
+          WHEN ${reviewNotes ? reviewNotes : null} IS NULL THEN review_notes
+          WHEN length(trim(COALESCE(review_notes, ''))) = 0 THEN ${reviewNotes ? reviewNotes : null}
+          ELSE review_notes || ' | ' || ${reviewNotes ? reviewNotes : null}
         END,
+        policy_flags = ${nextFlags},
         processed_at = NOW(),
         updated_at = NOW()
       WHERE id = ${id}
@@ -95,13 +119,11 @@ module.exports = async (req, res) => {
         relation_to_archive as "relationToArchive",
         event_key as "eventKey",
         dedupe_key as "dedupeKey",
+        policy_flags as "policyFlags",
         processed_at as "processedAt"
     `;
 
     const signal = rows[0];
-    if (!signal) {
-      return res.status(404).json({ error: 'Signal not found' });
-    }
 
     const triggerResult = await emitManualNextStepEvent({
       signalId: signal.id,
@@ -116,6 +138,7 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       ok: true,
       signal,
+      forcedWatchByBrake,
       manualTrigger: triggerResult
     });
   } catch (error) {
@@ -126,6 +149,6 @@ module.exports = async (req, res) => {
         details: 'Run migration 20260304_05_gatekeeper_signals.sql first.'
       });
     }
-    return res.status(500).json({ error: 'Failed to update signal' });
+    return res.status(500).json({ error: 'Failed to update signal', details: cleanText(error?.message || '', 500) });
   }
 };
