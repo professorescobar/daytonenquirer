@@ -858,8 +858,8 @@ async function lookupPriorArt(signal: SignalRecord): Promise<PriorArtMatch[]> {
   `;
 
   return [...articleRows, ...candidateRows]
-    .map((row: any) => ({
-      sourceType: row.sourceType === "candidate" ? "candidate" : "article",
+    .map((row: any): PriorArtMatch => ({
+      sourceType: (row.sourceType === "candidate" ? "candidate" : "article") as "article" | "candidate",
       sourceId: cleanText(row.sourceId, 80),
       sourceSlug: cleanText(row.sourceSlug || "", 255) || null,
       title: cleanText(row.title || "", 600),
