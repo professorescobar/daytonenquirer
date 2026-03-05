@@ -593,6 +593,22 @@ function applyGatekeeperGuardrails(
 
 // STEP 6: persist_decision
 async function persistDecision(signalId: number, decision: GatekeeperOutput): Promise<PersistedDecision> {
+  if (signalId === TEST_SIGNAL_ID) {
+    // Test-mode path: avoid DB writes for synthetic signal IDs.
+    console.log("test-mode persistDecision skip", {
+      signalId,
+      action: decision.action,
+      nextStep: decision.next_step,
+      reviewDecision:
+        decision.action === "promote" ? "promoted" : decision.action === "reject" ? "rejected" : "pending_review",
+      decision
+    });
+    return {
+      ...decision,
+      processed_at: new Date().toISOString()
+    };
+  }
+
   const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
   if (!databaseUrl) throw new Error("Missing DATABASE_URL");
   const sql = neon(databaseUrl);
