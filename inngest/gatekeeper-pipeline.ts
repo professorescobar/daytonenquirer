@@ -95,6 +95,11 @@ type EvidenceClaim = {
 };
 
 const TEST_SIGNAL_ID = 12345;
+const TEST_MODE_ENABLED = String(process.env.TOPIC_ENGINE_TEST_MODE || "").trim().toLowerCase() === "true";
+
+function isTestSignalId(signalId: number): boolean {
+  return TEST_MODE_ENABLED && signalId === TEST_SIGNAL_ID;
+}
 
 function cleanText(value: unknown, max = 8000): string {
   return String(value || "").trim().slice(0, max);
@@ -201,7 +206,7 @@ function fallbackQueries(signal: ResearchSignalContext): string[] {
 }
 
 async function loadResearchSignalContext(signalId: number): Promise<ResearchSignalContext> {
-  if (signalId === TEST_SIGNAL_ID) {
+  if (isTestSignalId(signalId)) {
     return {
       id: TEST_SIGNAL_ID,
       personaId: "dayton-local",
@@ -422,7 +427,7 @@ async function persistResearchArtifacts(
         metadata,
         created_at
       )
-      VALUES (
+      SELECT
         ${randomUUID()},
         ${runId},
         ${engineId},
@@ -438,8 +443,14 @@ async function persistResearchArtifacts(
         ${result.content || null},
         ${toSafeJsonObject(metadata)}::jsonb,
         NOW()
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM research_artifacts ra
+        WHERE ra.signal_id = ${signal.id}
+          AND ra.stage = 'research_discovery'
+          AND ra.artifact_type = 'tavily_result'
+          AND ra.source_url = ${result.url}
       )
-      ON CONFLICT DO NOTHING
     `;
   }
 }
@@ -462,7 +473,7 @@ async function runResearchDiscovery(signalId: number): Promise<{ queries: string
 }
 
 async function loadEvidenceSources(signalId: number): Promise<EvidenceSource[]> {
-  if (signalId === TEST_SIGNAL_ID) {
+  if (isTestSignalId(signalId)) {
     return [
       {
         sourceUrl: "https://example.com/mock-signal-12345",
@@ -633,7 +644,7 @@ function normalizeEvidenceClaims(claims: EvidenceClaim[], sourceUrls: Set<string
 async function persistEvidenceArtifacts(signal: ResearchSignalContext, claims: EvidenceClaim[]): Promise<number> {
   if (!claims.length) return 0;
 
-  if (signal.id === TEST_SIGNAL_ID) {
+  if (isTestSignalId(signal.id)) {
     console.log("test-mode persistEvidenceArtifacts skip", {
       signalId: signal.id,
       claimCount: claims.length,
@@ -680,7 +691,7 @@ async function persistEvidenceArtifacts(signal: ResearchSignalContext, claims: E
         metadata,
         created_at
       )
-      VALUES (
+      SELECT
         ${randomUUID()},
         ${runId},
         ${engineId},
@@ -696,8 +707,14 @@ async function persistEvidenceArtifacts(signal: ResearchSignalContext, claims: E
         ${claim.claim},
         ${toSafeJsonObject(metadata)}::jsonb,
         NOW()
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM research_artifacts ra
+        WHERE ra.signal_id = ${signal.id}
+          AND ra.stage = 'evidence_extraction'
+          AND ra.artifact_type = 'evidence_extract'
+          AND ra.source_url = ${claim.sourceUrl}
       )
-      ON CONFLICT DO NOTHING
       RETURNING id
     `;
     if (rows.length) saved += 1;
@@ -732,7 +749,7 @@ async function runEvidenceExtraction(signalId: number): Promise<{
 
 // STEP 1: load_signal
 async function loadSignalById(signalId: number): Promise<SignalRecord> {
-  if (signalId === TEST_SIGNAL_ID) {
+  if (isTestSignalId(signalId)) {
     return {
       id: TEST_SIGNAL_ID,
       personaId: "dayton-local",
@@ -788,39 +805,195 @@ async function loadSignalById(signalId: number): Promise<SignalRecord> {
 }
 
 // STEP 2: lookup_prior_art
-async function lookupPriorArt(_signal: SignalRecord): Promise<PriorArtMatch[]> {
-  // TODO: run prior-art SQL against articles/topic_engine_candidates (top 3)
-  return [];
+async function lookupPriorArt(signal: SignalRecord): Promise<PriorArtMatch[]> {
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const title = cleanText(signal.title, 500);
+  const snippet = cleanText(signal.snippet, 1000);
+  const snippetProbe = cleanText(snippet.split(/\s+/).slice(0, 12).join(" "), 220);
+
+  const articleRows = await sql`
+    SELECT
+      'article'::text as "sourceType",
+      a.id::text as "sourceId",
+      a.slug::text as "sourceSlug",
+      COALESCE(a.title, '')::text as "title",
+      COALESCE(a.description, '')::text as "snippet",
+      COALESCE(a.section, '')::text as "section",
+      COALESCE(a.pub_date, a.created_at, NOW()) as "occurredAt",
+      (
+        CASE WHEN lower(COALESCE(a.title, '')) LIKE '%' || lower(${title}) || '%' THEN 0.85 ELSE 0 END +
+        CASE WHEN lower(COALESCE(a.description, '')) LIKE '%' || lower(${snippetProbe}) || '%' THEN 0.55 ELSE 0 END
+      )::float8 as "score"
+    FROM articles a
+    WHERE
+      lower(COALESCE(a.title, '')) LIKE '%' || lower(${title}) || '%'
+      OR lower(COALESCE(a.description, '')) LIKE '%' || lower(${snippetProbe}) || '%'
+    ORDER BY "score" DESC, COALESCE(a.pub_date, a.created_at) DESC
+    LIMIT 3
+  `;
+
+  const candidateRows = await sql`
+    SELECT
+      'candidate'::text as "sourceType",
+      c.id::text as "sourceId",
+      NULL::text as "sourceSlug",
+      COALESCE(c.title, '')::text as "title",
+      COALESCE(c.snippet, '')::text as "snippet",
+      NULL::text as "section",
+      COALESCE(c.published_at, c.created_at, NOW()) as "occurredAt",
+      (
+        CASE WHEN lower(COALESCE(c.title, '')) LIKE '%' || lower(${title}) || '%' THEN 0.85 ELSE 0 END +
+        CASE WHEN lower(COALESCE(c.snippet, '')) LIKE '%' || lower(${snippetProbe}) || '%' THEN 0.55 ELSE 0 END
+      )::float8 as "score"
+    FROM topic_engine_candidates c
+    WHERE c.persona_id = ${signal.personaId}
+      AND (
+        lower(COALESCE(c.title, '')) LIKE '%' || lower(${title}) || '%'
+        OR lower(COALESCE(c.snippet, '')) LIKE '%' || lower(${snippetProbe}) || '%'
+      )
+    ORDER BY "score" DESC, COALESCE(c.published_at, c.created_at) DESC
+    LIMIT 3
+  `;
+
+  return [...articleRows, ...candidateRows]
+    .map((row: any) => ({
+      sourceType: row.sourceType === "candidate" ? "candidate" : "article",
+      sourceId: cleanText(row.sourceId, 80),
+      sourceSlug: cleanText(row.sourceSlug || "", 255) || null,
+      title: cleanText(row.title || "", 600),
+      snippet: cleanText(row.snippet || "", 1200),
+      section: cleanText(row.section || "", 120) || null,
+      occurredAt: new Date(row.occurredAt || Date.now()).toISOString(),
+      score: Number.isFinite(Number(row.score)) ? Number(row.score) : 0
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
 }
 
 // STEP 3: check_corroboration_pre_ai
-async function checkCorroborationPreAI(_signal: SignalRecord): Promise<CorroborationSummary> {
-  // TODO: similarity-based corroboration in last 24h; no event_key dependency
+async function checkCorroborationPreAI(signal: SignalRecord): Promise<CorroborationSummary> {
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const titleProbe = cleanText(signal.title, 220);
+  const snippetProbe = cleanText(signal.snippet.split(/\s+/).slice(0, 12).join(" "), 220);
+
+  const corroborationRows = await sql`
+    SELECT
+      COUNT(*)::int as "similarSignals24h",
+      COALESCE(
+        array_agg(DISTINCT s.source_type) FILTER (WHERE s.source_type IS NOT NULL),
+        ARRAY[]::text[]
+      ) as "distinctSourceTypes24h",
+      COUNT(DISTINCT s.session_hash)::int FILTER (
+        WHERE s.source_type IN ('chat_yes', 'chat_specify')
+          AND s.session_hash IS NOT NULL
+          AND length(trim(s.session_hash)) > 0
+      ) as "distinctChatSessions24h"
+    FROM topic_signals s
+    WHERE s.persona_id = ${signal.personaId}
+      AND s.id <> ${signal.id}
+      AND s.created_at >= NOW() - interval '24 hours'
+      AND (
+        lower(COALESCE(s.title, '')) LIKE '%' || lower(${titleProbe}) || '%'
+        OR lower(COALESCE(s.snippet, '')) LIKE '%' || lower(${snippetProbe}) || '%'
+      )
+  `;
+  const row = corroborationRows[0] || {};
   return {
-    similarSignals24h: 0,
-    distinctSourceTypes24h: [],
-    distinctChatSessions24h: 0
+    similarSignals24h: Number(row.similarSignals24h || 0),
+    distinctSourceTypes24h: Array.isArray(row.distinctSourceTypes24h)
+      ? row.distinctSourceTypes24h.map((v: unknown) => cleanText(v, 30)).filter(Boolean)
+      : [],
+    distinctChatSessions24h: Number(row.distinctChatSessions24h || 0)
   };
 }
 
 // STEP 4: gatekeeper_classify (Gemini 2.0 Flash)
 async function classifyWithGatekeeper(
-  _signal: SignalRecord,
-  _priorArt: PriorArtMatch[],
-  _corroboration: CorroborationSummary
+  signal: SignalRecord,
+  priorArt: PriorArtMatch[],
+  corroboration: CorroborationSummary
 ): Promise<GatekeeperOutput> {
-  // TODO: call Gemini 2.0 Flash with strict JSON contract
+  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
+
+  const model = cleanText(
+    process.env.TOPIC_ENGINE_GATEKEEPER_MODEL ||
+      process.env.GEMINI_FLASH_MODEL ||
+      process.env.GEMINI_MODEL ||
+      "gemini-1.5-flash",
+    120
+  );
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    model
+  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const prompt = [
+    "You are a local newsroom gatekeeper classifier.",
+    "Return strict JSON only.",
+    "Schema:",
+    "{\"is_newsworthy\":0-1,\"is_local\":true|false,\"confidence\":0-1,\"category\":\"...\",\"relation_to_archive\":\"none|duplicate|update|follow_up\",\"event_key\":\"...\",\"action\":\"reject|watch|promote\",\"next_step\":\"none|research_discovery|cluster_update\",\"policy_flags\":[\"...\"],\"reasoning\":\"...\"}",
+    "Rules:",
+    "- Prefer watch over promote when evidence is thin.",
+    "- Keep next_step consistent with action.",
+    "- event_key should be a stable short key for same event family.",
+    "",
+    `Signal: ${JSON.stringify(signal)}`,
+    `Prior art: ${JSON.stringify(priorArt)}`,
+    `Corroboration: ${JSON.stringify(corroboration)}`
+  ].join("\n");
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 1300,
+        responseMimeType: "application/json"
+      }
+    })
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Gemini gatekeeper classify failed ${response.status}: ${body.slice(0, 220)}`);
+  }
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+  const parsed = safeJsonParse(text) || {};
+
+  const relation = ["none", "duplicate", "update", "follow_up"].includes(String(parsed.relation_to_archive || ""))
+    ? (parsed.relation_to_archive as RelationToArchive)
+    : "none";
+  const action = ["reject", "watch", "promote"].includes(String(parsed.action || ""))
+    ? (parsed.action as Action)
+    : "watch";
+  const nextStep = ["none", "research_discovery", "cluster_update"].includes(String(parsed.next_step || ""))
+    ? (parsed.next_step as NextStep)
+    : "none";
+  const flags = Array.isArray(parsed.policy_flags) ? parsed.policy_flags : [];
+
+  const eventKeySeed = cleanText(parsed.event_key || "", 140) || cleanText(signal.title, 120);
+  const normalizedEventKey = eventKeySeed
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 120);
+
   return {
-    is_newsworthy: 0,
-    is_local: false,
-    confidence: 0,
-    category: "Other",
-    relation_to_archive: "none",
-    event_key: "",
-    action: "reject",
-    next_step: "none",
-    policy_flags: [],
-    reasoning: "stub"
+    is_newsworthy: Math.max(0, Math.min(1, Number(parsed.is_newsworthy) || 0)),
+    is_local: Boolean(parsed.is_local),
+    confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0)),
+    category: cleanText(parsed.category || "Other", 120) || "Other",
+    relation_to_archive: relation,
+    event_key: normalizedEventKey,
+    action,
+    next_step: nextStep,
+    policy_flags: flags.map((value: unknown) => cleanText(value, 80)).filter(Boolean),
+    reasoning: cleanText(parsed.reasoning || "", 3000)
   };
 }
 
@@ -877,7 +1050,7 @@ function applyGatekeeperGuardrails(
 
 // STEP 6: persist_decision
 async function persistDecision(signalId: number, decision: GatekeeperOutput): Promise<PersistedDecision> {
-  if (signalId === TEST_SIGNAL_ID) {
+  if (isTestSignalId(signalId)) {
     // Test-mode path: avoid DB writes for synthetic signal IDs.
     console.log("test-mode persistDecision skip", {
       signalId,
@@ -948,7 +1121,15 @@ async function routeNextStep(
     });
     return;
   }
-  // TODO: emit cluster.update events
+  if (decision.next_step === "cluster_update") {
+    await step.sendEvent("emit-cluster-update-start", {
+      name: "cluster.update.start",
+      data: {
+        signalId
+      }
+    });
+    return;
+  }
   if (decision.next_step === "none") return;
 }
 
@@ -1024,6 +1205,29 @@ export function createEvidenceExtractionStartFunction(inngest: Inngest) {
         ok: true,
         signalId,
         ...result
+      };
+    }
+  );
+}
+
+export function createClusterUpdateStartFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "cluster-update-start" },
+    { event: "cluster.update.start" },
+    async ({ event, step }: any) => {
+      const signalId = Number(event?.data?.signalId || 0);
+      if (!signalId) throw new Error("Missing signalId");
+
+      await step.run("cluster-update-placeholder", async () => {
+        console.log("cluster.update.start received", { signalId });
+        return { ok: true };
+      });
+
+      return {
+        ok: true,
+        signalId,
+        routed: true,
+        stage: "cluster_update"
       };
     }
   );

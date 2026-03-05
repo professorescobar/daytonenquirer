@@ -57,6 +57,42 @@ function buildDedupeKey({
   return crypto.createHash('sha256').update(canonical).digest('hex');
 }
 
+async function emitSignalReceivedEvent(signal) {
+  const endpoint = cleanText(process.env.INNGEST_EVENT_URL || '', 1200);
+  if (!endpoint) return { attempted: false, sent: false, reason: 'missing_inngest_event_url' };
+
+  const key = cleanText(process.env.INNGEST_EVENT_KEY || '', 600);
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(key ? { Authorization: `Bearer ${key}` } : {})
+      },
+      body: JSON.stringify({
+        name: 'signal.received',
+        data: {
+          signalId: Number(signal?.id || 0),
+          personaId: cleanText(signal?.personaId || '', 255),
+          sourceType: cleanText(signal?.sourceType || '', 30),
+          trigger: 'topic_signal_receive'
+        }
+      })
+    });
+    return {
+      attempted: true,
+      sent: response.ok,
+      status: response.status
+    };
+  } catch (error) {
+    return {
+      attempted: true,
+      sent: false,
+      reason: cleanText(error?.message || 'event_send_failed', 500)
+    };
+  }
+}
+
 module.exports = async (req, res) => {
   if (!requireAdmin(req, res)) return;
   if (req.method !== 'POST') {
@@ -144,10 +180,12 @@ module.exports = async (req, res) => {
     `;
 
     if (inserted[0]) {
+      const eventResult = await emitSignalReceivedEvent(inserted[0]);
       return res.status(200).json({
         ok: true,
         inserted: true,
-        signal: inserted[0]
+        signal: inserted[0],
+        event: eventResult
       });
     }
 

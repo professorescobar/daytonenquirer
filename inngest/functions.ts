@@ -1,4 +1,5 @@
 import {
+  createClusterUpdateStartFunction,
   createEvidenceExtractionMockFunction,
   createEvidenceExtractionStartFunction,
   createGatekeeperPipeline,
@@ -12,6 +13,7 @@ export const functions = [
   createGatekeeperPipeline(inngest),
   createManualGatekeeperRouteFunction(inngest),
   createResearchStartFunction(inngest),
+  createClusterUpdateStartFunction(inngest),
   createEvidenceExtractionStartFunction(inngest),
   createEvidenceExtractionMockFunction(inngest),
   createResearchDiscoveryMockFunction(inngest)
