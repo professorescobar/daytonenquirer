@@ -1,4 +1,4 @@
-import { serve } from "inngest/node";
+import { serve } from "inngest/next";
 import { inngest } from "../inngest/client";
 import { functions } from "../inngest/functions";
 
