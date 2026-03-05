@@ -79,6 +79,8 @@ type TavilyResult = {
   query: string;
 };
 
+const TEST_SIGNAL_ID = 12345;
+
 function cleanText(value: unknown, max = 8000): string {
   return String(value || "").trim().slice(0, max);
 }
@@ -184,6 +186,19 @@ function fallbackQueries(signal: ResearchSignalContext): string[] {
 }
 
 async function loadResearchSignalContext(signalId: number): Promise<ResearchSignalContext> {
+  if (signalId === TEST_SIGNAL_ID) {
+    return {
+      id: TEST_SIGNAL_ID,
+      personaId: "dayton-local",
+      title: "Mock Signal 12345: Downtown Dayton road closures planned this weekend",
+      snippet: "City crews announced temporary closures downtown for utility work and detours affecting weekend traffic.",
+      sourceName: "Mock Feed",
+      sourceUrl: "https://example.com/mock-signal-12345",
+      eventKey: "mock-event-12345",
+      dedupeKey: "mock-dedupe-12345"
+    };
+  }
+
   const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
   if (!databaseUrl) throw new Error("Missing DATABASE_URL");
   const sql = neon(databaseUrl);
@@ -433,6 +448,23 @@ async function runResearchDiscovery(signalId: number): Promise<{ queries: string
 
 // STEP 1: load_signal
 async function loadSignalById(signalId: number): Promise<SignalRecord> {
+  if (signalId === TEST_SIGNAL_ID) {
+    return {
+      id: TEST_SIGNAL_ID,
+      personaId: "dayton-local",
+      sourceType: "rss",
+      title: "Mock Signal 12345: Downtown Dayton road closures planned this weekend",
+      snippet: "City crews announced temporary closures downtown for utility work and detours affecting weekend traffic.",
+      sectionHint: "local",
+      metadata: {
+        testMode: true,
+        signalId: TEST_SIGNAL_ID
+      },
+      createdAt: new Date().toISOString(),
+      isAutoPromoteEnabled: true
+    };
+  }
+
   const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
   if (!databaseUrl) throw new Error("Missing DATABASE_URL");
   const sql = neon(databaseUrl);
