@@ -524,7 +524,7 @@ function applyGatekeeperGuardrails(
 
   if (out.confidence < 0.55 || out.is_newsworthy < 0.5) {
     if (out.action === "promote") out.action = "watch";
-    if (out.action !== "promote") out.next_step = "none";
+    out.next_step = "none";
     out.policy_flags = Array.from(new Set([...(out.policy_flags || []), "low_evidence"]));
   }
 
