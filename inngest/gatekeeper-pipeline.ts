@@ -1015,6 +1015,24 @@ export function createEvidenceExtractionStartFunction(inngest: Inngest) {
   );
 }
 
+export function createEvidenceExtractionMockFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "evidence-extraction-mock" },
+    { event: "evidence.extraction.mock" },
+    async ({ event, step }: any) => {
+      const signalId = Number(event?.data?.signalId || 0);
+      if (!signalId) throw new Error("Missing signalId");
+
+      const result = await step.run("evidence-extraction-direct", async () => runEvidenceExtraction(signalId));
+      return {
+        ok: true,
+        signalId,
+        ...result
+      };
+    }
+  );
+}
+
 export function createManualGatekeeperRouteFunction(inngest: Inngest) {
   return inngest.createFunction(
     { id: "gatekeeper-manual-route" },
