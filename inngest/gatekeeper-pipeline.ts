@@ -95,7 +95,9 @@ type EvidenceClaim = {
 };
 
 const TEST_SIGNAL_ID = 12345;
-const TEST_MODE_ENABLED = String(process.env.TOPIC_ENGINE_TEST_MODE || "").trim().toLowerCase() === "true";
+const TEST_MODE_ENABLED =
+  String(process.env.TOPIC_ENGINE_TEST_MODE || "").trim().toLowerCase() === "true" ||
+  String(process.env.VERCEL_ENV || "").trim().toLowerCase() !== "production";
 
 function isTestSignalId(signalId: number): boolean {
   return TEST_MODE_ENABLED && signalId === TEST_SIGNAL_ID;
