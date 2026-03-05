@@ -94,34 +94,57 @@ module.exports = async (req, res) => {
       ? [...existingFlags, 'auto_promote_disabled']
       : existingFlags;
 
-    const rows = await sql`
-      UPDATE topic_signals
-      SET
-        action = ${finalAction},
-        next_step = ${finalNextStep},
-        review_decision = ${finalReviewDecision},
-        review_notes = CASE
-          WHEN ${reviewNotes ? reviewNotes : null} IS NULL THEN review_notes
-          WHEN length(trim(COALESCE(review_notes, ''))) = 0 THEN ${reviewNotes ? reviewNotes : null}
-          ELSE review_notes || ' | ' || ${reviewNotes ? reviewNotes : null}
-        END,
-        policy_flags = ${nextFlags},
-        processed_at = NOW(),
-        updated_at = NOW()
-      WHERE id = ${id}
-      RETURNING
-        id,
-        persona_id as "personaId",
-        title,
-        action,
-        next_step as "nextStep",
-        review_decision as "reviewDecision",
-        relation_to_archive as "relationToArchive",
-        event_key as "eventKey",
-        dedupe_key as "dedupeKey",
-        policy_flags as "policyFlags",
-        processed_at as "processedAt"
-    `;
+    const rows = reviewNotes
+      ? await sql`
+          UPDATE topic_signals
+          SET
+            action = ${finalAction},
+            next_step = ${finalNextStep},
+            review_decision = ${finalReviewDecision},
+            review_notes = CASE
+              WHEN length(trim(COALESCE(review_notes, ''))) = 0 THEN ${reviewNotes}
+              ELSE review_notes || ' | ' || ${reviewNotes}
+            END,
+            policy_flags = ${nextFlags},
+            processed_at = NOW(),
+            updated_at = NOW()
+          WHERE id = ${id}
+          RETURNING
+            id,
+            persona_id as "personaId",
+            title,
+            action,
+            next_step as "nextStep",
+            review_decision as "reviewDecision",
+            relation_to_archive as "relationToArchive",
+            event_key as "eventKey",
+            dedupe_key as "dedupeKey",
+            policy_flags as "policyFlags",
+            processed_at as "processedAt"
+        `
+      : await sql`
+          UPDATE topic_signals
+          SET
+            action = ${finalAction},
+            next_step = ${finalNextStep},
+            review_decision = ${finalReviewDecision},
+            policy_flags = ${nextFlags},
+            processed_at = NOW(),
+            updated_at = NOW()
+          WHERE id = ${id}
+          RETURNING
+            id,
+            persona_id as "personaId",
+            title,
+            action,
+            next_step as "nextStep",
+            review_decision as "reviewDecision",
+            relation_to_archive as "relationToArchive",
+            event_key as "eventKey",
+            dedupe_key as "dedupeKey",
+            policy_flags as "policyFlags",
+            processed_at as "processedAt"
+        `;
 
     const signal = rows[0];
 
