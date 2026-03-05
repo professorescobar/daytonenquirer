@@ -524,16 +524,18 @@ async function extractEvidenceClaimsWithGemini(
   const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
-  const model = cleanText(
-    process.env.TOPIC_ENGINE_EVIDENCE_MODEL ||
-      process.env.GEMINI_PRO_MODEL ||
-      process.env.GEMINI_MODEL ||
-      "gemini-1.5-pro",
-    120
+  const candidateModels = Array.from(
+    new Set(
+      [
+        cleanText(process.env.TOPIC_ENGINE_EVIDENCE_MODEL || "", 120),
+        cleanText(process.env.GEMINI_PRO_MODEL || "", 120),
+        cleanText(process.env.GEMINI_MODEL || "", 120),
+        "gemini-1.5-pro-002",
+        "gemini-2.5-pro",
+        "gemini-2.0-flash"
+      ].filter(Boolean)
+    )
   );
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    model
-  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const sourceContext = sources
     .slice(0, 5)
     .map((source, index) =>
@@ -563,24 +565,36 @@ async function extractEvidenceClaimsWithGemini(
     sourceContext
   ].join("\n");
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 1800,
-        responseMimeType: "application/json"
-      }
-    })
-  });
-  if (!response.ok) {
+  let text = "";
+  let lastError = "Gemini evidence extraction failed";
+  for (const model of candidateModels) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      model
+    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 1800,
+          responseMimeType: "application/json"
+        }
+      })
+    });
+    if (response.ok) {
+      const data = await response.json();
+      text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+      if (text) break;
+      lastError = `Gemini evidence extraction returned empty content for model ${model}`;
+      continue;
+    }
     const body = await response.text();
-    throw new Error(`Gemini evidence extraction failed ${response.status}: ${body.slice(0, 200)}`);
+    lastError = `Gemini evidence extraction failed for model ${model} ${response.status}: ${body.slice(0, 200)}`;
   }
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+  if (!text) throw new Error(lastError);
+
   const parsed = safeJsonParse(text);
   const claims = Array.isArray(parsed?.claims) ? parsed.claims : [];
   return claims.map((item: any) => ({
