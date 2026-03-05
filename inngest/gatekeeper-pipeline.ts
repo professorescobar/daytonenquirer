@@ -79,6 +79,21 @@ type TavilyResult = {
   query: string;
 };
 
+type EvidenceSource = {
+  sourceUrl: string;
+  title: string | null;
+  content: string | null;
+  score: number;
+};
+
+type EvidenceClaim = {
+  claim: string;
+  sourceUrl: string;
+  evidenceQuote: string;
+  confidence: number;
+  whyItMatters: string;
+};
+
 const TEST_SIGNAL_ID = 12345;
 
 function cleanText(value: unknown, max = 8000): string {
@@ -446,6 +461,261 @@ async function runResearchDiscovery(signalId: number): Promise<{ queries: string
   };
 }
 
+async function loadEvidenceSources(signalId: number): Promise<EvidenceSource[]> {
+  if (signalId === TEST_SIGNAL_ID) {
+    return [
+      {
+        sourceUrl: "https://example.com/mock-signal-12345",
+        title: "City announces weekend downtown detours",
+        content: "Dayton public works said lane closures start Saturday morning and detours will be posted.",
+        score: 0.92
+      },
+      {
+        sourceUrl: "https://example.com/mock-signal-12345-traffic",
+        title: "Transit agency updates downtown service map",
+        content: "RTA said two routes will shift stops near utility work zones for safety through Sunday night.",
+        score: 0.88
+      }
+    ];
+  }
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const rows = await sql`
+    SELECT
+      source_url as "sourceUrl",
+      title,
+      content,
+      CASE
+        WHEN COALESCE(metadata->>'score', '') ~ '^[0-9]+(\\.[0-9]+)?$'
+          THEN (metadata->>'score')::numeric
+        ELSE 0
+      END as "score"
+    FROM research_artifacts
+    WHERE signal_id = ${signalId}
+      AND stage = 'research_discovery'
+      AND artifact_type = 'tavily_result'
+      AND source_url IS NOT NULL
+    ORDER BY "score" DESC, created_at DESC
+    LIMIT 5
+  `;
+
+  return rows
+    .map((row: any) => ({
+      sourceUrl: cleanText(row.sourceUrl, 2000),
+      title: cleanText(row.title || "", 600) || null,
+      content: cleanText(row.content || "", 12000) || null,
+      score: Number.isFinite(Number(row.score)) ? Number(row.score) : 0
+    }))
+    .filter((row: EvidenceSource) => row.sourceUrl);
+}
+
+function clampConfidence(value: unknown): number {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0.5;
+  return Math.max(0, Math.min(1, num));
+}
+
+async function extractEvidenceClaimsWithGemini(
+  signal: ResearchSignalContext,
+  sources: EvidenceSource[]
+): Promise<EvidenceClaim[]> {
+  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
+
+  const model = cleanText(
+    process.env.TOPIC_ENGINE_EVIDENCE_MODEL ||
+      process.env.GEMINI_PRO_MODEL ||
+      process.env.GEMINI_MODEL ||
+      "gemini-1.5-pro",
+    120
+  );
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    model
+  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const sourceContext = sources
+    .slice(0, 5)
+    .map((source, index) =>
+      [
+        `Source ${index + 1}:`,
+        `URL: ${source.sourceUrl}`,
+        `Title: ${source.title || ""}`,
+        `Score: ${source.score}`,
+        `Content: ${cleanText(source.content || "", 5000)}`
+      ].join("\n")
+    )
+    .join("\n\n");
+  const prompt = [
+    "You extract evidence claims for newsroom writing from provided sources only.",
+    "Return strict JSON only in this shape:",
+    "{\"claims\":[{\"claim\":\"...\",\"sourceUrl\":\"...\",\"evidenceQuote\":\"...\",\"confidence\":0.0,\"whyItMatters\":\"...\"}]}",
+    "Rules:",
+    "- Use only provided sources.",
+    "- sourceUrl must exactly match one provided URL.",
+    "- Return 2 to 5 claims max.",
+    "- Keep evidenceQuote under 280 chars.",
+    "- No markdown and no keys outside schema.",
+    "",
+    `Signal Title: ${signal.title}`,
+    `Signal Snippet: ${signal.snippet || ""}`,
+    "",
+    sourceContext
+  ].join("\n");
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 1800,
+        responseMimeType: "application/json"
+      }
+    })
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Gemini evidence extraction failed ${response.status}: ${body.slice(0, 200)}`);
+  }
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+  const parsed = safeJsonParse(text);
+  const claims = Array.isArray(parsed?.claims) ? parsed.claims : [];
+  return claims.map((item: any) => ({
+    claim: cleanText(item?.claim || "", 600),
+    sourceUrl: cleanText(item?.sourceUrl || "", 2000),
+    evidenceQuote: cleanText(item?.evidenceQuote || "", 280),
+    confidence: clampConfidence(item?.confidence),
+    whyItMatters: cleanText(item?.whyItMatters || "", 500)
+  }));
+}
+
+function normalizeEvidenceClaims(claims: EvidenceClaim[], sourceUrls: Set<string>): EvidenceClaim[] {
+  const out: EvidenceClaim[] = [];
+  const seenSource = new Set<string>();
+
+  for (const claim of claims) {
+    const sourceUrl = cleanText(claim.sourceUrl, 2000);
+    const normalizedUrl = sourceUrl.toLowerCase();
+    if (!sourceUrl || !sourceUrls.has(normalizedUrl)) continue;
+    if (seenSource.has(normalizedUrl)) continue;
+    if (!claim.claim || !claim.evidenceQuote) continue;
+    seenSource.add(normalizedUrl);
+    out.push({
+      claim: cleanText(claim.claim, 600),
+      sourceUrl,
+      evidenceQuote: cleanText(claim.evidenceQuote, 280),
+      confidence: clampConfidence(claim.confidence),
+      whyItMatters: cleanText(claim.whyItMatters, 500)
+    });
+    if (out.length >= 5) break;
+  }
+
+  return out;
+}
+
+async function persistEvidenceArtifacts(signal: ResearchSignalContext, claims: EvidenceClaim[]): Promise<number> {
+  if (!claims.length) return 0;
+
+  if (signal.id === TEST_SIGNAL_ID) {
+    console.log("test-mode persistEvidenceArtifacts skip", {
+      signalId: signal.id,
+      claimCount: claims.length,
+      claims
+    });
+    return claims.length;
+  }
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+
+  const runId = randomUUID();
+  const engineId = randomUUID();
+  const candidateId = randomUUID();
+
+  let saved = 0;
+  for (let index = 0; index < claims.length; index += 1) {
+    const claim = claims[index];
+    const metadata = {
+      signalId: signal.id,
+      personaId: signal.personaId,
+      rank: index + 1,
+      confidence: claim.confidence,
+      evidenceQuote: claim.evidenceQuote,
+      whyItMatters: claim.whyItMatters
+    };
+
+    const rows = await sql`
+      INSERT INTO research_artifacts (
+        id,
+        run_id,
+        engine_id,
+        candidate_id,
+        signal_id,
+        persona_id,
+        stage,
+        artifact_type,
+        source_url,
+        source_domain,
+        title,
+        published_at,
+        content,
+        metadata,
+        created_at
+      )
+      VALUES (
+        ${randomUUID()},
+        ${runId},
+        ${engineId},
+        ${candidateId},
+        ${signal.id},
+        ${signal.personaId || null},
+        'evidence_extraction',
+        'evidence_extract',
+        ${claim.sourceUrl},
+        ${parseSourceDomain(claim.sourceUrl)},
+        ${`Evidence claim ${index + 1}`},
+        ${null},
+        ${claim.claim},
+        ${toSafeJsonObject(metadata)}::jsonb,
+        NOW()
+      )
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    `;
+    if (rows.length) saved += 1;
+  }
+
+  return saved;
+}
+
+async function runEvidenceExtraction(signalId: number): Promise<{
+  sourceCount: number;
+  claimCount: number;
+  saved: number;
+  skipped?: boolean;
+}> {
+  const signal = await loadResearchSignalContext(signalId);
+  const sources = await loadEvidenceSources(signalId);
+  if (!sources.length) {
+    return { sourceCount: 0, claimCount: 0, saved: 0, skipped: true };
+  }
+
+  const rawClaims = await extractEvidenceClaimsWithGemini(signal, sources);
+  const allowedUrls = new Set(sources.map((source) => source.sourceUrl.toLowerCase()));
+  const claims = normalizeEvidenceClaims(rawClaims, allowedUrls);
+  const saved = await persistEvidenceArtifacts(signal, claims);
+
+  return {
+    sourceCount: sources.length,
+    claimCount: claims.length,
+    saved
+  };
+}
+
 // STEP 1: load_signal
 async function loadSignalById(signalId: number): Promise<SignalRecord> {
   if (signalId === TEST_SIGNAL_ID) {
@@ -712,6 +982,30 @@ export function createResearchStartFunction(inngest: Inngest) {
       if (!signalId) throw new Error("Missing signalId");
 
       const result = await step.run("research-discovery", async () => runResearchDiscovery(signalId));
+      await step.sendEvent("emit-evidence-extraction-start", {
+        name: "evidence.extraction.start",
+        data: {
+          signalId
+        }
+      });
+      return {
+        ok: true,
+        signalId,
+        ...result
+      };
+    }
+  );
+}
+
+export function createEvidenceExtractionStartFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "evidence-extraction-start" },
+    { event: "evidence.extraction.start" },
+    async ({ event, step }: any) => {
+      const signalId = Number(event?.data?.signalId || 0);
+      if (!signalId) throw new Error("Missing signalId");
+
+      const result = await step.run("evidence-extraction", async () => runEvidenceExtraction(signalId));
       return {
         ok: true,
         signalId,
