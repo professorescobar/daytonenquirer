@@ -1,6 +1,8 @@
 // Skeleton only: wire this into your Inngest client bootstrap when ready.
 // This file defines the 7-step contract for Layer 1 Gatekeeper.
 
+import { randomUUID } from "node:crypto";
+import { neon } from "@neondatabase/serverless";
 import type { Inngest } from "inngest";
 
 type SourceType = "rss" | "webhook" | "chat_yes" | "chat_specify";
@@ -56,10 +58,417 @@ type PersistedDecision = GatekeeperOutput & {
   processed_at: string;
 };
 
+type ResearchSignalContext = {
+  id: number;
+  personaId: string;
+  title: string;
+  snippet: string | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  eventKey: string | null;
+  dedupeKey: string | null;
+};
+
+type TavilyResult = {
+  title: string;
+  url: string;
+  content: string;
+  rawContent: string;
+  score: number;
+  publishedAt: string | null;
+  query: string;
+};
+
+function cleanText(value: unknown, max = 8000): string {
+  return String(value || "").trim().slice(0, max);
+}
+
+function toSafeJsonObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function stripCodeFences(text: string): string {
+  const value = cleanText(text, 200000);
+  if (!value.startsWith("```")) return value;
+  return value.replace(/^```[a-zA-Z0-9_-]*\s*/, "").replace(/```$/, "").trim();
+}
+
+function extractJsonCandidate(text: string): string {
+  const source = String(text || "");
+  let start = -1;
+  let openChar = "";
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === "{" || ch === "[") {
+      start = i;
+      openChar = ch;
+      break;
+    }
+  }
+  if (start < 0) return "";
+
+  const closeChar = openChar === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < source.length; i += 1) {
+    const ch = source[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === "\"") {
+      inString = true;
+      continue;
+    }
+    if (ch === openChar) {
+      depth += 1;
+      continue;
+    }
+    if (ch === closeChar) {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, i + 1).trim();
+    }
+  }
+  return "";
+}
+
+function safeJsonParse(text: string): any {
+  const cleaned = stripCodeFences(text);
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) {
+    const candidate = extractJsonCandidate(cleaned);
+    if (!candidate) return null;
+    try {
+      return JSON.parse(candidate);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+function uniqueQueries(queries: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of queries) {
+    const q = cleanText(raw, 220);
+    if (!q) continue;
+    const key = q.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(q);
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
+function fallbackQueries(signal: ResearchSignalContext): string[] {
+  const title = cleanText(signal.title, 220);
+  const snippet = cleanText(signal.snippet || "", 240);
+  const sourceName = cleanText(signal.sourceName || "", 120);
+  return uniqueQueries([
+    `${title} latest`,
+    `${title} local impact`,
+    sourceName ? `${title} ${sourceName}` : "",
+    snippet ? `${title} ${snippet.split(/\s+/).slice(0, 8).join(" ")}` : "",
+    `${title} timeline`
+  ]);
+}
+
+async function loadResearchSignalContext(signalId: number): Promise<ResearchSignalContext> {
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const rows = await sql`
+    SELECT
+      id,
+      persona_id as "personaId",
+      title,
+      snippet,
+      source_name as "sourceName",
+      source_url as "sourceUrl",
+      event_key as "eventKey",
+      dedupe_key as "dedupeKey"
+    FROM topic_signals
+    WHERE id = ${signalId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) throw new Error(`Signal ${signalId} not found`);
+  return {
+    id: Number(row.id),
+    personaId: cleanText(row.personaId, 255),
+    title: cleanText(row.title, 500),
+    snippet: cleanText(row.snippet || "", 4000) || null,
+    sourceName: cleanText(row.sourceName || "", 500) || null,
+    sourceUrl: cleanText(row.sourceUrl || "", 2000) || null,
+    eventKey: cleanText(row.eventKey || "", 500) || null,
+    dedupeKey: cleanText(row.dedupeKey || "", 500) || null
+  };
+}
+
+async function generateResearchQueries(signal: ResearchSignalContext): Promise<string[]> {
+  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
+
+  const model = cleanText(
+    process.env.TOPIC_ENGINE_RESEARCH_QUERY_MODEL ||
+      process.env.GEMINI_FLASH_MODEL ||
+      process.env.GEMINI_MODEL ||
+      "gemini-2.0-flash",
+    120
+  );
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    model
+  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const prompt = [
+    "You generate search queries for local journalism research.",
+    "Return strict JSON only: {\"queries\":[\"...\"]}",
+    "Rules:",
+    "- Generate 3 to 5 highly specific web search queries.",
+    "- Focus on verifiable reporting evidence and source documents.",
+    "- Prefer local/regional angle when available.",
+    "- No commentary, no markdown, no extra keys.",
+    "",
+    `Title: ${signal.title}`,
+    `Snippet: ${signal.snippet || ""}`,
+    `Source Name: ${signal.sourceName || ""}`,
+    `Source URL: ${signal.sourceUrl || ""}`
+  ].join("\n");
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 700,
+        responseMimeType: "application/json"
+      }
+    })
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Gemini query generation failed ${response.status}: ${body.slice(0, 200)}`);
+  }
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+  const parsed = safeJsonParse(text);
+  const candidateQueries = Array.isArray(parsed?.queries) ? parsed.queries : [];
+  const queries = uniqueQueries(candidateQueries.map((value: unknown) => cleanText(value, 220)));
+  if (queries.length >= 3) return queries.slice(0, 5);
+  return fallbackQueries(signal).slice(0, 5);
+}
+
+async function searchTavily(query: string): Promise<TavilyResult[]> {
+  const apiKey = cleanText(process.env.TAVILY_API_KEY || "", 500);
+  if (!apiKey) throw new Error("Missing TAVILY_API_KEY");
+
+  const response = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query,
+      search_depth: "advanced",
+      include_raw_content: true,
+      max_results: 8
+    })
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Tavily search failed ${response.status}: ${body.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const rawResults = Array.isArray(data?.results) ? data.results : [];
+  return rawResults.map((item: any) => {
+    const title = cleanText(item?.title || "", 600);
+    const url = cleanText(item?.url || "", 2000);
+    const content = cleanText(item?.content || "", 18000);
+    const rawContent = cleanText(item?.raw_content || "", 50000);
+    const score = Number.isFinite(Number(item?.score)) ? Number(item?.score) : 0;
+    const publishedAtRaw = cleanText(item?.published_date || item?.published_at || "", 120);
+    const publishedAt = publishedAtRaw || null;
+    return {
+      title,
+      url,
+      content,
+      rawContent,
+      score,
+      publishedAt,
+      query
+    };
+  });
+}
+
+function parseSourceDomain(url: string): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch (_) {
+    return null;
+  }
+}
+
+function selectTopResults(results: TavilyResult[]): TavilyResult[] {
+  const deduped: TavilyResult[] = [];
+  const seen = new Set<string>();
+  const sorted = [...results].sort((a, b) => b.score - a.score);
+  for (const item of sorted) {
+    if (!item.url) continue;
+    const key = item.url.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(item);
+    if (deduped.length >= 5) break;
+  }
+  return deduped;
+}
+
+async function persistResearchArtifacts(
+  signal: ResearchSignalContext,
+  queries: string[],
+  selected: TavilyResult[],
+  allResultCount: number
+): Promise<void> {
+  if (!selected.length) return;
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+
+  const runId = randomUUID();
+  const engineId = randomUUID();
+  const candidateId = randomUUID();
+
+  for (let index = 0; index < selected.length; index += 1) {
+    const result = selected[index];
+    const publishedAt = result.publishedAt ? new Date(result.publishedAt) : null;
+    const safePublishedAt =
+      publishedAt && !Number.isNaN(publishedAt.getTime()) ? publishedAt.toISOString() : null;
+    const metadata = {
+      signalId: signal.id,
+      personaId: signal.personaId,
+      eventKey: signal.eventKey,
+      dedupeKey: signal.dedupeKey,
+      query: result.query,
+      score: result.score,
+      rank: index + 1,
+      selectedTopN: 5,
+      queryCount: queries.length,
+      fetchedResultCount: allResultCount,
+      tavily: {
+        search_depth: "advanced",
+        include_raw_content: true
+      },
+      raw_content: result.rawContent
+    };
+
+    await sql`
+      INSERT INTO research_artifacts (
+        id,
+        run_id,
+        engine_id,
+        candidate_id,
+        signal_id,
+        persona_id,
+        stage,
+        artifact_type,
+        source_url,
+        source_domain,
+        title,
+        published_at,
+        content,
+        metadata,
+        created_at
+      )
+      VALUES (
+        ${randomUUID()},
+        ${runId},
+        ${engineId},
+        ${candidateId},
+        ${signal.id},
+        ${signal.personaId || null},
+        'research_discovery',
+        'tavily_result',
+        ${result.url || null},
+        ${parseSourceDomain(result.url)},
+        ${result.title || null},
+        ${safePublishedAt},
+        ${result.content || null},
+        ${toSafeJsonObject(metadata)}::jsonb,
+        NOW()
+      )
+      ON CONFLICT DO NOTHING
+    `;
+  }
+}
+
+async function runResearchDiscovery(signalId: number): Promise<{ queries: string[]; saved: number; fetched: number }> {
+  const signal = await loadResearchSignalContext(signalId);
+  const queries = await generateResearchQueries(signal);
+  const allResults: TavilyResult[] = [];
+  for (const query of queries) {
+    const results = await searchTavily(query);
+    allResults.push(...results);
+  }
+  const topResults = selectTopResults(allResults);
+  await persistResearchArtifacts(signal, queries, topResults, allResults.length);
+  return {
+    queries,
+    saved: topResults.length,
+    fetched: allResults.length
+  };
+}
+
 // STEP 1: load_signal
 async function loadSignalById(signalId: number): Promise<SignalRecord> {
-  // TODO: query topic_signals table by id
-  throw new Error(`Not implemented: loadSignalById(${signalId})`);
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const rows = await sql`
+    SELECT
+      s.id,
+      s.persona_id as "personaId",
+      s.source_type as "sourceType",
+      s.title,
+      COALESCE(s.snippet, '') as "snippet",
+      COALESCE(s.section_hint, '') as "sectionHint",
+      COALESCE(s.metadata, '{}'::jsonb) as "metadata",
+      s.created_at as "createdAt",
+      COALESCE(te.is_auto_promote_enabled, false) as "isAutoPromoteEnabled"
+    FROM topic_signals s
+    LEFT JOIN topic_engines te
+      ON te.persona_id = s.persona_id
+    WHERE s.id = ${signalId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) {
+    throw new Error(`Signal ${signalId} not found`);
+  }
+
+  return {
+    id: Number(row.id),
+    personaId: cleanText(row.personaId, 255),
+    sourceType: cleanText(row.sourceType, 30) as SourceType,
+    title: cleanText(row.title, 500),
+    snippet: cleanText(row.snippet, 8000),
+    sectionHint: cleanText(row.sectionHint, 255),
+    metadata: toSafeJsonObject(row.metadata),
+    createdAt: new Date(row.createdAt).toISOString(),
+    isAutoPromoteEnabled: Boolean(row.isAutoPromoteEnabled)
+  };
 }
 
 // STEP 2: lookup_prior_art
@@ -151,17 +560,63 @@ function applyGatekeeperGuardrails(
 }
 
 // STEP 6: persist_decision
-async function persistDecision(_signalId: number, decision: GatekeeperOutput): Promise<PersistedDecision> {
-  // TODO: update topic_signals with decision + processed_at timestamp
+async function persistDecision(signalId: number, decision: GatekeeperOutput): Promise<PersistedDecision> {
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+
+  const reviewDecision =
+    decision.action === "promote" ? "promoted" : decision.action === "reject" ? "rejected" : "pending_review";
+
+  const rows = await sql`
+    UPDATE topic_signals
+    SET
+      is_newsworthy = ${decision.is_newsworthy},
+      is_local = ${decision.is_local},
+      confidence = ${decision.confidence},
+      category = ${cleanText(decision.category, 120) || null},
+      relation_to_archive = ${decision.relation_to_archive},
+      event_key = ${cleanText(decision.event_key, 500) || null},
+      action = ${decision.action},
+      next_step = ${decision.next_step},
+      policy_flags = ${Array.isArray(decision.policy_flags) ? decision.policy_flags : []},
+      reasoning = ${cleanText(decision.reasoning, 4000)},
+      review_decision = ${reviewDecision},
+      processed_at = NOW(),
+      updated_at = NOW()
+    WHERE id = ${signalId}
+    RETURNING
+      action,
+      next_step as "nextStep",
+      processed_at as "processedAt"
+  `;
+  const row = rows[0];
+  if (!row) throw new Error(`Failed to persist decision for signal ${signalId}`);
+
   return {
     ...decision,
-    processed_at: new Date().toISOString()
+    action: cleanText(row.action, 20) as Action,
+    next_step: cleanText(row.nextStep, 40) as NextStep,
+    processed_at: new Date(row.processedAt).toISOString()
   };
 }
 
 // STEP 7: route_next_step
-async function routeNextStep(_signalId: number, decision: PersistedDecision): Promise<void> {
-  // TODO: emit research.start or cluster.update events
+async function routeNextStep(
+  step: any,
+  signalId: number,
+  decision: PersistedDecision
+): Promise<void> {
+  if (decision.next_step === "research_discovery") {
+    await step.sendEvent("emit-research-start", {
+      name: "research.start",
+      data: {
+        signalId
+      }
+    });
+    return;
+  }
+  // TODO: emit cluster.update events
   if (decision.next_step === "none") return;
 }
 
@@ -188,13 +643,87 @@ export function createGatekeeperPipeline(inngest: Inngest) {
         applyGatekeeperGuardrails(signal, modelOut, corroboration)
       );
       const persisted = await step.run("6-persist_decision", async () => persistDecision(signalId, guarded));
-      await step.run("7-route_next_step", async () => routeNextStep(signalId, persisted));
+      await step.run("7-route_next_step", async () => routeNextStep(step, signalId, persisted));
 
       return {
         ok: true,
         signalId,
         action: persisted.action,
         nextStep: persisted.next_step
+      };
+    }
+  );
+}
+
+export function createResearchStartFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "research-start" },
+    { event: "research.start" },
+    async ({ event, step }: any) => {
+      const signalId = Number(event?.data?.signalId || 0);
+      if (!signalId) throw new Error("Missing signalId");
+
+      const result = await step.run("research-discovery", async () => runResearchDiscovery(signalId));
+      return {
+        ok: true,
+        signalId,
+        ...result
+      };
+    }
+  );
+}
+
+export function createManualGatekeeperRouteFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "gatekeeper-manual-route" },
+    { event: "signal.gatekeeper.route.manual" },
+    async ({ event, step }: any) => {
+      const signalId = Number(event?.data?.signalId || 0);
+      if (!signalId) throw new Error("Missing signalId");
+
+      const nextStep = cleanText(event?.data?.nextStep || event?.data?.next_step || "", 40).toLowerCase();
+      const action = cleanText(event?.data?.action || "", 30).toLowerCase();
+      const shouldResearch = nextStep === "research_discovery" || action === "promote";
+      if (!shouldResearch) {
+        return {
+          ok: true,
+          signalId,
+          routed: false,
+          reason: "next_step_not_research_discovery"
+        };
+      }
+
+      await step.sendEvent("emit-research-start-from-manual", {
+        name: "research.start",
+        data: {
+          signalId,
+          trigger: "admin_manual"
+        }
+      });
+
+      return {
+        ok: true,
+        signalId,
+        routed: true,
+        targetEvent: "research.start"
+      };
+    }
+  );
+}
+
+export function createResearchDiscoveryMockFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "research-discovery-mock" },
+    { event: "signal.research_discovery.mock" },
+    async ({ event, step }: any) => {
+      const signalId = Number(event?.data?.signalId || 0);
+      if (!signalId) throw new Error("Missing signalId");
+
+      const result = await step.run("research-discovery-direct", async () => runResearchDiscovery(signalId));
+      return {
+        ok: true,
+        signalId,
+        ...result
       };
     }
   );
