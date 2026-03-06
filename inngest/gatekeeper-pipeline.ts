@@ -17,6 +17,13 @@ type SignalRecord = {
   title: string;
   snippet: string;
   sectionHint: string;
+  personaSection: string;
+  personaBeat: string;
+  beatPolicy: {
+    includeKeywords: string[];
+    excludeKeywords: string[];
+    requiredLocalTerms: string[];
+  };
   metadata: Record<string, unknown>;
   createdAt: string;
   isAutoPromoteEnabled: boolean;
@@ -127,6 +134,21 @@ const TEST_MODE_ENABLED =
 const HARD_CODED_GATEKEEPER_MODEL = "gemini-1.5-flash";
 const HARD_CODED_RESEARCH_QUERY_MODEL = "gemini-1.5-flash";
 const HARD_CODED_EVIDENCE_MODEL_CANDIDATES = ["gemini-1.5-pro", "gemini-1.5-pro-002"];
+const LOCAL_SCOPE_TERMS = [
+  "dayton",
+  "montgomery county",
+  "miami valley",
+  "kettering",
+  "beavercreek",
+  "centerville",
+  "huber heights",
+  "vandalia",
+  "fairborn",
+  "trotwood",
+  "xenia",
+  "moraine",
+  "west carrollton"
+];
 
 function isTestSignalId(signalId: number): boolean {
   return TEST_MODE_ENABLED && signalId === TEST_SIGNAL_ID;
@@ -139,6 +161,130 @@ function cleanText(value: unknown, max = 8000): string {
 function toSafeJsonObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+function toSlugKeywordList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => cleanText(item, 80).toLowerCase())
+    .map((item) => item.replace(/[^a-z0-9- ]+/g, " ").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function parseBeatPolicy(value: unknown): SignalRecord["beatPolicy"] {
+  const raw = toSafeJsonObject(value);
+  return {
+    includeKeywords: toSlugKeywordList(raw.includeKeywords),
+    excludeKeywords: toSlugKeywordList(raw.excludeKeywords),
+    requiredLocalTerms: toSlugKeywordList(raw.requiredLocalTerms)
+  };
+}
+
+function tokensFromBeat(beat: string): string[] {
+  const stop = new Set(["general", "local", "national", "world"]);
+  return beat
+    .toLowerCase()
+    .split("-")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !stop.has(part) && part.length >= 4);
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function hasAnyTerm(haystack: string, terms: string[]): boolean {
+  if (!terms.length) return false;
+  const text = ` ${haystack.toLowerCase()} `;
+  return terms.some((term) => {
+    const t = cleanText(term, 80).toLowerCase();
+    if (!t) return false;
+    return text.includes(` ${t} `) || text.includes(t);
+  });
+}
+
+function buildDefaultBeatPolicy(signal: SignalRecord): SignalRecord["beatPolicy"] {
+  const section = cleanText(signal.personaSection || signal.sectionHint || "local", 80).toLowerCase() || "local";
+  const beatTokens = tokensFromBeat(signal.personaBeat || "");
+  const includeBySection: Record<string, string[]> = {
+    local: ["city", "county", "dayton", "ohio", "public safety", "schools", "road", "community"],
+    national: ["u.s.", "federal", "senate", "house", "states", "national"],
+    world: ["international", "global", "foreign", "country", "diplomacy"],
+    business: ["business", "company", "market", "economy", "jobs", "investment"],
+    sports: ["game", "team", "season", "coach", "player", "score"],
+    health: ["health", "medical", "hospital", "disease", "wellness", "care"],
+    entertainment: ["movie", "music", "show", "festival", "artist", "game"],
+    technology: ["technology", "software", "ai", "device", "startup", "innovation"]
+  };
+  return {
+    includeKeywords: uniqueStrings([...(includeBySection[section] || []), ...beatTokens]),
+    excludeKeywords: [],
+    requiredLocalTerms: section === "local" ? LOCAL_SCOPE_TERMS : []
+  };
+}
+
+function applyBeatPolicyPreFilter(signal: SignalRecord): GatekeeperOutput | null {
+  const basePolicy = buildDefaultBeatPolicy(signal);
+  const configured = signal.beatPolicy || { includeKeywords: [], excludeKeywords: [], requiredLocalTerms: [] };
+  const policy = {
+    includeKeywords: uniqueStrings([...(configured.includeKeywords || []), ...(basePolicy.includeKeywords || [])]),
+    excludeKeywords: uniqueStrings(configured.excludeKeywords || []),
+    requiredLocalTerms: uniqueStrings(configured.requiredLocalTerms?.length ? configured.requiredLocalTerms : basePolicy.requiredLocalTerms)
+  };
+  const text = [signal.title, signal.snippet, signal.sectionHint, JSON.stringify(signal.metadata || {})]
+    .map((part) => cleanText(part, 6000))
+    .join(" ")
+    .toLowerCase();
+
+  const flags: string[] = [];
+  if (policy.requiredLocalTerms.length && !hasAnyTerm(text, policy.requiredLocalTerms)) {
+    flags.push("local_scope_mismatch");
+    return {
+      is_newsworthy: 0.25,
+      is_local: false,
+      confidence: 0.92,
+      category: "Local Scope Mismatch",
+      relation_to_archive: "none",
+      event_key: `scope-${signal.id}`,
+      action: "reject",
+      next_step: "none",
+      policy_flags: flags,
+      reasoning:
+        "Pre-LLM beat policy rejected signal: local section requires Dayton-area locality terms and none were found."
+    };
+  }
+  if (policy.excludeKeywords.length && hasAnyTerm(text, policy.excludeKeywords)) {
+    flags.push("beat_excluded_keyword_match");
+    return {
+      is_newsworthy: 0.35,
+      is_local: true,
+      confidence: 0.88,
+      category: "Beat Exclusion Match",
+      relation_to_archive: "none",
+      event_key: `scope-${signal.id}`,
+      action: "watch",
+      next_step: "none",
+      policy_flags: flags,
+      reasoning: "Pre-LLM beat policy placed signal in watch due to excluded keyword match."
+    };
+  }
+  if (policy.includeKeywords.length && !hasAnyTerm(text, policy.includeKeywords)) {
+    flags.push("beat_scope_mismatch");
+    return {
+      is_newsworthy: 0.4,
+      is_local: signal.personaSection === "local",
+      confidence: 0.75,
+      category: "Beat Scope Mismatch",
+      relation_to_archive: "none",
+      event_key: `scope-${signal.id}`,
+      action: "watch",
+      next_step: "none",
+      policy_flags: flags,
+      reasoning: "Pre-LLM beat policy placed signal in watch because it did not match beat/section topical keywords."
+    };
+  }
+  return null;
 }
 
 function stripCodeFences(text: string): string {
@@ -1324,6 +1470,13 @@ async function loadSignalById(signalId: number): Promise<SignalRecord> {
       title: "Mock Signal 12345: Downtown Dayton road closures planned this weekend",
       snippet: "City crews announced temporary closures downtown for utility work and detours affecting weekend traffic.",
       sectionHint: "local",
+      personaSection: "local",
+      personaBeat: "general-local",
+      beatPolicy: {
+        includeKeywords: [],
+        excludeKeywords: [],
+        requiredLocalTerms: []
+      },
       metadata: {
         testMode: true,
         signalId: TEST_SIGNAL_ID
@@ -1344,12 +1497,17 @@ async function loadSignalById(signalId: number): Promise<SignalRecord> {
       s.title,
       COALESCE(s.snippet, '') as "snippet",
       COALESCE(s.section_hint, '') as "sectionHint",
+      COALESCE(NULLIF(trim(to_jsonb(p)->>'section'), ''), COALESCE(s.section_hint, ''), 'local') as "personaSection",
+      COALESCE(NULLIF(trim(to_jsonb(p)->>'beat'), ''), '') as "personaBeat",
+      COALESCE(to_jsonb(p)->'beat_policy', '{}'::jsonb) as "beatPolicy",
       COALESCE(s.metadata, '{}'::jsonb) as "metadata",
       s.created_at as "createdAt",
       COALESCE(te.is_auto_promote_enabled, false) as "isAutoPromoteEnabled"
     FROM topic_signals s
     LEFT JOIN topic_engines te
       ON te.persona_id = s.persona_id
+    LEFT JOIN personas p
+      ON p.id = s.persona_id
     WHERE s.id = ${signalId}
     LIMIT 1
   `;
@@ -1365,6 +1523,9 @@ async function loadSignalById(signalId: number): Promise<SignalRecord> {
     title: cleanText(row.title, 500),
     snippet: cleanText(row.snippet, 8000),
     sectionHint: cleanText(row.sectionHint, 255),
+    personaSection: cleanText(row.personaSection, 80).toLowerCase() || "local",
+    personaBeat: cleanText(row.personaBeat, 120).toLowerCase(),
+    beatPolicy: parseBeatPolicy(row.beatPolicy),
     metadata: toSafeJsonObject(row.metadata),
     createdAt: new Date(row.createdAt).toISOString(),
     isAutoPromoteEnabled: Boolean(row.isAutoPromoteEnabled)
@@ -1774,6 +1935,21 @@ export function createGatekeeperPipeline(inngest: Inngest) {
       if (!signalId) throw new Error("Missing signalId");
 
       const signal = await step.run("1-load_signal", async () => loadSignalById(signalId));
+      const policyShortCircuit = await step.run("1b-apply_beat_policy_prefilter", async () =>
+        applyBeatPolicyPreFilter(signal)
+      );
+      if (policyShortCircuit) {
+        const persisted = await step.run("1c-persist_policy_prefilter", async () =>
+          persistDecision(signalId, policyShortCircuit)
+        );
+        return {
+          ok: true,
+          signalId,
+          action: persisted.action,
+          nextStep: persisted.next_step,
+          policyShortCircuit: true
+        };
+      }
       const priorArt = await step.run("2-lookup_prior_art", async () => lookupPriorArt(signal));
       const corroboration = await step.run("3-check_corroboration_pre_ai", async () => checkCorroborationPreAI(signal));
       const modelOut = await step.run("4-gatekeeper_classify", async () =>
