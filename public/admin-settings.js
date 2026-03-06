@@ -422,6 +422,9 @@ function injectPersonaStyles() {
       align-items: center;
       margin-top: 0.5rem;
     }
+    .persona-rename-row[hidden] {
+      display: none !important;
+    }
     .persona-rename-actions {
       display: inline-flex;
       align-items: center;
@@ -1443,11 +1446,8 @@ async function savePersona(card) {
   const id = card.dataset.id;
   const section = cleanText(card.dataset.section || 'local', 80).toLowerCase() || 'local';
   const beat = cleanText(card.dataset.beat || 'general-local', 120) || 'general-local';
-  const defaultDisplayName = cleanText(card.dataset.defaultName || id, 160) || id;
-  const committedDisplayName = cleanText(card.dataset.displayNameCommitted || '', 160);
-  const normalizedDisplayName = committedDisplayName && committedDisplayName !== defaultDisplayName
-    ? committedDisplayName
-    : null;
+  const currentVisibleName = cleanText(card.querySelector('.persona-name-text')?.textContent || '', 160);
+  const normalizedDisplayName = currentVisibleName && currentVisibleName !== id ? currentVisibleName : null;
   const avatarUrl = card.querySelector('.field-avatar-url').value;
   const disclosure = card.querySelector('.field-disclosure').value;
   const activationMode = card.querySelector('.field-activation-mode')?.value || 'both';
@@ -1737,11 +1737,9 @@ function onPersonaListClick(event) {
   if (!card) return;
 
   if (button.classList.contains('btn-rename-persona')) {
-    const headerRow = card.querySelector('.persona-header-row');
     const renameRow = card.querySelector('.persona-rename-row');
     const input = card.querySelector('.field-display-name-inline');
     const currentName = card.querySelector('.persona-name-text')?.textContent || card.dataset.defaultName || card.dataset.id || '';
-    if (headerRow) headerRow.setAttribute('hidden', '');
     if (renameRow) renameRow.removeAttribute('hidden');
     if (input) {
       input.value = cleanText(currentName, 160);
@@ -1815,7 +1813,6 @@ function applyPersonaDisplayName(card, nextName) {
 
 function endPersonaRename(card, commit) {
   if (!card) return;
-  const headerRow = card.querySelector('.persona-header-row');
   const renameRow = card.querySelector('.persona-rename-row');
   const input = card.querySelector('.field-display-name-inline');
   const committedName = cleanText(
@@ -1830,7 +1827,6 @@ function endPersonaRename(card, commit) {
   }
 
   if (renameRow) renameRow.setAttribute('hidden', '');
-  if (headerRow) headerRow.removeAttribute('hidden');
 }
 
 function onPersonaListChange(event) {
