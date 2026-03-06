@@ -637,6 +637,7 @@ function renderPersonas(personas) {
                 const data = personaDataMap.get(p.id) || {};
                 const activationMode = String(data.activationMode || 'both');
                 const isAutoPromoteEnabled = data.isAutoPromoteEnabled === true;
+                const pacingConfig = getPacingConfig(data.pacingConfig);
                 const feedsText = formatFeedsForTextArea(data.feeds);
                 return `
                   <article class="draft-card persona-card" data-id="${p.id}">
@@ -673,6 +674,56 @@ function renderPersonas(personas) {
                       </div>
 
                       <div class="workflow-grid">
+                        <label>
+                          Pacing Enabled
+                          <input type="checkbox" class="field-pacing-enabled" ${pacingConfig.enabled ? 'checked' : ''}>
+                        </label>
+                        <label>
+                          Posts / Active Day
+                          <input type="number" min="0" max="24" step="1" class="field-pacing-posts-per-day" value="${escapeHtml(String(pacingConfig.postsPerActiveDay))}">
+                        </label>
+                        <label class="workflow-wide">
+                          Posting Days (Mon,Tue,Wed,Thu,Fri,Sat,Sun)
+                          <input type="text" class="field-pacing-posting-days" value="${escapeHtml(formatPostingDays(pacingConfig.postingDays))}">
+                        </label>
+                        <label>
+                          Window Start (HH:MM)
+                          <input type="text" class="field-pacing-window-start" value="${escapeHtml(formatTimeShort(pacingConfig.windowStartLocal))}" placeholder="06:00">
+                        </label>
+                        <label>
+                          Window End (HH:MM)
+                          <input type="text" class="field-pacing-window-end" value="${escapeHtml(formatTimeShort(pacingConfig.windowEndLocal))}" placeholder="22:00">
+                        </label>
+                        <label>
+                          Cadence Enabled
+                          <input type="checkbox" class="field-pacing-cadence-enabled" ${pacingConfig.cadenceEnabled ? 'checked' : ''}>
+                        </label>
+                        <label>
+                          Single Post Time (HH:MM)
+                          <input type="text" class="field-pacing-single-time" value="${escapeHtml(formatTimeShort(pacingConfig.singlePostTimeLocal || ''))}" placeholder="12:00">
+                        </label>
+                        <label>
+                          Single Post Daypart
+                          <select class="field-pacing-single-daypart">
+                            <option value="" ${!pacingConfig.singlePostDaypart ? 'selected' : ''}>None</option>
+                            <option value="morning" ${pacingConfig.singlePostDaypart === 'morning' ? 'selected' : ''}>Morning</option>
+                            <option value="midday" ${pacingConfig.singlePostDaypart === 'midday' ? 'selected' : ''}>Midday</option>
+                            <option value="afternoon" ${pacingConfig.singlePostDaypart === 'afternoon' ? 'selected' : ''}>Afternoon</option>
+                            <option value="evening" ${pacingConfig.singlePostDaypart === 'evening' ? 'selected' : ''}>Evening</option>
+                          </select>
+                        </label>
+                        <label>
+                          Min Spacing (min)
+                          <input type="number" min="0" max="1440" step="5" class="field-pacing-min-spacing" value="${escapeHtml(String(pacingConfig.minSpacingMinutes))}">
+                        </label>
+                        <label>
+                          Max Backlog
+                          <input type="number" min="1" max="5000" step="1" class="field-pacing-max-backlog" value="${escapeHtml(String(pacingConfig.maxBacklog))}">
+                        </label>
+                        <label>
+                          Max Retries
+                          <input type="number" min="0" max="20" step="1" class="field-pacing-max-retries" value="${escapeHtml(String(pacingConfig.maxRetries))}">
+                        </label>
                         <label class="workflow-wide">
                           Discovery Feeds (one per line; optional format: URL | Source Name | Priority)
                           <textarea class="field-feeds" rows="4" placeholder="https://example.com/rss | City Hall Agenda | 20">${escapeHtml(feedsText)}</textarea>
@@ -700,6 +751,61 @@ function renderPersonas(personas) {
         </article>
       `;
     }).join('');
+}
+
+function getPacingConfig(value) {
+  const raw = value && typeof value === 'object' ? value : {};
+  return {
+    enabled: raw.enabled === true,
+    postingDays: Array.isArray(raw.postingDays) && raw.postingDays.length === 7
+      ? raw.postingDays.map(Boolean)
+      : [true, true, true, true, true, true, true],
+    postsPerActiveDay: Number.parseInt(String(raw.postsPerActiveDay ?? 1), 10) || 1,
+    windowStartLocal: String(raw.windowStartLocal || '06:00:00'),
+    windowEndLocal: String(raw.windowEndLocal || '22:00:00'),
+    cadenceEnabled: raw.cadenceEnabled !== false,
+    singlePostTimeLocal: raw.singlePostTimeLocal ? String(raw.singlePostTimeLocal) : '',
+    singlePostDaypart: raw.singlePostDaypart ? String(raw.singlePostDaypart) : '',
+    minSpacingMinutes: Number.parseInt(String(raw.minSpacingMinutes ?? 90), 10) || 90,
+    maxBacklog: Number.parseInt(String(raw.maxBacklog ?? 200), 10) || 200,
+    maxRetries: Number.parseInt(String(raw.maxRetries ?? 3), 10) || 3
+  };
+}
+
+function formatPostingDays(days) {
+  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const safe = Array.isArray(days) && days.length === 7 ? days : [true, true, true, true, true, true, true];
+  return labels.filter((_, idx) => safe[idx]).join(',');
+}
+
+function parsePostingDays(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return [true, true, true, true, true, true, true];
+  const map = new Set(raw.split(',').map((v) => v.trim().slice(0, 3).toLowerCase()));
+  return ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((key) => map.has(key));
+}
+
+function formatTimeShort(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const m = raw.match(/^(\\d{1,2}:\\d{2})/);
+  return m ? m[1] : raw;
+}
+
+function normalizeTimeInput(value, fallback) {
+  const raw = String(value || '').trim();
+  const m = raw.match(/^(\\d{1,2}):(\\d{2})$/);
+  if (!m) return fallback;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return fallback;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`;
+}
+
+function normalizeOptionalTimeInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  return normalizeTimeInput(raw, '12:00:00');
 }
 
 function getDefaultStageConfig() {
@@ -881,6 +987,20 @@ async function savePersona(card) {
   const disclosure = card.querySelector('.field-disclosure').value;
   const activationMode = card.querySelector('.field-activation-mode')?.value || 'both';
   const isAutoPromoteEnabled = Boolean(card.querySelector('.field-is-auto-promote-enabled')?.checked);
+  const pacingConfig = {
+    enabled: Boolean(card.querySelector('.field-pacing-enabled')?.checked),
+    postingDays: parsePostingDays(card.querySelector('.field-pacing-posting-days')?.value || ''),
+    postsPerActiveDay: Number.parseInt(String(card.querySelector('.field-pacing-posts-per-day')?.value || '1'), 10) || 1,
+    windowStartLocal: normalizeTimeInput(card.querySelector('.field-pacing-window-start')?.value || '', '06:00:00'),
+    windowEndLocal: normalizeTimeInput(card.querySelector('.field-pacing-window-end')?.value || '', '22:00:00'),
+    cadenceEnabled: Boolean(card.querySelector('.field-pacing-cadence-enabled')?.checked),
+    singlePostTimeLocal: normalizeOptionalTimeInput(card.querySelector('.field-pacing-single-time')?.value || ''),
+    singlePostDaypart: card.querySelector('.field-pacing-single-daypart')?.value || null,
+    minSpacingMinutes: Number.parseInt(String(card.querySelector('.field-pacing-min-spacing')?.value || '90'), 10) || 90,
+    maxBacklog: Number.parseInt(String(card.querySelector('.field-pacing-max-backlog')?.value || '200'), 10) || 200,
+    maxRetries: Number.parseInt(String(card.querySelector('.field-pacing-max-retries')?.value || '3'), 10) || 3
+  };
+  if (!pacingConfig.singlePostDaypart) pacingConfig.singlePostDaypart = null;
   const feeds = parseFeedsFromText(card.querySelector('.field-feeds')?.value || '');
   const stageConfigs = {};
   const stageEls = card.querySelectorAll('.workflow-stage[data-stage]');
@@ -912,7 +1032,7 @@ async function savePersona(card) {
   await apiRequest('/api/admin-personas', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, avatarUrl, disclosure, activationMode, isAutoPromoteEnabled, feeds, stageConfigs })
+    body: JSON.stringify({ id, avatarUrl, disclosure, activationMode, isAutoPromoteEnabled, pacingConfig, feeds, stageConfigs })
   });
 }
 

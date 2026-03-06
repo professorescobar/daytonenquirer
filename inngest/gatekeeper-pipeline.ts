@@ -94,6 +94,32 @@ type EvidenceClaim = {
   whyItMatters: string;
 };
 
+type PacingConfig = {
+  enabled: boolean;
+  postingDays: boolean[];
+  postsPerActiveDay: number;
+  windowStartLocal: string;
+  windowEndLocal: string;
+  cadenceEnabled: boolean;
+  singlePostTimeLocal: string | null;
+  singlePostDaypart: "morning" | "midday" | "afternoon" | "evening" | null;
+  minSpacingMinutes: number;
+  maxBacklog: number;
+  maxRetries: number;
+  adminTimezone: string;
+  globalDailyCap: number;
+  killSwitchEnabled: boolean;
+};
+
+type QueueDecision = {
+  signalId: number;
+  personaId: string;
+  decision: "queued" | "released" | "deferred" | "rejected" | "pass_through";
+  reasonCode: string;
+  scheduledForUtc: string | null;
+  scheduledDayLocal: string | null;
+};
+
 const TEST_SIGNAL_ID = 12345;
 const TEST_MODE_ENABLED =
   String(process.env.TOPIC_ENGINE_TEST_MODE || "").trim().toLowerCase() === "true" ||
@@ -192,6 +218,559 @@ function uniqueQueries(queries: string[]): string[] {
     if (out.length >= 5) break;
   }
   return out;
+}
+
+function toBoolArray(value: unknown): boolean[] {
+  if (!Array.isArray(value) || value.length !== 7) {
+    return [true, true, true, true, true, true, true];
+  }
+  return value.map((v) => Boolean(v));
+}
+
+function parseTimeToMinutes(value: string, fallbackMinutes: number): number {
+  const raw = cleanText(value, 20);
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return fallbackMinutes;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return fallbackMinutes;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return fallbackMinutes;
+  return hour * 60 + minute;
+}
+
+function minutesToTimeString(minutes: number): string {
+  const clamped = Math.max(0, Math.min(1439, Math.round(minutes)));
+  const hours = Math.floor(clamped / 60);
+  const mins = clamped % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:00`;
+}
+
+function normalizeWindow(startMinutes: number, endMinutes: number): { start: number; end: number; duration: number } {
+  let start = startMinutes;
+  let end = endMinutes;
+  if (end <= start) end += 24 * 60;
+  if (end - start < 15) end = start + 15;
+  return { start, end, duration: end - start };
+}
+
+function getEvenlySpacedSlots(start: number, end: number, count: number): number[] {
+  if (count <= 0) return [];
+  const duration = Math.max(1, end - start);
+  const interval = duration / (count + 1);
+  const slots: number[] = [];
+  for (let i = 1; i <= count; i += 1) {
+    slots.push(start + interval * i);
+  }
+  return slots;
+}
+
+function allocateByWeights(total: number, weights: number[]): number[] {
+  if (total <= 0) return weights.map(() => 0);
+  const raw = weights.map((w) => (w / weights.reduce((a, b) => a + b, 0)) * total);
+  const base = raw.map((v) => Math.floor(v));
+  let used = base.reduce((a, b) => a + b, 0);
+  const remainderOrder = raw
+    .map((value, idx) => ({ idx, frac: value - Math.floor(value) }))
+    .sort((a, b) => b.frac - a.frac);
+  for (const item of remainderOrder) {
+    if (used >= total) break;
+    base[item.idx] += 1;
+    used += 1;
+  }
+  return base;
+}
+
+function getCadencedSlots(start: number, end: number, count: number): number[] {
+  if (count <= 0) return [];
+  if (count === 1) return [start + (end - start) * 0.5];
+  const duration = end - start;
+  const segments = [
+    { startPct: 0, endPct: 0.3 },
+    { startPct: 0.3, endPct: 0.5 },
+    { startPct: 0.5, endPct: 0.7 },
+    { startPct: 0.7, endPct: 1.0 }
+  ];
+  const counts = allocateByWeights(count, [30, 20, 20, 30]);
+  const slots: number[] = [];
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    const segmentStart = start + duration * segment.startPct;
+    const segmentEnd = start + duration * segment.endPct;
+    slots.push(...getEvenlySpacedSlots(segmentStart, segmentEnd, counts[i]));
+  }
+  return slots.sort((a, b) => a - b);
+}
+
+function chooseSinglePostSlot(start: number, end: number, daypart: string | null, exactTime: string | null): number {
+  const duration = end - start;
+  if (exactTime) {
+    const minute = parseTimeToMinutes(exactTime, Math.round(start + duration * 0.5));
+    let adjusted = minute;
+    if (adjusted < start) adjusted += 24 * 60;
+    if (adjusted > end) adjusted = Math.round(start + duration * 0.5);
+    return adjusted;
+  }
+  const byDaypart: Record<string, number> = {
+    morning: 0.15,
+    midday: 0.4,
+    afternoon: 0.6,
+    evening: 0.85
+  };
+  const pct = byDaypart[String(daypart || "").toLowerCase()] ?? 0.5;
+  return start + duration * pct;
+}
+
+function getIsoDowFromLocalDate(localDate: string): number {
+  const d = new Date(`${localDate}T00:00:00Z`);
+  const dow = d.getUTCDay();
+  return dow === 0 ? 7 : dow;
+}
+
+function isPostingDay(postingDays: boolean[], isoDow: number): boolean {
+  const arr = toBoolArray(postingDays);
+  return arr[isoDow - 1] === true;
+}
+
+function addDays(localDate: string, days: number): string {
+  const d = new Date(`${localDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function nextActiveLocalDate(fromDate: string, postingDays: boolean[]): string {
+  for (let offset = 0; offset < 14; offset += 1) {
+    const candidate = addDays(fromDate, offset);
+    if (isPostingDay(postingDays, getIsoDowFromLocalDate(candidate))) return candidate;
+  }
+  return fromDate;
+}
+
+async function convertLocalToUtc(sql: any, localDate: string, localTime: string, timezone: string): Promise<string> {
+  const rows = await sql`
+    SELECT
+      ((${localDate}::date + ${localTime}::time) AT TIME ZONE ${timezone}) as "utcTs"
+  `;
+  const utcTs = rows?.[0]?.utcTs;
+  if (!utcTs) throw new Error("Failed to convert local schedule to UTC");
+  return new Date(utcTs).toISOString();
+}
+
+async function loadPacingConfig(sql: any, personaId: string): Promise<PacingConfig> {
+  const rows = await sql`
+    SELECT
+      p.enabled,
+      p.posting_days as "postingDays",
+      p.posts_per_active_day as "postsPerActiveDay",
+      p.window_start_local::text as "windowStartLocal",
+      p.window_end_local::text as "windowEndLocal",
+      p.cadence_enabled as "cadenceEnabled",
+      p.single_post_time_local::text as "singlePostTimeLocal",
+      p.single_post_daypart as "singlePostDaypart",
+      p.min_spacing_minutes as "minSpacingMinutes",
+      p.max_backlog as "maxBacklog",
+      p.max_retries as "maxRetries",
+      COALESCE(
+        (
+          SELECT value #>> '{}'
+          FROM system_settings
+          WHERE key = 'topic_engine_admin_timezone'
+          LIMIT 1
+        ),
+        'America/New_York'
+      ) as "adminTimezone",
+      COALESCE(
+        (
+          SELECT (value #>> '{}')::int
+          FROM system_settings
+          WHERE key = 'topic_engine_global_daily_cap'
+          LIMIT 1
+        ),
+        100
+      ) as "globalDailyCap",
+      COALESCE(
+        (
+          SELECT (value #>> '{}')::boolean
+          FROM system_settings
+          WHERE key = 'topic_engine_kill_switch_enabled'
+          LIMIT 1
+        ),
+        false
+      ) as "killSwitchEnabled"
+    FROM topic_engine_pacing p
+    WHERE p.persona_id = ${personaId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) {
+    return {
+      enabled: false,
+      postingDays: [true, true, true, true, true, true, true],
+      postsPerActiveDay: 1,
+      windowStartLocal: "06:00:00",
+      windowEndLocal: "22:00:00",
+      cadenceEnabled: true,
+      singlePostTimeLocal: null,
+      singlePostDaypart: null,
+      minSpacingMinutes: 90,
+      maxBacklog: 200,
+      maxRetries: 3,
+      adminTimezone: "America/New_York",
+      globalDailyCap: 100,
+      killSwitchEnabled: false
+    };
+  }
+  return {
+    enabled: Boolean(row.enabled),
+    postingDays: toBoolArray(row.postingDays),
+    postsPerActiveDay: Math.max(0, Number(row.postsPerActiveDay || 1)),
+    windowStartLocal: cleanText(row.windowStartLocal || "06:00:00", 20),
+    windowEndLocal: cleanText(row.windowEndLocal || "22:00:00", 20),
+    cadenceEnabled: Boolean(row.cadenceEnabled),
+    singlePostTimeLocal: cleanText(row.singlePostTimeLocal || "", 20) || null,
+    singlePostDaypart: cleanText(row.singlePostDaypart || "", 20) as
+      | "morning"
+      | "midday"
+      | "afternoon"
+      | "evening"
+      | null,
+    minSpacingMinutes: Math.max(0, Number(row.minSpacingMinutes || 90)),
+    maxBacklog: Math.max(1, Number(row.maxBacklog || 200)),
+    maxRetries: Math.max(0, Number(row.maxRetries || 3)),
+    adminTimezone: cleanText(row.adminTimezone || "America/New_York", 100),
+    globalDailyCap: Math.max(1, Number(row.globalDailyCap || 100)),
+    killSwitchEnabled: Boolean(row.killSwitchEnabled)
+  };
+}
+
+async function loadLocalClock(sql: any, timezone: string): Promise<{ nowLocalDate: string; nowLocalTime: string }> {
+  const rows = await sql`
+    SELECT
+      (NOW() AT TIME ZONE ${timezone})::date::text as "nowLocalDate",
+      to_char((NOW() AT TIME ZONE ${timezone})::time, 'HH24:MI:SS') as "nowLocalTime"
+  `;
+  return {
+    nowLocalDate: cleanText(rows?.[0]?.nowLocalDate || new Date().toISOString().slice(0, 10), 10),
+    nowLocalTime: cleanText(rows?.[0]?.nowLocalTime || "00:00:00", 20)
+  };
+}
+
+async function loadDailyCounts(
+  sql: any,
+  personaId: string,
+  localDate: string
+): Promise<{ personaReleasedToday: number; globalReleasedToday: number; personaBacklog: number }> {
+  const rows = await sql`
+    SELECT
+      (
+        SELECT COUNT(*)::int
+        FROM topic_engine_release_queue q
+        WHERE q.persona_id = ${personaId}
+          AND q.status = 'released'
+          AND q.released_day_local = ${localDate}::date
+      ) as "personaReleasedToday",
+      (
+        SELECT COUNT(*)::int
+        FROM topic_engine_release_queue q
+        WHERE q.status = 'released'
+          AND q.released_day_local = ${localDate}::date
+      ) as "globalReleasedToday",
+      (
+        SELECT COUNT(*)::int
+        FROM topic_engine_release_queue q
+        WHERE q.persona_id = ${personaId}
+          AND q.status IN ('queued', 'deferred')
+      ) as "personaBacklog"
+  `;
+  const row = rows[0] || {};
+  return {
+    personaReleasedToday: Number(row.personaReleasedToday || 0),
+    globalReleasedToday: Number(row.globalReleasedToday || 0),
+    personaBacklog: Number(row.personaBacklog || 0)
+  };
+}
+
+async function loadExistingSlotsForDay(
+  sql: any,
+  personaId: string,
+  dayLocal: string,
+  timezone: string
+): Promise<number[]> {
+  const rows = await sql`
+    SELECT
+      to_char((q.scheduled_for_utc AT TIME ZONE ${timezone})::time, 'HH24:MI:SS') as "scheduledTime"
+    FROM topic_engine_release_queue q
+    WHERE q.persona_id = ${personaId}
+      AND q.status IN ('queued', 'released')
+      AND q.scheduled_day_local = ${dayLocal}::date
+      AND q.scheduled_for_utc IS NOT NULL
+  `;
+  return rows
+    .map((row: any) => parseTimeToMinutes(cleanText(row.scheduledTime, 20), -1))
+    .filter((value: number) => value >= 0);
+}
+
+function pickScheduledMinute(
+  config: PacingConfig,
+  nowLocalTime: string,
+  isToday: boolean,
+  existingSlots: number[]
+): number {
+  const nowMinutes = parseTimeToMinutes(nowLocalTime, 0);
+  const startMinutes = parseTimeToMinutes(config.windowStartLocal, 6 * 60);
+  const endMinutes = parseTimeToMinutes(config.windowEndLocal, 22 * 60);
+  const window = normalizeWindow(startMinutes, endMinutes);
+  const posts = Math.max(0, config.postsPerActiveDay);
+
+  let candidateSlots: number[] = [];
+  if (posts <= 0) {
+    candidateSlots = [];
+  } else if (posts === 1) {
+    const slot = config.cadenceEnabled
+      ? chooseSinglePostSlot(window.start, window.end, config.singlePostDaypart, null)
+      : chooseSinglePostSlot(window.start, window.end, null, config.singlePostTimeLocal);
+    candidateSlots = [slot];
+  } else if (!config.cadenceEnabled || window.duration <= 180) {
+    candidateSlots = getEvenlySpacedSlots(window.start, window.end, posts);
+  } else {
+    candidateSlots = getCadencedSlots(window.start, window.end, posts);
+  }
+
+  const lowerBound = isToday ? nowMinutes : 0;
+  for (const slot of candidateSlots) {
+    const normalized = slot >= 24 * 60 ? slot - 24 * 60 : slot;
+    if (isToday && normalized < lowerBound) continue;
+    const hasSpacingConflict = existingSlots.some(
+      (existing) => Math.abs(existing - normalized) < config.minSpacingMinutes
+    );
+    if (hasSpacingConflict) continue;
+    return normalized;
+  }
+  const fallback = candidateSlots[0] ?? window.start + window.duration * 0.5;
+  return fallback >= 24 * 60 ? fallback - 24 * 60 : fallback;
+}
+
+async function upsertQueueDecision(sql: any, payload: QueueDecision): Promise<void> {
+  await sql`
+    INSERT INTO topic_engine_release_queue (
+      signal_id,
+      persona_id,
+      status,
+      reason_code,
+      source_event,
+      scheduled_for_utc,
+      scheduled_day_local,
+      updated_at
+    )
+    VALUES (
+      ${payload.signalId},
+      ${payload.personaId},
+      ${
+        payload.decision === "released"
+          ? "released"
+          : payload.decision === "rejected"
+            ? "rejected"
+            : payload.decision === "deferred"
+              ? "deferred"
+              : "queued"
+      },
+      ${payload.reasonCode},
+      'signal.received',
+      ${payload.scheduledForUtc},
+      ${payload.scheduledDayLocal},
+      NOW()
+    )
+    ON CONFLICT (signal_id) DO UPDATE
+    SET
+      persona_id = EXCLUDED.persona_id,
+      status = EXCLUDED.status,
+      reason_code = EXCLUDED.reason_code,
+      scheduled_for_utc = EXCLUDED.scheduled_for_utc,
+      scheduled_day_local = EXCLUDED.scheduled_day_local,
+      updated_at = NOW()
+  `;
+}
+
+async function applyQuotaPacingGate(signalId: number, personaId: string): Promise<QueueDecision> {
+  if (isTestSignalId(signalId)) {
+    return {
+      signalId,
+      personaId,
+      decision: "released",
+      reasonCode: "test_mode_bypass",
+      scheduledForUtc: new Date().toISOString(),
+      scheduledDayLocal: new Date().toISOString().slice(0, 10)
+    };
+  }
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+
+  let config: PacingConfig;
+  try {
+    config = await loadPacingConfig(sql, personaId);
+  } catch (error: any) {
+    if (String(error?.message || "").includes("topic_engine_pacing")) {
+      return {
+        signalId,
+        personaId,
+        decision: "pass_through",
+        reasonCode: "pacing_table_missing",
+        scheduledForUtc: null,
+        scheduledDayLocal: null
+      };
+    }
+    throw error;
+  }
+
+  if (!config.enabled) {
+    return {
+      signalId,
+      personaId,
+      decision: "pass_through",
+      reasonCode: "pacing_disabled",
+      scheduledForUtc: null,
+      scheduledDayLocal: null
+    };
+  }
+
+  if (config.killSwitchEnabled) {
+    const decision: QueueDecision = {
+      signalId,
+      personaId,
+      decision: "rejected",
+      reasonCode: "kill_switch_enabled",
+      scheduledForUtc: null,
+      scheduledDayLocal: null
+    };
+    await upsertQueueDecision(sql, decision);
+    return decision;
+  }
+
+  const clock = await loadLocalClock(sql, config.adminTimezone);
+  const todayLocal = clock.nowLocalDate;
+  const counts = await loadDailyCounts(sql, personaId, todayLocal);
+
+  if (counts.personaBacklog >= config.maxBacklog) {
+    const decision: QueueDecision = {
+      signalId,
+      personaId,
+      decision: "rejected",
+      reasonCode: "max_backlog_reached",
+      scheduledForUtc: null,
+      scheduledDayLocal: null
+    };
+    await upsertQueueDecision(sql, decision);
+    return decision;
+  }
+
+  let targetLocalDate = nextActiveLocalDate(todayLocal, config.postingDays);
+  if (counts.personaReleasedToday >= config.postsPerActiveDay || counts.globalReleasedToday >= config.globalDailyCap) {
+    targetLocalDate = nextActiveLocalDate(addDays(todayLocal, 1), config.postingDays);
+  }
+
+  const existingSlots = await loadExistingSlotsForDay(sql, personaId, targetLocalDate, config.adminTimezone);
+  const slotMinute = pickScheduledMinute(config, clock.nowLocalTime, targetLocalDate === todayLocal, existingSlots);
+  const localTime = minutesToTimeString(slotMinute);
+  const scheduledForUtc = await convertLocalToUtc(sql, targetLocalDate, localTime, config.adminTimezone);
+  const scheduledDateUtcMs = new Date(scheduledForUtc).getTime();
+  const releaseNow = Number.isFinite(scheduledDateUtcMs) && scheduledDateUtcMs <= Date.now();
+
+  const queueDecision: QueueDecision = {
+    signalId,
+    personaId,
+    decision: releaseNow ? "released" : targetLocalDate === todayLocal ? "queued" : "deferred",
+    reasonCode:
+      targetLocalDate !== todayLocal
+        ? "next_active_day"
+        : counts.personaReleasedToday >= config.postsPerActiveDay
+          ? "persona_daily_cap_reached"
+          : counts.globalReleasedToday >= config.globalDailyCap
+            ? "global_daily_cap_reached"
+            : "scheduled",
+    scheduledForUtc,
+    scheduledDayLocal: targetLocalDate
+  };
+
+  await upsertQueueDecision(sql, queueDecision);
+  if (releaseNow) {
+    await sql`
+      UPDATE topic_engine_release_queue
+      SET
+        status = 'released',
+        released_at = NOW(),
+        released_day_local = ${targetLocalDate}::date,
+        updated_at = NOW()
+      WHERE signal_id = ${signalId}
+    `;
+  }
+  return queueDecision;
+}
+
+async function releaseDueQueuedSignals(limit = 30): Promise<Array<{ signalId: number; personaId: string }>> {
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+
+  const timezoneRows = await sql`
+    SELECT
+      COALESCE(
+        (
+          SELECT value #>> '{}'
+          FROM system_settings
+          WHERE key = 'topic_engine_admin_timezone'
+          LIMIT 1
+        ),
+        'America/New_York'
+      ) as "adminTimezone",
+      COALESCE(
+        (
+          SELECT (value #>> '{}')::boolean
+          FROM system_settings
+          WHERE key = 'topic_engine_kill_switch_enabled'
+          LIMIT 1
+        ),
+        false
+      ) as "killSwitchEnabled"
+  `;
+  const adminTimezone = cleanText(timezoneRows?.[0]?.adminTimezone || "America/New_York", 100);
+  const killSwitchEnabled = Boolean(timezoneRows?.[0]?.killSwitchEnabled);
+  if (killSwitchEnabled) return [];
+
+  const dueRows = await sql`
+    SELECT DISTINCT ON (q.persona_id)
+      q.id,
+      q.signal_id as "signalId",
+      q.persona_id as "personaId"
+    FROM topic_engine_release_queue q
+    WHERE q.status IN ('queued', 'deferred')
+      AND q.scheduled_for_utc IS NOT NULL
+      AND q.scheduled_for_utc <= NOW()
+    ORDER BY q.persona_id ASC, q.scheduled_for_utc ASC
+    LIMIT ${limit}
+  `;
+
+  const released: Array<{ signalId: number; personaId: string }> = [];
+  for (const row of dueRows) {
+    const updated = await sql`
+      UPDATE topic_engine_release_queue
+      SET
+        status = 'released',
+        released_at = NOW(),
+        released_day_local = (NOW() AT TIME ZONE ${adminTimezone})::date,
+        updated_at = NOW()
+      WHERE id = ${row.id}
+        AND status IN ('queued', 'deferred')
+      RETURNING signal_id as "signalId", persona_id as "personaId"
+    `;
+    if (updated[0]) {
+      released.push({
+        signalId: Number(updated[0].signalId),
+        personaId: cleanText(updated[0].personaId, 255)
+      });
+    }
+  }
+  return released;
 }
 
 function fallbackQueries(signal: ResearchSignalContext): string[] {
@@ -1140,10 +1719,76 @@ async function routeNextStep(
  * Example:
  * export const gatekeeperPipeline = createGatekeeperPipeline(inngest);
  */
+export function createQuotaPacingIntakeFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "quota-pacing-intake" },
+    { event: "signal.received" },
+    async ({ event, step }: any) => {
+      const signalId = Number(event?.data?.signalId || 0);
+      if (!signalId) throw new Error("Missing signalId");
+
+      const signal = await step.run("load-signal-for-pacing", async () => loadSignalById(signalId));
+      const queueDecision = await step.run("apply-quota-pacing-gate", async () =>
+        applyQuotaPacingGate(signalId, signal.personaId)
+      );
+
+      if (queueDecision.decision === "released" || queueDecision.decision === "pass_through") {
+        await step.sendEvent("emit-gatekeeper-start", {
+          name: "signal.gatekeeper.start",
+          data: {
+            signalId,
+            personaId: signal.personaId,
+            trigger:
+              queueDecision.decision === "pass_through"
+                ? "signal_received_pass_through"
+                : "signal_received_released"
+          }
+        });
+      }
+
+      return {
+        ok: true,
+        signalId,
+        personaId: signal.personaId,
+        decision: queueDecision.decision,
+        reasonCode: queueDecision.reasonCode,
+        scheduledForUtc: queueDecision.scheduledForUtc
+      };
+    }
+  );
+}
+
+export function createQuotaPacingReleaseSchedulerFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    {
+      id: "quota-pacing-release-scheduler",
+      concurrency: { limit: 1 }
+    },
+    { cron: "*/10 * * * *" },
+    async ({ step }: any) => {
+      const due = await step.run("release-due-queued-signals", async () => releaseDueQueuedSignals(50));
+      for (const item of due) {
+        await step.sendEvent(`emit-gatekeeper-start-${item.signalId}`, {
+          name: "signal.gatekeeper.start",
+          data: {
+            signalId: item.signalId,
+            personaId: item.personaId,
+            trigger: "quota_pacing_scheduler"
+          }
+        });
+      }
+      return {
+        ok: true,
+        releasedCount: due.length
+      };
+    }
+  );
+}
+
 export function createGatekeeperPipeline(inngest: Inngest) {
   return inngest.createFunction(
     { id: "gatekeeper-pipeline" },
-    { event: "signal.received" },
+    { event: "signal.gatekeeper.start" },
     async ({ event, step }: any) => {
       const signalId = Number(event?.data?.signalId || 0);
       if (!signalId) throw new Error("Missing signalId");

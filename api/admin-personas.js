@@ -26,6 +26,41 @@ function cleanText(value, max = 5000) {
   return String(value || '').trim().slice(0, max);
 }
 
+function normalizePostingDays(value) {
+  if (!Array.isArray(value) || value.length !== 7) return [true, true, true, true, true, true, true];
+  return value.map((v) => Boolean(v));
+}
+
+function normalizeDaypart(value) {
+  const daypart = String(value || '').trim().toLowerCase();
+  if (daypart === 'morning' || daypart === 'midday' || daypart === 'afternoon' || daypart === 'evening') {
+    return daypart;
+  }
+  return '';
+}
+
+function normalizePacingConfig(value) {
+  const raw = value && typeof value === 'object' ? value : {};
+  const postsPerActiveDay = Number.parseInt(String(raw.postsPerActiveDay ?? 1), 10);
+  const minSpacingMinutes = Number.parseInt(String(raw.minSpacingMinutes ?? 90), 10);
+  const maxBacklog = Number.parseInt(String(raw.maxBacklog ?? 200), 10);
+  const maxRetries = Number.parseInt(String(raw.maxRetries ?? 3), 10);
+
+  return {
+    enabled: raw.enabled === true,
+    postingDays: normalizePostingDays(raw.postingDays),
+    postsPerActiveDay: Number.isFinite(postsPerActiveDay) ? Math.min(Math.max(postsPerActiveDay, 0), 24) : 1,
+    windowStartLocal: cleanText(raw.windowStartLocal || '06:00:00', 20) || '06:00:00',
+    windowEndLocal: cleanText(raw.windowEndLocal || '22:00:00', 20) || '22:00:00',
+    cadenceEnabled: raw.cadenceEnabled !== false,
+    singlePostTimeLocal: cleanText(raw.singlePostTimeLocal || '', 20) || null,
+    singlePostDaypart: normalizeDaypart(raw.singlePostDaypart) || null,
+    minSpacingMinutes: Number.isFinite(minSpacingMinutes) ? Math.min(Math.max(minSpacingMinutes, 0), 1440) : 90,
+    maxBacklog: Number.isFinite(maxBacklog) ? Math.min(Math.max(maxBacklog, 1), 5000) : 200,
+    maxRetries: Number.isFinite(maxRetries) ? Math.min(Math.max(maxRetries, 0), 20) : 3
+  };
+}
+
 function normalizeFeedEntry(entry) {
   const value = typeof entry === 'string' ? entry : String(entry?.feedUrl || '').trim();
   if (!value) return null;
@@ -93,7 +128,31 @@ async function fetchPersonaWorkflow(sql, personaId) {
   `;
   const isAutoPromoteEnabled = Boolean(engineRows[0]?.isAutoPromoteEnabled);
 
-  return { feeds, stageConfigs, isAutoPromoteEnabled };
+  let pacingConfig = normalizePacingConfig({});
+  try {
+    const pacingRows = await sql`
+      SELECT
+        enabled,
+        posting_days as "postingDays",
+        posts_per_active_day as "postsPerActiveDay",
+        window_start_local::text as "windowStartLocal",
+        window_end_local::text as "windowEndLocal",
+        cadence_enabled as "cadenceEnabled",
+        single_post_time_local::text as "singlePostTimeLocal",
+        single_post_daypart as "singlePostDaypart",
+        min_spacing_minutes as "minSpacingMinutes",
+        max_backlog as "maxBacklog",
+        max_retries as "maxRetries"
+      FROM topic_engine_pacing
+      WHERE persona_id = ${personaId}
+      LIMIT 1
+    `;
+    if (pacingRows[0]) pacingConfig = normalizePacingConfig(pacingRows[0]);
+  } catch (error) {
+    if (!String(error?.message || '').toLowerCase().includes('topic_engine_pacing')) throw error;
+  }
+
+  return { feeds, stageConfigs, isAutoPromoteEnabled, pacingConfig };
 }
 
 module.exports = async (req, res) => {
@@ -118,7 +177,8 @@ module.exports = async (req, res) => {
         personas.push({
           ...row,
           feeds: workflow.feeds,
-          stageConfigs: workflow.stageConfigs
+          stageConfigs: workflow.stageConfigs,
+          pacingConfig: workflow.pacingConfig
         });
       }
       return res.status(200).json({ personas });
@@ -135,7 +195,7 @@ module.exports = async (req, res) => {
   if (req.method === 'PUT') {
     try {
       await ensurePersonasTable(sql);
-      const { id, avatarUrl, disclosure, activationMode, feeds, stageConfigs, isAutoPromoteEnabled } = req.body;
+      const { id, avatarUrl, disclosure, activationMode, feeds, stageConfigs, isAutoPromoteEnabled, pacingConfig } = req.body;
       if (!id) {
         return res.status(400).json({ error: 'Persona ID is required' });
       }
@@ -229,12 +289,63 @@ module.exports = async (req, res) => {
         `;
       }
 
+      if (pacingConfig && typeof pacingConfig === 'object') {
+        const pacing = normalizePacingConfig(pacingConfig);
+        await sql`
+          INSERT INTO topic_engine_pacing (
+            persona_id,
+            enabled,
+            posting_days,
+            posts_per_active_day,
+            window_start_local,
+            window_end_local,
+            cadence_enabled,
+            single_post_time_local,
+            single_post_daypart,
+            min_spacing_minutes,
+            max_backlog,
+            max_retries,
+            updated_at
+          )
+          VALUES (
+            ${id},
+            ${pacing.enabled},
+            ${pacing.postingDays},
+            ${pacing.postsPerActiveDay},
+            ${pacing.windowStartLocal}::time,
+            ${pacing.windowEndLocal}::time,
+            ${pacing.cadenceEnabled},
+            ${pacing.singlePostTimeLocal}::time,
+            ${pacing.singlePostDaypart},
+            ${pacing.minSpacingMinutes},
+            ${pacing.maxBacklog},
+            ${pacing.maxRetries},
+            NOW()
+          )
+          ON CONFLICT (persona_id) DO UPDATE
+          SET
+            enabled = EXCLUDED.enabled,
+            posting_days = EXCLUDED.posting_days,
+            posts_per_active_day = EXCLUDED.posts_per_active_day,
+            window_start_local = EXCLUDED.window_start_local,
+            window_end_local = EXCLUDED.window_end_local,
+            cadence_enabled = EXCLUDED.cadence_enabled,
+            single_post_time_local = EXCLUDED.single_post_time_local,
+            single_post_daypart = EXCLUDED.single_post_daypart,
+            min_spacing_minutes = EXCLUDED.min_spacing_minutes,
+            max_backlog = EXCLUDED.max_backlog,
+            max_retries = EXCLUDED.max_retries,
+            updated_at = NOW()
+        `;
+      }
+
       const workflow = await fetchPersonaWorkflow(sql, id);
       return res.status(200).json({
         persona: {
           ...rows[0],
           feeds: workflow.feeds,
-          stageConfigs: workflow.stageConfigs
+          stageConfigs: workflow.stageConfigs,
+          pacingConfig: workflow.pacingConfig
         }
       });
     } catch (error) {

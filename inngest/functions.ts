@@ -1,4 +1,6 @@
 import {
+  createQuotaPacingIntakeFunction,
+  createQuotaPacingReleaseSchedulerFunction,
   createClusterUpdateStartFunction,
   createEvidenceExtractionMockFunction,
   createEvidenceExtractionStartFunction,
@@ -10,6 +12,8 @@ import {
 import { inngest } from "./client";
 
 export const functions = [
+  createQuotaPacingIntakeFunction(inngest),
+  createQuotaPacingReleaseSchedulerFunction(inngest),
   createGatekeeperPipeline(inngest),
   createManualGatekeeperRouteFunction(inngest),
   createResearchStartFunction(inngest),
