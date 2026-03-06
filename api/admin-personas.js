@@ -80,8 +80,11 @@ function normalizeSection(value) {
 
 function normalizeBeat(section, beatValue) {
   const beats = BEAT_OPTIONS_BY_SECTION[section] || BEAT_OPTIONS_BY_SECTION[DEFAULT_SECTION];
-  const beat = cleanText(beatValue, 120).toLowerCase();
-  return beats.includes(beat) ? beat : beats[0];
+  const beat = cleanText(beatValue, 120)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return beat || beats[0];
 }
 
 function normalizePostingDays(value) {

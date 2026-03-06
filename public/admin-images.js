@@ -126,6 +126,7 @@ let adminUiUnlocked = false;
 let uploadDraftAsset = null;
 let uploadPreviewObjectUrl = '';
 let dynamicPersonasByBeat = {};
+let dynamicBeatsBySection = {};
 
 function getToken() {
   return String(tokenInput?.value || '').trim();
@@ -175,32 +176,49 @@ function setSelectOptions(selectEl, options, fallbackOption) {
 }
 
 function normalizeDynamicPersonasByBeat(rows) {
-  const result = {};
-  const validBeats = new Set(
-    Object.values(BEAT_OPTIONS_BY_SECTION).flatMap((items) => items.map((item) => String(item.value || '').trim()))
-  );
+  const personasByBeat = {};
+  const beatsBySection = {};
   for (const row of Array.isArray(rows) ? rows : []) {
     const id = String(row?.id || '').trim();
     const beat = String(row?.beat || '').trim();
-    if (!id || !beat || !validBeats.has(beat)) continue;
+    const section = String(row?.section || '').trim().toLowerCase() || 'local';
+    if (!id || !beat) continue;
     const label = String(row?.displayName || '').trim() || id;
-    if (!result[beat]) result[beat] = [];
-    result[beat].push({ value: id, label });
+    if (!personasByBeat[beat]) personasByBeat[beat] = [];
+    personasByBeat[beat].push({ value: id, label });
+    if (!beatsBySection[section]) beatsBySection[section] = [];
+    if (!beatsBySection[section].some((item) => item.value === beat)) {
+      beatsBySection[section].push({ value: beat, label: beat.replace(/-/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) });
+    }
   }
-  return result;
+  return { personasByBeat, beatsBySection };
 }
 
 async function loadPersonaDirectory() {
   try {
     const data = await apiRequest('/api/admin-personas');
-    dynamicPersonasByBeat = normalizeDynamicPersonasByBeat(data?.personas || []);
+    const normalized = normalizeDynamicPersonasByBeat(data?.personas || []);
+    dynamicPersonasByBeat = normalized.personasByBeat;
+    dynamicBeatsBySection = normalized.beatsBySection;
   } catch (_) {
     dynamicPersonasByBeat = {};
+    dynamicBeatsBySection = {};
   }
 }
 
 function getBeatsForSection(section) {
-  return BEAT_OPTIONS_BY_SECTION[section] || BEAT_OPTIONS_BY_SECTION.local;
+  const key = String(section || '').trim().toLowerCase() || 'local';
+  const merged = new Map();
+  for (const item of BEAT_OPTIONS_BY_SECTION[key] || []) {
+    if (!item?.value || !item?.label) continue;
+    merged.set(item.value, { value: item.value, label: item.label });
+  }
+  for (const item of dynamicBeatsBySection[key] || []) {
+    if (!item?.value || !item?.label) continue;
+    merged.set(item.value, { value: item.value, label: item.label });
+  }
+  const beats = Array.from(merged.values());
+  return beats.length ? beats : (BEAT_OPTIONS_BY_SECTION.local || []);
 }
 
 function getPersonasForBeat(beat) {

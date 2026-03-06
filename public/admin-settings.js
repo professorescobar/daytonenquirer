@@ -18,6 +18,8 @@ let currentSignalFilters = {
 };
 let loadedPersonaDisplayNames = new Map();
 let loadedPersonas = [];
+let customBeatsBySection = {};
+const ADD_NEW_BEAT_VALUE = '__add_new__';
 
 function setMessage(text) {
   if (!messageEl) return;
@@ -215,7 +217,7 @@ const PERSONA_OPTIONS_BY_BEAT = {
 function getAllDefinedPersonas() {
   const beatToSection = new Map();
   for (const [section, beats] of Object.entries(BEAT_OPTIONS_BY_SECTION)) {
-    for (const beat of beats) {
+    for (const beat of getBeatOptionsForSection(section)) {
       beatToSection.set(beat.value, section);
     }
   }
@@ -239,7 +241,7 @@ function getAllDefinedPersonas() {
     if (!id || seen.has(id)) continue;
     seen.add(id);
     const section = cleanText(row?.section || beatToSection.get(row?.beat) || 'local', 60).toLowerCase() || 'local';
-    const beat = cleanText(row?.beat || (BEAT_OPTIONS_BY_SECTION[section]?.[0]?.value || 'general-local'), 80);
+    const beat = cleanText(row?.beat || (getBeatOptionsForSection(section)[0]?.value || 'general-local'), 80);
     const dbLabel = cleanText(row?.displayName || '', 200);
     personas.push({
       id,
@@ -277,6 +279,45 @@ function escapeHtml(text) {
 
 function cleanText(value, max = 5000) {
   return String(value || '').trim().slice(0, max);
+}
+
+function titleCaseSlug(value) {
+  return String(value || '')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function getStaticBeatOptionsForSection(section) {
+  return BEAT_OPTIONS_BY_SECTION[section] || BEAT_OPTIONS_BY_SECTION.local || [];
+}
+
+function getBeatOptionsForSection(section) {
+  const key = cleanText(section, 80).toLowerCase() || 'local';
+  const merged = new Map();
+  for (const option of getStaticBeatOptionsForSection(key)) {
+    if (!option?.value || !option?.label) continue;
+    merged.set(option.value, { value: option.value, label: option.label });
+  }
+  for (const option of customBeatsBySection[key] || []) {
+    if (!option?.value || !option?.label) continue;
+    merged.set(option.value, { value: option.value, label: option.label });
+  }
+  return Array.from(merged.values());
+}
+
+function buildCustomBeatsBySection(personas) {
+  const result = {};
+  for (const row of Array.isArray(personas) ? personas : []) {
+    const section = cleanText(row?.section || 'local', 80).toLowerCase() || 'local';
+    const beat = cleanText(row?.beat || '', 120).toLowerCase();
+    if (!beat) continue;
+    const staticValues = new Set(getStaticBeatOptionsForSection(section).map((item) => item.value));
+    if (staticValues.has(beat)) continue;
+    if (!result[section]) result[section] = [];
+    if (result[section].some((item) => item.value === beat)) continue;
+    result[section].push({ value: beat, label: titleCaseSlug(beat) });
+  }
+  return result;
 }
 
 async function uploadImageToCloudinary(file) {
@@ -392,6 +433,28 @@ function injectPersonaStyles() {
       margin-top: -0.5rem;
       margin-bottom: 1rem;
       font-size: 0.9rem;
+    }
+    .new-persona-beat-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.5rem;
+      align-items: end;
+    }
+    .beat-flyout {
+      margin-top: 0.6rem;
+      border: 1px solid #d5deec;
+      border-radius: 8px;
+      background: #fff;
+      padding: 0.65rem;
+    }
+    .beat-flyout-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 0.45rem;
+      align-items: end;
+    }
+    .beat-flyout .draft-meta {
+      margin: 0.35rem 0 0 0;
     }
     .persona-autonomy-toggle {
       display: inline-flex;
@@ -659,6 +722,10 @@ function injectPersonaStyles() {
       border-color: #3a455b !important;
       color: #e6edf9 !important;
     }
+    html[data-theme="dark"] .beat-flyout {
+      background: #1a1f2b !important;
+      border-color: #3a455b !important;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -681,10 +748,6 @@ function ensurePersonaUi() {
     <div id="add-persona-panel" class="draft-card" hidden>
       <div class="workflow-grid">
         <label>
-          Persona ID (slug)
-          <input id="new-persona-id" type="text" placeholder="example: neighborhood-desk" maxlength="255">
-        </label>
-        <label>
           Display Name
           <input id="new-persona-display-name" type="text" placeholder="Example: Neighborhood Desk" maxlength="160">
         </label>
@@ -694,10 +757,24 @@ function ensurePersonaUi() {
             ${Object.keys(BEAT_OPTIONS_BY_SECTION).map((section) => `<option value="${escapeHtml(section)}">${escapeHtml(section.replace(/\b\w/g, (m) => m.toUpperCase()))}</option>`).join('')}
           </select>
         </label>
-        <label>
-          Beat
-          <select id="new-persona-beat"></select>
-        </label>
+        <div class="new-persona-beat-row">
+          <label>
+            Beat
+            <select id="new-persona-beat"></select>
+          </label>
+          <button id="new-persona-add-beat-btn" class="btn btn-secondary" type="button">Add New Beat</button>
+        </div>
+      </div>
+      <div id="new-beat-flyout" class="beat-flyout" hidden>
+        <div class="beat-flyout-row">
+          <label>
+            New Beat Name
+            <input id="new-beat-name-input" type="text" placeholder="Example: Transit Policy" maxlength="120">
+          </label>
+          <button id="save-new-beat-btn" class="btn btn-primary" type="button">Save Beat</button>
+          <button id="cancel-new-beat-btn" class="btn btn-secondary" type="button">Cancel</button>
+        </div>
+        <p class="draft-meta">Saved as a slug and available for all personas in this section.</p>
       </div>
       <div class="admin-actions">
         <button id="create-persona-btn" class="btn btn-primary" type="button">Create Persona</button>
@@ -737,49 +814,102 @@ function syncNewPersonaBeatOptions() {
   const beatSelect = document.getElementById('new-persona-beat');
   if (!sectionSelect || !beatSelect) return;
   const section = cleanText(sectionSelect.value, 80).toLowerCase() || 'local';
-  const beats = BEAT_OPTIONS_BY_SECTION[section] || BEAT_OPTIONS_BY_SECTION.local || [];
+  const beats = getBeatOptionsForSection(section);
   const current = String(beatSelect.value || '').trim();
-  beatSelect.innerHTML = beats.map((beat) =>
+  const optionsHtml = beats.map((beat) =>
     `<option value="${escapeHtml(beat.value)}">${escapeHtml(beat.label)}</option>`
   ).join('');
-  if (current && beats.some((beat) => beat.value === current)) beatSelect.value = current;
+  beatSelect.innerHTML = `${optionsHtml}<option value="${ADD_NEW_BEAT_VALUE}">+ Add New Beat...</option>`;
+  if (current && (beats.some((beat) => beat.value === current) || current === ADD_NEW_BEAT_VALUE)) {
+    beatSelect.value = current;
+  }
+}
+
+function toggleNewBeatFlyout(show) {
+  const flyout = document.getElementById('new-beat-flyout');
+  const input = document.getElementById('new-beat-name-input');
+  if (!flyout) return;
+  if (show) {
+    flyout.removeAttribute('hidden');
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  } else {
+    flyout.setAttribute('hidden', '');
+    if (input) input.value = '';
+  }
+}
+
+function addCustomBeatOption(section, beatSlug) {
+  const key = cleanText(section, 80).toLowerCase() || 'local';
+  const beat = cleanText(beatSlug, 120).toLowerCase();
+  if (!beat) return false;
+  const existing = getBeatOptionsForSection(key);
+  if (existing.some((item) => item.value === beat)) return false;
+  if (!customBeatsBySection[key]) customBeatsBySection[key] = [];
+  customBeatsBySection[key].push({ value: beat, label: titleCaseSlug(beat) });
+  return true;
+}
+
+function saveNewBeatFromFlyout() {
+  const sectionSelect = document.getElementById('new-persona-section');
+  const beatSelect = document.getElementById('new-persona-beat');
+  const input = document.getElementById('new-beat-name-input');
+  if (!sectionSelect || !beatSelect || !input) return;
+  const section = cleanText(sectionSelect.value, 80).toLowerCase() || 'local';
+  const beatSlug = slugifyPersonaId(input.value);
+  if (!beatSlug) throw new Error('Enter a beat name');
+  addCustomBeatOption(section, beatSlug);
+  syncNewPersonaBeatOptions();
+  beatSelect.value = beatSlug;
+  toggleNewBeatFlyout(false);
 }
 
 function toggleAddPersonaPanel(show) {
   const panel = document.getElementById('add-persona-panel');
   const addBtn = document.getElementById('add-persona-btn');
+  const sectionSelect = document.getElementById('new-persona-section');
   if (!panel || !addBtn) return;
   if (show) {
     panel.removeAttribute('hidden');
     addBtn.setAttribute('hidden', '');
+    if (sectionSelect) sectionSelect.value = 'local';
     syncNewPersonaBeatOptions();
+    toggleNewBeatFlyout(false);
   } else {
     panel.setAttribute('hidden', '');
     addBtn.removeAttribute('hidden');
+    toggleNewBeatFlyout(false);
   }
 }
 
 async function createPersonaFromInputs() {
-  const idInput = document.getElementById('new-persona-id');
   const nameInput = document.getElementById('new-persona-display-name');
   const sectionSelect = document.getElementById('new-persona-section');
   const beatSelect = document.getElementById('new-persona-beat');
   const rawName = cleanText(nameInput?.value || '', 160);
-  const normalizedId = slugifyPersonaId(idInput?.value || rawName);
-  if (!normalizedId) throw new Error('Persona ID is required');
+  const normalizedId = slugifyPersonaId(rawName);
+  if (!normalizedId) throw new Error('Display name is required');
   if (loadedPersonas.some((row) => cleanText(row?.id || '', 255) === normalizedId)) {
     throw new Error(`Persona '${normalizedId}' already exists`);
   }
 
   const section = cleanText(sectionSelect?.value || 'local', 80).toLowerCase() || 'local';
-  const beat = cleanText(beatSelect?.value || (BEAT_OPTIONS_BY_SECTION[section]?.[0]?.value || 'general-local'), 120);
+  let beat = cleanText(beatSelect?.value || '', 120);
+  if (!beat || beat === ADD_NEW_BEAT_VALUE) {
+    beat = getBeatOptionsForSection(section)[0]?.value || 'general-local';
+  }
+  beat = slugifyPersonaId(beat);
+  if (!beat) throw new Error('Beat is required');
+  addCustomBeatOption(section, beat);
 
   await apiRequest('/api/admin-personas', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       id: normalizedId,
-      displayName: rawName || normalizedId,
+      displayName: rawName,
       section,
       beat,
       avatarUrl: '',
@@ -792,7 +922,6 @@ async function createPersonaFromInputs() {
     })
   });
 
-  if (idInput) idInput.value = '';
   if (nameInput) nameInput.value = '';
   if (sectionSelect) sectionSelect.value = 'local';
   syncNewPersonaBeatOptions();
@@ -886,6 +1015,7 @@ function renderPersonas(personas) {
   const personaListEl = document.getElementById('persona-settings-list');
   if (!personaListEl) return;
   loadedPersonas = Array.isArray(personas) ? personas : [];
+  customBeatsBySection = buildCustomBeatsBySection(loadedPersonas);
   const definedPersonas = getAllDefinedPersonas();
   const personaDataMap = new Map(loadedPersonas.map((p) => [p.id, p]));
   loadedPersonaDisplayNames = new Map(
@@ -1832,18 +1962,52 @@ function init() {
   const cancelAddPersonaBtn = document.getElementById('cancel-add-persona-btn');
   const createPersonaBtn = document.getElementById('create-persona-btn');
   const newPersonaSection = document.getElementById('new-persona-section');
-  const newPersonaIdInput = document.getElementById('new-persona-id');
+  const newPersonaBeatSelect = document.getElementById('new-persona-beat');
   const newPersonaNameInput = document.getElementById('new-persona-display-name');
+  const newPersonaAddBeatBtn = document.getElementById('new-persona-add-beat-btn');
+  const saveNewBeatBtn = document.getElementById('save-new-beat-btn');
+  const cancelNewBeatBtn = document.getElementById('cancel-new-beat-btn');
+  const newBeatNameInput = document.getElementById('new-beat-name-input');
   const personaListEl = document.getElementById('persona-settings-list');
   if (loadPersonasBtn) loadPersonasBtn.addEventListener('click', loadPersonas);
   if (addPersonaBtn) addPersonaBtn.addEventListener('click', () => toggleAddPersonaPanel(true));
   if (cancelAddPersonaBtn) cancelAddPersonaBtn.addEventListener('click', () => toggleAddPersonaPanel(false));
-  if (newPersonaSection) newPersonaSection.addEventListener('change', syncNewPersonaBeatOptions);
-  if (newPersonaNameInput) {
-    newPersonaNameInput.addEventListener('input', () => {
-      if (!newPersonaIdInput) return;
-      if (cleanText(newPersonaIdInput.value, 255)) return;
-      newPersonaIdInput.value = slugifyPersonaId(newPersonaNameInput.value);
+  if (newPersonaSection) {
+    newPersonaSection.addEventListener('change', () => {
+      syncNewPersonaBeatOptions();
+      toggleNewBeatFlyout(false);
+    });
+  }
+  if (newPersonaBeatSelect) {
+    newPersonaBeatSelect.addEventListener('change', () => {
+      if (newPersonaBeatSelect.value === ADD_NEW_BEAT_VALUE) toggleNewBeatFlyout(true);
+    });
+  }
+  if (newPersonaAddBeatBtn) newPersonaAddBeatBtn.addEventListener('click', () => toggleNewBeatFlyout(true));
+  if (cancelNewBeatBtn) cancelNewBeatBtn.addEventListener('click', () => toggleNewBeatFlyout(false));
+  if (saveNewBeatBtn) {
+    saveNewBeatBtn.addEventListener('click', () => {
+      try {
+        saveNewBeatFromFlyout();
+      } catch (err) {
+        setMessage(`Beat save failed: ${err.message}`);
+      }
+    });
+  }
+  if (newBeatNameInput) {
+    newBeatNameInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        try {
+          saveNewBeatFromFlyout();
+        } catch (err) {
+          setMessage(`Beat save failed: ${err.message}`);
+        }
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        toggleNewBeatFlyout(false);
+      }
     });
   }
   if (createPersonaBtn) {
