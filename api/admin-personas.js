@@ -35,11 +35,11 @@ async function ensurePersonasTable(sql) {
   `;
   await sql`
     ALTER TABLE personas
-    ADD COLUMN IF NOT EXISTS section TEXT DEFAULT ${DEFAULT_SECTION}
+    ADD COLUMN IF NOT EXISTS section TEXT DEFAULT 'local'
   `;
   await sql`
     ALTER TABLE personas
-    ADD COLUMN IF NOT EXISTS beat TEXT DEFAULT ${DEFAULT_BEAT}
+    ADD COLUMN IF NOT EXISTS beat TEXT DEFAULT 'general-local'
   `;
   await sql`
     UPDATE personas
