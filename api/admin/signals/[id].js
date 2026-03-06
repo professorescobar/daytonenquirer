@@ -78,7 +78,8 @@ module.exports = async (req, res) => {
       return res.status(404).json({ error: 'Signal not found' });
     }
 
-    const forcedWatchByBrake = action === 'promote' && current.isAutoPromoteEnabled !== true;
+    const enforceAutonomyBrake = req.body?.enforceAutonomyBrake === true;
+    const forcedWatchByBrake = enforceAutonomyBrake && action === 'promote' && current.isAutoPromoteEnabled !== true;
     const finalAction = forcedWatchByBrake ? 'watch' : action;
     const finalNextStep = finalAction === 'promote'
       ? (current.relationToArchive === 'update' ? 'cluster_update' : 'research_discovery')

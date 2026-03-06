@@ -1,6 +1,14 @@
 const { neon } = require('@neondatabase/serverless');
 const { requireAdmin } = require('./_admin-auth');
 const { ensureTopicEngineTables, TOPIC_ENGINE_STAGES } = require('./_topic-engine-workflow');
+const HARD_CODED_STAGE_STACK = {
+  topic_qualification: { runnerType: 'llm', provider: 'google', modelOrEndpoint: 'gemini-1.5-flash' },
+  research_discovery: { runnerType: 'api_workflow', provider: 'tavily', modelOrEndpoint: 'https://api.tavily.com/search' },
+  evidence_extraction: { runnerType: 'llm', provider: 'google', modelOrEndpoint: 'gemini-1.5-pro' },
+  story_planning: { runnerType: 'llm', provider: 'openai', modelOrEndpoint: 'gpt-4o-mini' },
+  draft_writing: { runnerType: 'llm', provider: 'anthropic', modelOrEndpoint: 'claude-3-5-sonnet' },
+  final_review: { runnerType: 'llm', provider: 'openai', modelOrEndpoint: 'gpt-4o' }
+};
 
 async function ensurePersonasTable(sql) {
   await ensureTopicEngineTables(sql);
@@ -234,9 +242,10 @@ module.exports = async (req, res) => {
         for (const stageName of TOPIC_ENGINE_STAGES) {
           const raw = stageConfigs[stageName];
           if (!raw || typeof raw !== 'object') continue;
-          const runnerType = normalizeRunnerType(raw.runnerType);
-          const provider = cleanText(raw.provider, 240);
-          const modelOrEndpoint = cleanText(raw.modelOrEndpoint, 500);
+          const fixed = HARD_CODED_STAGE_STACK[stageName] || { runnerType: 'llm', provider: 'google', modelOrEndpoint: '' };
+          const runnerType = normalizeRunnerType(fixed.runnerType);
+          const provider = cleanText(fixed.provider, 240);
+          const modelOrEndpoint = cleanText(fixed.modelOrEndpoint, 500);
           const enabled = raw.enabled !== false;
           const promptTemplate = cleanText(raw.promptTemplate, 5000);
           const workflowConfig = raw.workflowConfig && typeof raw.workflowConfig === 'object'

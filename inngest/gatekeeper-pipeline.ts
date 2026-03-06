@@ -124,6 +124,9 @@ const TEST_SIGNAL_ID = 12345;
 const TEST_MODE_ENABLED =
   String(process.env.TOPIC_ENGINE_TEST_MODE || "").trim().toLowerCase() === "true" ||
   String(process.env.VERCEL_ENV || "").trim().toLowerCase() !== "production";
+const HARD_CODED_GATEKEEPER_MODEL = "gemini-1.5-flash";
+const HARD_CODED_RESEARCH_QUERY_MODEL = "gemini-1.5-flash";
+const HARD_CODED_EVIDENCE_MODEL_CANDIDATES = ["gemini-1.5-pro", "gemini-1.5-pro-002"];
 
 function isTestSignalId(signalId: number): boolean {
   return TEST_MODE_ENABLED && signalId === TEST_SIGNAL_ID;
@@ -835,13 +838,7 @@ async function generateResearchQueries(signal: ResearchSignalContext): Promise<s
   const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
-  const model = cleanText(
-    process.env.TOPIC_ENGINE_RESEARCH_QUERY_MODEL ||
-      process.env.GEMINI_FLASH_MODEL ||
-      process.env.GEMINI_MODEL ||
-      "gemini-2.0-flash",
-    120
-  );
+  const model = HARD_CODED_RESEARCH_QUERY_MODEL;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     model
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -1116,18 +1113,7 @@ async function extractEvidenceClaimsWithGemini(
   const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
-  const candidateModels = Array.from(
-    new Set(
-      [
-        cleanText(process.env.TOPIC_ENGINE_EVIDENCE_MODEL || "", 120),
-        cleanText(process.env.GEMINI_PRO_MODEL || "", 120),
-        cleanText(process.env.GEMINI_MODEL || "", 120),
-        "gemini-1.5-pro-002",
-        "gemini-2.5-pro",
-        "gemini-2.0-flash"
-      ].filter(Boolean)
-    )
-  );
+  const candidateModels = [...HARD_CODED_EVIDENCE_MODEL_CANDIDATES];
   const sourceContext = sources
     .slice(0, 5)
     .map((source, index) =>
@@ -1492,7 +1478,7 @@ async function checkCorroborationPreAI(signal: SignalRecord): Promise<Corroborat
   };
 }
 
-// STEP 4: gatekeeper_classify (Gemini 2.0 Flash)
+// STEP 4: gatekeeper_classify (Gemini 1.5 Flash)
 async function classifyWithGatekeeper(
   signal: SignalRecord,
   priorArt: PriorArtMatch[],
@@ -1501,13 +1487,7 @@ async function classifyWithGatekeeper(
   const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
-  const model = cleanText(
-    process.env.TOPIC_ENGINE_GATEKEEPER_MODEL ||
-      process.env.GEMINI_FLASH_MODEL ||
-      process.env.GEMINI_MODEL ||
-      "gemini-1.5-flash",
-    120
-  );
+  const model = HARD_CODED_GATEKEEPER_MODEL;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     model
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;

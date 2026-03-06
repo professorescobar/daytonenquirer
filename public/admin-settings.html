@@ -64,51 +64,18 @@
 
     <section id="settings-app" hidden>
       <section class="admin-panel">
-        <h2>Manual Budget</h2>
-        <p class="hint">Auto budget and auto budget stats have been removed. Manual budget is now the only budget mode.</p>
-        <div class="admin-grid">
+        <h2>Admin Access</h2>
+        <p class="hint">Set your admin API token to manage settings and workflow controls.</p>
+        <div class="admin-grid single">
           <label>
             Admin Token
             <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
           </label>
-          <label>
-            Manual Daily Token Budget
-            <input id="manual-budget-input" type="number" min="1" step="1000" value="350000" />
-          </label>
-          <label>
-            Run Log Limit
-            <input id="run-limit" type="number" min="1" max="500" value="50" />
-          </label>
         </div>
         <div class="admin-actions">
           <button id="save-token-btn" class="btn">Save Token</button>
-          <button id="save-manual-budget-btn" class="btn">Save Manual Budget</button>
-          <button id="load-runs-btn" class="btn btn-primary">Load Generation Runs</button>
         </div>
         <div id="settings-message" class="message" hidden></div>
-      </section>
-
-      <section class="admin-panel">
-        <article class="draft-card">
-          <button class="draft-header draft-toggle btn-reset" type="button">
-            <strong>Generation Runs</strong>
-            <span class="draft-meta">Manual draft generation run log</span>
-          </button>
-          <div class="article-editor section-editor is-collapsed" hidden>
-            <div class="admin-grid single">
-              <label>
-                Run Filter
-                <select id="run-filter">
-                  <option value="all">All runs</option>
-                  <option value="failed_or_skipped">Only failed/skipped</option>
-                  <option value="underfilled">Only underfilled</option>
-                  <option value="failed_or_underfilled">Failed + underfilled</option>
-                </select>
-              </label>
-            </div>
-            <div id="generation-run-list" class="duplicate-list"></div>
-          </div>
-        </article>
       </section>
     </section>
   </main>

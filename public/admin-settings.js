@@ -3,17 +3,10 @@ const appSection = document.getElementById('settings-app');
 const adminUiPasswordInput = document.getElementById('admin-ui-password');
 const unlockAdminBtn = document.getElementById('unlock-admin-btn');
 const tokenInput = document.getElementById('admin-token');
-const manualBudgetInput = document.getElementById('manual-budget-input');
-const runLimitInput = document.getElementById('run-limit');
 const saveTokenBtn = document.getElementById('save-token-btn');
-const saveManualBudgetBtn = document.getElementById('save-manual-budget-btn');
-const loadRunsBtn = document.getElementById('load-runs-btn');
 const messageEl = document.getElementById('settings-message');
-const generationRunListEl = document.getElementById('generation-run-list');
-const runFilterInput = document.getElementById('run-filter');
 
 let unlocked = false;
-let generationRuns = [];
 let signalPage = 1;
 let signalPageSize = 25;
 let signalSortBy = 'created_at';
@@ -23,7 +16,6 @@ let currentSignalFilters = {
   action: '',
   reviewDecision: ''
 };
-let topicEngineSettings = [];
 
 function setMessage(text) {
   if (!messageEl) return;
@@ -60,13 +52,57 @@ const STAGE_LABELS = {
   draft_writing: 'Draft Writing',
   final_review: 'Final Review'
 };
-const RUNNER_TYPE_OPTIONS = [
-  { value: 'llm', label: 'LLM' },
-  { value: 'api_workflow', label: 'API Workflow' },
-  { value: 'tool', label: 'Tool' },
-  { value: 'script', label: 'Script' }
-];
-const RECOMMENDED_STAGE_STACK = {
+const STAGE_EXPLANATIONS = {
+  topic_qualification: {
+    summary: 'Decides whether this lead should be ignored, monitored, or moved forward.',
+    details: [
+      'Checks if the lead looks like a duplicate or weak local fit.',
+      'Applies policy and confidence guardrails before any expensive stages.',
+      'Outputs a clear action: reject, watch, or promote.'
+    ]
+  },
+  research_discovery: {
+    summary: 'Collects the best supporting sources for this story candidate.',
+    details: [
+      'Builds targeted search queries from the lead context.',
+      'Runs external retrieval and ranks source quality.',
+      'Stores a focused source set for the next phase.'
+    ]
+  },
+  evidence_extraction: {
+    summary: 'Turns source material into traceable evidence claims.',
+    details: [
+      'Extracts claims that can be tied to specific source URLs.',
+      'Keeps attribution so editorial review is auditable.',
+      'Stores structured evidence for planning and drafting.'
+    ]
+  },
+  story_planning: {
+    summary: 'Builds a clear article blueprint before writing starts.',
+    details: [
+      'Defines the angle, section order, and what matters most.',
+      'Keeps the plan aligned with verified evidence.',
+      'Creates stable inputs for draft generation.'
+    ]
+  },
+  draft_writing: {
+    summary: 'Generates the first complete draft for editorial review.',
+    details: [
+      'Writes from approved plan + evidence constraints.',
+      'Applies persona voice and local framing.',
+      'Stores draft output for final review.'
+    ]
+  },
+  final_review: {
+    summary: 'Runs final quality control before publish gating.',
+    details: [
+      'Checks clarity, factual grounding, and policy alignment.',
+      'Can approve, request edits, or block publication.',
+      'Sets final publish readiness status.'
+    ]
+  }
+};
+const HARD_CODED_STAGE_STACK = {
   topic_qualification: {
     runnerType: 'llm',
     provider: 'google',
@@ -192,31 +228,6 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-function formatTopSkipReasons(reasons) {
-  if (!Array.isArray(reasons) || reasons.length === 0) return 'none';
-  return reasons
-    .slice(0, 5)
-    .map((item) => `${escapeHtml(item.reason || 'unknown')} (${Number(item.count || 0).toLocaleString()})`)
-    .join(', ');
-}
-
-function isUnderfilledRun(run) {
-  const target = Number(run?.targetCount || 0);
-  const created = Number(run?.createdCount || 0);
-  if (target > 0 && created < target) return true;
-  return String(run?.runReason || '').toLowerCase() === 'underfilled';
-}
-
-function shouldIncludeRunByFilter(run, filterValue) {
-  const status = String(run?.runStatus || '').toLowerCase();
-  const failedOrSkipped = status === 'error' || status === 'invalid_request' || status === 'skipped';
-  const underfilled = isUnderfilledRun(run);
-  if (filterValue === 'failed_or_skipped') return failedOrSkipped;
-  if (filterValue === 'underfilled') return underfilled;
-  if (filterValue === 'failed_or_underfilled') return failedOrSkipped || underfilled;
-  return true;
 }
 
 async function uploadImageToCloudinary(file) {
@@ -411,8 +422,42 @@ function injectPersonaStyles() {
     .workflow-stage-grid .workflow-wide {
       grid-column: 1 / -1;
     }
+    .stage-explainer p {
+      margin: 0 0 0.35rem 0;
+      font-size: 0.92rem;
+    }
+    .stage-explainer ul {
+      margin: 0;
+      padding-left: 1rem;
+      color: #445;
+      font-size: 0.86rem;
+    }
+    .stage-explainer li {
+      margin: 0.15rem 0;
+    }
     .section-card {
       background: #fdfdfd;
+    }
+    .persona-advanced {
+      margin-top: 0.85rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #fbfbfb;
+      padding: 0.65rem;
+    }
+    .persona-advanced-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      text-align: left;
+    }
+    .persona-advanced-body[hidden] {
+      display: none !important;
+    }
+    .persona-advanced-body {
+      margin-top: 0.75rem;
     }
     .section-title {
       font-size: 1rem;
@@ -487,25 +532,6 @@ function injectPersonaStyles() {
       gap: 0.5rem;
       margin-top: 0.65rem;
     }
-    .persona-autonomy-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 0.5rem;
-      margin-bottom: 0.8rem;
-    }
-    .persona-autonomy-item {
-      border: 1px solid #ddd;
-      background: #fff;
-      padding: 0.45rem 0.55rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.9rem;
-    }
-    .persona-autonomy-item button {
-      white-space: nowrap;
-    }
     @media (max-width: 600px) {
       .persona-editor-grid {
         grid-template-columns: 1fr;
@@ -520,6 +546,35 @@ function injectPersonaStyles() {
       .signals-toolbar {
         grid-template-columns: 1fr;
       }
+    }
+    html[data-theme="dark"] .persona-card .workflow-stage,
+    html[data-theme="dark"] .persona-card .persona-advanced,
+    html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-grid,
+    html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-top {
+      background: #1a1f2b !important;
+      border-color: #3a455b !important;
+      color: #e6edf9 !important;
+    }
+    html[data-theme="dark"] .persona-card .workflow-stage-summary,
+    html[data-theme="dark"] .persona-card .signal-meta,
+    html[data-theme="dark"] .persona-card .persona-summary {
+      color: #c1cbe0 !important;
+    }
+    html[data-theme="dark"] .persona-card .stage-explainer ul {
+      color: #c9d6ee !important;
+    }
+    html[data-theme="dark"] .signals-summary .summary-card {
+      background: #1a1f2b !important;
+      border-color: #3a455b !important;
+      color: #e6edf9 !important;
+    }
+    html[data-theme="dark"] .signals-summary .summary-card .signal-meta {
+      color: #c1cbe0 !important;
+    }
+    html[data-theme="dark"] .signal-flag {
+      background: #1a1f2b !important;
+      border-color: #3a455b !important;
+      color: #e6edf9 !important;
     }
   `;
   document.head.appendChild(style);
@@ -558,7 +613,9 @@ function ensureSignalsUi() {
     <div class="signals-toolbar">
       <label>
         Persona
-        <input id="signals-filter-persona" type="text" placeholder="local-reporter" />
+        <select id="signals-filter-persona">
+          <option value="">All</option>
+        </select>
       </label>
       <label>
         Action
@@ -595,12 +652,25 @@ function ensureSignalsUi() {
       <button id="apply-signals-filters-btn" class="btn btn-primary" type="button">Apply Filters</button>
     </div>
     <div id="signals-summary" class="signals-summary"></div>
-    <h3>Autonomy Controls</h3>
-    <div id="persona-autonomy-grid" class="persona-autonomy-grid"></div>
     <div id="signals-queue-list" class="signals-list"></div>
     <div id="signals-pagination" class="pagination-row"></div>
   `;
   appRoot.appendChild(section);
+}
+
+function renderSignalsPersonaOptions() {
+  const select = document.getElementById('signals-filter-persona');
+  if (!select) return;
+  const current = String(select.value || '').trim();
+  const personas = getAllDefinedPersonas();
+  const options = ['<option value="">All</option>']
+    .concat(
+      personas.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)} (${escapeHtml(p.id)})</option>`)
+    );
+  select.innerHTML = options.join('');
+  if (current && Array.from(select.options).some((opt) => opt.value === current)) {
+    select.value = current;
+  }
 }
 
 function renderPersonas(personas) {
@@ -687,42 +757,20 @@ function renderPersonas(personas) {
                           <input type="text" class="field-pacing-posting-days" value="${escapeHtml(formatPostingDays(pacingConfig.postingDays))}">
                         </label>
                         <label>
-                          Window Start (HH:MM)
-                          <input type="text" class="field-pacing-window-start" value="${escapeHtml(formatTimeShort(pacingConfig.windowStartLocal))}" placeholder="06:00">
+                          Window Start (e.g. 7:30 AM)
+                          <input type="text" class="field-pacing-window-start" value="${escapeHtml(formatTime12(pacingConfig.windowStartLocal))}" placeholder="7:30 AM">
                         </label>
                         <label>
-                          Window End (HH:MM)
-                          <input type="text" class="field-pacing-window-end" value="${escapeHtml(formatTimeShort(pacingConfig.windowEndLocal))}" placeholder="22:00">
+                          Window End (e.g. 8:00 PM)
+                          <input type="text" class="field-pacing-window-end" value="${escapeHtml(formatTime12(pacingConfig.windowEndLocal))}" placeholder="8:00 PM">
+                        </label>
+                        <label>
+                          Single Post Time (e.g. 8:30 AM)
+                          <input type="text" class="field-pacing-single-time" value="${escapeHtml(formatTime12(pacingConfig.singlePostTimeLocal || ''))}" placeholder="8:30 AM">
                         </label>
                         <label>
                           Cadence Enabled
                           <input type="checkbox" class="field-pacing-cadence-enabled" ${pacingConfig.cadenceEnabled ? 'checked' : ''}>
-                        </label>
-                        <label>
-                          Single Post Time (HH:MM)
-                          <input type="text" class="field-pacing-single-time" value="${escapeHtml(formatTimeShort(pacingConfig.singlePostTimeLocal || ''))}" placeholder="12:00">
-                        </label>
-                        <label>
-                          Single Post Daypart
-                          <select class="field-pacing-single-daypart">
-                            <option value="" ${!pacingConfig.singlePostDaypart ? 'selected' : ''}>None</option>
-                            <option value="morning" ${pacingConfig.singlePostDaypart === 'morning' ? 'selected' : ''}>Morning</option>
-                            <option value="midday" ${pacingConfig.singlePostDaypart === 'midday' ? 'selected' : ''}>Midday</option>
-                            <option value="afternoon" ${pacingConfig.singlePostDaypart === 'afternoon' ? 'selected' : ''}>Afternoon</option>
-                            <option value="evening" ${pacingConfig.singlePostDaypart === 'evening' ? 'selected' : ''}>Evening</option>
-                          </select>
-                        </label>
-                        <label>
-                          Min Spacing (min)
-                          <input type="number" min="0" max="1440" step="5" class="field-pacing-min-spacing" value="${escapeHtml(String(pacingConfig.minSpacingMinutes))}">
-                        </label>
-                        <label>
-                          Max Backlog
-                          <input type="number" min="1" max="5000" step="1" class="field-pacing-max-backlog" value="${escapeHtml(String(pacingConfig.maxBacklog))}">
-                        </label>
-                        <label>
-                          Max Retries
-                          <input type="number" min="0" max="20" step="1" class="field-pacing-max-retries" value="${escapeHtml(String(pacingConfig.maxRetries))}">
                         </label>
                         <label class="workflow-wide">
                           Discovery Feeds (one per line; optional format: URL | Source Name | Priority)
@@ -730,15 +778,17 @@ function renderPersonas(personas) {
                         </label>
                       </div>
 
-                      <div class="persona-quick-actions">
-                        <button type="button" class="btn btn-secondary btn-xs btn-apply-recommended-stack">Apply Recommended Model Stack</button>
-                        <button type="button" class="btn btn-secondary btn-xs btn-expand-stages">Expand All Stages</button>
-                        <button type="button" class="btn btn-secondary btn-xs btn-collapse-stages">Collapse All Stages</button>
-                      </div>
-
-                      <div class="workflow-stage-list">
-                        ${renderStageEditors(data.stageConfigs)}
-                      </div>
+                      <section class="persona-advanced">
+                        <button type="button" class="persona-advanced-header btn-reset btn-toggle-advanced" aria-expanded="false">
+                          <strong>Advanced Stage Settings</strong>
+                          <span class="draft-meta">Show</span>
+                        </button>
+                        <div class="persona-advanced-body" hidden>
+                          <div class="workflow-stage-list">
+                            ${renderStageEditors(data.stageConfigs)}
+                          </div>
+                        </div>
+                      </section>
                       <div class="admin-actions">
                         <button type="button" class="btn btn-primary btn-save-persona">Save Persona</button>
                       </div>
@@ -764,11 +814,7 @@ function getPacingConfig(value) {
     windowStartLocal: String(raw.windowStartLocal || '06:00:00'),
     windowEndLocal: String(raw.windowEndLocal || '22:00:00'),
     cadenceEnabled: raw.cadenceEnabled !== false,
-    singlePostTimeLocal: raw.singlePostTimeLocal ? String(raw.singlePostTimeLocal) : '',
-    singlePostDaypart: raw.singlePostDaypart ? String(raw.singlePostDaypart) : '',
-    minSpacingMinutes: Number.parseInt(String(raw.minSpacingMinutes ?? 90), 10) || 90,
-    maxBacklog: Number.parseInt(String(raw.maxBacklog ?? 200), 10) || 200,
-    maxRetries: Number.parseInt(String(raw.maxRetries ?? 3), 10) || 3
+    singlePostTimeLocal: raw.singlePostTimeLocal ? String(raw.singlePostTimeLocal) : ''
   };
 }
 
@@ -785,33 +831,65 @@ function parsePostingDays(value) {
   return ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((key) => map.has(key));
 }
 
-function formatTimeShort(value) {
+function formatTime12(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
-  const m = raw.match(/^(\\d{1,2}:\\d{2})/);
-  return m ? m[1] : raw;
+  const m = raw.match(/^(\\d{1,2}):(\\d{2})(?::\\d{2})?$/);
+  if (!m) return raw;
+  let hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return raw;
+  const suffix = hh >= 12 ? 'PM' : 'AM';
+  hh = hh % 12;
+  if (hh === 0) hh = 12;
+  return `${hh}:${String(mm).padStart(2, '0')} ${suffix}`;
 }
 
 function normalizeTimeInput(value, fallback) {
   const raw = String(value || '').trim();
-  const m = raw.match(/^(\\d{1,2}):(\\d{2})$/);
-  if (!m) return fallback;
-  const hh = Number(m[1]);
-  const mm = Number(m[2]);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return fallback;
+  if (!raw) return fallback;
+  const twelveHour = raw.match(/^(\\d{1,2}):(\\d{2})\\s*([AaPp][Mm])$/);
+  if (twelveHour) {
+    let hh = Number(twelveHour[1]);
+    const mm = Number(twelveHour[2]);
+    const ap = String(twelveHour[3] || '').toUpperCase();
+    if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 1 || hh > 12 || mm < 0 || mm > 59) return null;
+    if (ap === 'AM') hh = hh === 12 ? 0 : hh;
+    if (ap === 'PM') hh = hh === 12 ? 12 : hh + 12;
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`;
+  }
+  const twentyFourHour = raw.match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
+  if (!twentyFourHour) return null;
+  const hh = Number(twentyFourHour[1]);
+  const mm = Number(twentyFourHour[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`;
 }
 
 function normalizeOptionalTimeInput(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
-  return normalizeTimeInput(raw, '12:00:00');
+  return normalizeTimeInput(raw, null);
+}
+
+function updatePacingControlState(card) {
+  if (!card) return;
+  const posts = Number.parseInt(String(card.querySelector('.field-pacing-posts-per-day')?.value || '1'), 10) || 1;
+  const isSingleMode = posts <= 1;
+  const windowStart = card.querySelector('.field-pacing-window-start');
+  const windowEnd = card.querySelector('.field-pacing-window-end');
+  const singleTime = card.querySelector('.field-pacing-single-time');
+  const cadenceToggle = card.querySelector('.field-pacing-cadence-enabled');
+  if (windowStart) windowStart.disabled = isSingleMode;
+  if (windowEnd) windowEnd.disabled = isSingleMode;
+  if (singleTime) singleTime.disabled = !isSingleMode;
+  if (cadenceToggle) cadenceToggle.disabled = isSingleMode;
 }
 
 function getDefaultStageConfig() {
   return {
     runnerType: 'llm',
-    provider: '',
+    provider: 'google',
     modelOrEndpoint: '',
     enabled: true,
     promptTemplate: '',
@@ -821,16 +899,16 @@ function getDefaultStageConfig() {
 
 function getStageConfig(stageConfigs, stageName) {
   const fromApi = stageConfigs && typeof stageConfigs === 'object' ? stageConfigs[stageName] : null;
-  if (!fromApi || typeof fromApi !== 'object') return getDefaultStageConfig();
+  const hardcoded = HARD_CODED_STAGE_STACK[stageName] || { runnerType: 'llm', provider: 'google', modelOrEndpoint: '' };
   const config = getDefaultStageConfig();
-  config.runnerType = String(fromApi.runnerType || config.runnerType);
-  config.provider = String(fromApi.provider || '');
-  config.modelOrEndpoint = String(fromApi.modelOrEndpoint || '');
-  config.enabled = fromApi.enabled !== false;
-  config.promptTemplate = String(fromApi.promptTemplate || '');
-  config.workflowConfig = fromApi.workflowConfig && typeof fromApi.workflowConfig === 'object'
-    ? fromApi.workflowConfig
-    : {};
+  config.runnerType = String(hardcoded.runnerType || config.runnerType);
+  config.provider = String(hardcoded.provider || config.provider);
+  config.modelOrEndpoint = String(hardcoded.modelOrEndpoint || '');
+  config.enabled = !fromApi || typeof fromApi !== 'object' ? true : fromApi.enabled !== false;
+  config.promptTemplate = !fromApi || typeof fromApi !== 'object' ? '' : String(fromApi.promptTemplate || '');
+  config.workflowConfig = !fromApi || typeof fromApi !== 'object'
+    ? {}
+    : (fromApi.workflowConfig && typeof fromApi.workflowConfig === 'object' ? fromApi.workflowConfig : {});
   return config;
 }
 
@@ -851,15 +929,9 @@ function formatFeedsForTextArea(feeds) {
 function renderStageEditors(stageConfigs) {
   return TOPIC_ENGINE_STAGES.map((stageName) => {
     const config = getStageConfig(stageConfigs, stageName);
+    const explainer = STAGE_EXPLANATIONS[stageName] || { summary: '', details: [] };
     const workflowConfigText = JSON.stringify(config.workflowConfig || {}, null, 2);
-    const summaryParts = [];
-    if (config.runnerType) summaryParts.push(config.runnerType.toUpperCase());
-    if (config.provider) summaryParts.push(config.provider);
-    if (config.modelOrEndpoint) summaryParts.push(config.modelOrEndpoint);
-    const summaryText = summaryParts.length ? summaryParts.join(' • ') : 'No runner configured yet';
-    const runnerOptions = RUNNER_TYPE_OPTIONS.map((opt) => `
-      <option value="${opt.value}" ${config.runnerType === opt.value ? 'selected' : ''}>${opt.label}</option>
-    `).join('');
+    const summaryText = [config.runnerType.toUpperCase(), config.provider, config.modelOrEndpoint].filter(Boolean).join(' • ');
     return `
       <section class="workflow-stage" data-stage="${stageName}">
         <button type="button" class="workflow-stage-header btn-reset btn-toggle-stage" aria-expanded="false">
@@ -877,20 +949,13 @@ function renderStageEditors(stageConfigs) {
             </label>
           </div>
           <div class="workflow-stage-grid">
-            <label>
-              Runner Type
-              <select class="field-stage-runner-type">
-                ${runnerOptions}
-              </select>
-            </label>
-            <label>
-              Provider
-              <input type="text" class="field-stage-provider" value="${escapeHtml(config.provider)}" placeholder="OpenAI / Anthropic / Tavily / custom">
-            </label>
-            <label class="workflow-wide">
-              Model or Endpoint
-              <input type="text" class="field-stage-model" value="${escapeHtml(config.modelOrEndpoint)}" placeholder="gpt-4o / claude-3-5-sonnet / https://...">
-            </label>
+            <div class="workflow-wide stage-explainer">
+              <p><strong>${escapeHtml(explainer.summary || '')}</strong></p>
+              <ul>
+                ${(Array.isArray(explainer.details) ? explainer.details : []).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
+              </ul>
+            </div>
+            <p class="signal-meta workflow-wide">Model stack is globally hardcoded for v1. Stage-level model selection is disabled.</p>
             <label class="workflow-wide">
               Prompt Template
               <textarea class="field-stage-prompt" rows="3" placeholder="Instructions for this stage...">${escapeHtml(config.promptTemplate)}</textarea>
@@ -937,13 +1002,13 @@ function updateStageSummary(stageEl) {
   if (!stageEl) return;
   const summaryEl = stageEl.querySelector('.workflow-stage-summary');
   if (!summaryEl) return;
-  const runnerType = String(stageEl.querySelector('.field-stage-runner-type')?.value || '').trim();
-  const provider = String(stageEl.querySelector('.field-stage-provider')?.value || '').trim();
-  const modelOrEndpoint = String(stageEl.querySelector('.field-stage-model')?.value || '').trim();
-  const parts = [];
-  if (runnerType) parts.push(runnerType.toUpperCase());
-  if (provider) parts.push(provider);
-  if (modelOrEndpoint) parts.push(modelOrEndpoint);
+  const stageName = String(stageEl.getAttribute('data-stage') || '').trim();
+  const hardcoded = HARD_CODED_STAGE_STACK[stageName] || {};
+  const parts = [
+    String(hardcoded.runnerType || '').toUpperCase(),
+    cleanText(hardcoded.provider || '', 120),
+    cleanText(hardcoded.modelOrEndpoint || '', 300)
+  ].filter(Boolean);
   summaryEl.textContent = parts.length ? parts.join(' • ') : 'No runner configured yet';
 }
 
@@ -954,19 +1019,26 @@ function setAllStagesExpanded(card, expanded) {
   }
 }
 
-function applyRecommendedStack(card) {
-  for (const [stageName, preset] of Object.entries(RECOMMENDED_STAGE_STACK)) {
-    const stageEl = card.querySelector(`.workflow-stage[data-stage="${stageName}"]`);
-    if (!stageEl) continue;
-    const runnerEl = stageEl.querySelector('.field-stage-runner-type');
-    const providerEl = stageEl.querySelector('.field-stage-provider');
-    const modelEl = stageEl.querySelector('.field-stage-model');
-    const enabledEl = stageEl.querySelector('.field-stage-enabled');
-    if (runnerEl) runnerEl.value = preset.runnerType;
-    if (providerEl) providerEl.value = preset.provider;
-    if (modelEl) modelEl.value = preset.modelOrEndpoint;
-    if (enabledEl) enabledEl.checked = true;
-    updateStageSummary(stageEl);
+function setAdvancedExpanded(card, expanded) {
+  const btn = card?.querySelector('.btn-toggle-advanced');
+  const body = card?.querySelector('.persona-advanced-body');
+  if (!btn || !body) return;
+  btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  const meta = btn.querySelector('.draft-meta');
+  if (meta) meta.textContent = expanded ? 'Hide' : 'Show';
+  if (expanded) body.removeAttribute('hidden');
+  else body.setAttribute('hidden', '');
+}
+
+function setPersonaCardExpanded(card, expanded) {
+  const editor = card?.querySelector(':scope > .article-editor');
+  if (!editor) return;
+  if (expanded) {
+    editor.removeAttribute('hidden');
+    editor.classList.remove('is-collapsed');
+  } else {
+    editor.setAttribute('hidden', '');
+    editor.classList.add('is-collapsed');
   }
 }
 
@@ -975,6 +1047,8 @@ async function loadPersonas() {
     setMessage('Loading personas...');
     const data = await apiRequest('/api/admin-personas');
     renderPersonas(data.personas || []);
+    renderSignalsPersonaOptions();
+    document.querySelectorAll('.persona-card').forEach((card) => updatePacingControlState(card));
     setMessage(`Loaded ${data.personas?.length || 0} persona configurations.`);
   } catch (err) {
     setMessage(`Failed to load personas: ${err.message}`);
@@ -987,20 +1061,33 @@ async function savePersona(card) {
   const disclosure = card.querySelector('.field-disclosure').value;
   const activationMode = card.querySelector('.field-activation-mode')?.value || 'both';
   const isAutoPromoteEnabled = Boolean(card.querySelector('.field-is-auto-promote-enabled')?.checked);
+  const postsPerActiveDay = Number.parseInt(String(card.querySelector('.field-pacing-posts-per-day')?.value || '1'), 10) || 1;
+  const isSingleMode = postsPerActiveDay <= 1;
+  const windowStartLocal = normalizeTimeInput(card.querySelector('.field-pacing-window-start')?.value || '', '06:00:00');
+  const windowEndLocal = normalizeTimeInput(card.querySelector('.field-pacing-window-end')?.value || '', '22:00:00');
+  const singlePostTimeLocal = normalizeOptionalTimeInput(card.querySelector('.field-pacing-single-time')?.value || '');
+  if (!isSingleMode && (!windowStartLocal || !windowEndLocal)) {
+    throw new Error('Invalid pacing time format. Use HH:MM.');
+  }
+  if (isSingleMode && !singlePostTimeLocal) {
+    throw new Error('Single post time is required when posts/day is 1 or less.');
+  }
+  if (card.querySelector('.field-pacing-single-time')?.value && !singlePostTimeLocal) {
+    throw new Error('Invalid single post time format. Use HH:MM.');
+  }
   const pacingConfig = {
     enabled: Boolean(card.querySelector('.field-pacing-enabled')?.checked),
     postingDays: parsePostingDays(card.querySelector('.field-pacing-posting-days')?.value || ''),
-    postsPerActiveDay: Number.parseInt(String(card.querySelector('.field-pacing-posts-per-day')?.value || '1'), 10) || 1,
-    windowStartLocal: normalizeTimeInput(card.querySelector('.field-pacing-window-start')?.value || '', '06:00:00'),
-    windowEndLocal: normalizeTimeInput(card.querySelector('.field-pacing-window-end')?.value || '', '22:00:00'),
-    cadenceEnabled: Boolean(card.querySelector('.field-pacing-cadence-enabled')?.checked),
-    singlePostTimeLocal: normalizeOptionalTimeInput(card.querySelector('.field-pacing-single-time')?.value || ''),
-    singlePostDaypart: card.querySelector('.field-pacing-single-daypart')?.value || null,
-    minSpacingMinutes: Number.parseInt(String(card.querySelector('.field-pacing-min-spacing')?.value || '90'), 10) || 90,
-    maxBacklog: Number.parseInt(String(card.querySelector('.field-pacing-max-backlog')?.value || '200'), 10) || 200,
-    maxRetries: Number.parseInt(String(card.querySelector('.field-pacing-max-retries')?.value || '3'), 10) || 3
+    postsPerActiveDay,
+    windowStartLocal: isSingleMode ? '06:00:00' : windowStartLocal,
+    windowEndLocal: isSingleMode ? '22:00:00' : windowEndLocal,
+    cadenceEnabled: isSingleMode ? false : Boolean(card.querySelector('.field-pacing-cadence-enabled')?.checked),
+    singlePostTimeLocal,
+    singlePostDaypart: null,
+    minSpacingMinutes: 90,
+    maxBacklog: 200,
+    maxRetries: 3
   };
-  if (!pacingConfig.singlePostDaypart) pacingConfig.singlePostDaypart = null;
   const feeds = parseFeedsFromText(card.querySelector('.field-feeds')?.value || '');
   const stageConfigs = {};
   const stageEls = card.querySelectorAll('.workflow-stage[data-stage]');
@@ -1020,9 +1107,9 @@ async function savePersona(card) {
       }
     }
     stageConfigs[stageName] = {
-      runnerType: stageEl.querySelector('.field-stage-runner-type')?.value || 'llm',
-      provider: stageEl.querySelector('.field-stage-provider')?.value || '',
-      modelOrEndpoint: stageEl.querySelector('.field-stage-model')?.value || '',
+      runnerType: HARD_CODED_STAGE_STACK[stageName]?.runnerType || 'llm',
+      provider: HARD_CODED_STAGE_STACK[stageName]?.provider || '',
+      modelOrEndpoint: HARD_CODED_STAGE_STACK[stageName]?.modelOrEndpoint || '',
       enabled: Boolean(stageEl.querySelector('.field-stage-enabled')?.checked),
       promptTemplate: stageEl.querySelector('.field-stage-prompt')?.value || '',
       workflowConfig
@@ -1055,37 +1142,6 @@ function buildSignalsQueryParams() {
   params.set('sortBy', signalSortBy);
   params.set('sortDir', signalSortDir);
   return params;
-}
-
-async function loadTopicEngines() {
-  const data = await apiRequest('/api/admin-topic-engines');
-  topicEngineSettings = Array.isArray(data.topicEngines) ? data.topicEngines : [];
-  renderTopicEngineAutonomyGrid();
-}
-
-function renderTopicEngineAutonomyGrid() {
-  const grid = document.getElementById('persona-autonomy-grid');
-  if (!grid) return;
-  if (!topicEngineSettings.length) {
-    grid.innerHTML = '<p class="signal-meta">No topic engine settings yet.</p>';
-    return;
-  }
-  grid.innerHTML = topicEngineSettings.map((item) => `
-    <div class="persona-autonomy-item">
-      <div>
-        <strong>${escapeHtml(item.personaId || '')}</strong>
-        <div class="signal-meta">Auto-promote: ${item.isAutoPromoteEnabled ? 'ON' : 'OFF'}</div>
-      </div>
-      <button
-        type="button"
-        class="btn btn-secondary btn-toggle-autonomy"
-        data-persona-id="${escapeHtml(item.personaId || '')}"
-        data-next-state="${item.isAutoPromoteEnabled ? 'off' : 'on'}"
-      >
-        Turn ${item.isAutoPromoteEnabled ? 'Off' : 'On'}
-      </button>
-    </div>
-  `).join('');
 }
 
 function renderSignalsSummary(summary24h) {
@@ -1176,14 +1232,6 @@ async function updateSignalAction(signalId, action) {
   });
 }
 
-async function setPersonaAutoPromote(personaId, enabled) {
-  await apiRequest('/api/admin-topic-engines', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ personaId, isAutoPromoteEnabled: Boolean(enabled) })
-  });
-}
-
 async function unlock() {
   try {
     const password = (adminUiPasswordInput.value || '').trim();
@@ -1201,7 +1249,7 @@ async function unlock() {
     setLockState(true);
     setMessage('Settings unlocked.');
     if (getToken()) {
-      await Promise.all([loadManualBudget(), loadGenerationRuns(), loadPersonas(), loadTopicEngines(), loadSignals()]);
+      await Promise.all([loadPersonas(), loadSignals()]);
     }
   } catch (err) {
     setMessage(`Unlock failed: ${err.message}`);
@@ -1226,93 +1274,6 @@ async function apiRequest(url, options = {}) {
     throw new Error(data.details ? `${message}: ${data.details}` : message);
   }
   return data;
-}
-
-function renderGenerationRuns(runs) {
-  if (!Array.isArray(runs) || runs.length === 0) {
-    generationRunListEl.innerHTML = '<p>No generation runs found.</p>';
-    return;
-  }
-
-  const filterValue = String(runFilterInput?.value || 'all');
-  const filtered = runs.filter((run) => shouldIncludeRunByFilter(run, filterValue));
-  if (!filtered.length) {
-    generationRunListEl.innerHTML = '<p>No generation runs match this filter.</p>';
-    return;
-  }
-
-  generationRunListEl.innerHTML = filtered.map((run) => `
-    <article class="draft-card">
-      <button class="draft-header draft-toggle btn-reset" type="button">
-        <strong>#${run.id} - ${escapeHtml(run.runStatus || 'unknown')}</strong>
-        <span class="draft-meta">
-          ${escapeHtml(formatDate(run.runAt))} |
-          ET: ${escapeHtml(run.etDate || 'n/a')} ${escapeHtml(run.etTime || '')} |
-          created: ${Number(run.createdCount || 0).toLocaleString()}/${Number(run.targetCount || 0).toLocaleString()}
-        </span>
-      </button>
-      <p class="draft-meta article-editor is-collapsed" hidden>
-        reason: ${escapeHtml(run.runReason || 'none')}
-      </p>
-      <p class="draft-meta article-editor is-collapsed" hidden>
-        mode: ${escapeHtml(run.runMode || 'n/a')} |
-        provider: ${escapeHtml(run.writerProvider || 'n/a')} |
-        model: ${escapeHtml(run.writerModelForRun || 'n/a')} |
-        dryRun: ${run.dryRun ? 'yes' : 'no'}
-      </p>
-      <p class="draft-meta article-editor is-collapsed" hidden>
-        requested: ${Number(run.requestedCount || 0).toLocaleString()} |
-        target: ${Number(run.targetCount || 0).toLocaleString()} |
-        created: ${Number(run.createdCount || 0).toLocaleString()} |
-        skipped: ${Number(run.skippedCount || 0).toLocaleString()}
-      </p>
-      <p class="draft-meta article-editor is-collapsed" hidden>
-        tokens today: ${Number(run.tokensUsedToday || 0).toLocaleString()} /
-        ${Number(run.dailyTokenBudget || 0).toLocaleString()} budget |
-        consumed this run: ${Number(run.runTokensConsumed || 0).toLocaleString()}
-      </p>
-      <p class="draft-meta article-editor is-collapsed" hidden>
-        sections: active=${escapeHtml(run.activeSections || 'n/a')} |
-        include=${escapeHtml(run.includeSections || 'none')} |
-        exclude=${escapeHtml(run.excludeSections || 'none')}
-      </p>
-      <p class="draft-meta article-editor is-collapsed" hidden>
-        top skip reasons: ${formatTopSkipReasons(run.topSkipReasons)}
-      </p>
-    </article>
-  `).join('');
-}
-
-async function loadManualBudget() {
-  const data = await apiRequest('/api/admin-budget?scope=manual');
-  const manualBudget = Number(
-    data.dailyTokenBudgetManual ||
-    data.dailyTokenBudgetAuto ||
-    350000
-  );
-  if (manualBudgetInput) {
-    manualBudgetInput.value = String(manualBudget);
-  }
-}
-
-async function saveManualBudget() {
-  const budget = Number(manualBudgetInput?.value || 0);
-  if (!budget || budget < 1) {
-    throw new Error('Enter a valid manual budget');
-  }
-  await apiRequest('/api/admin-budget', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dailyTokenBudgetManual: budget })
-  });
-}
-
-async function loadGenerationRuns() {
-  const limit = encodeURIComponent(runLimitInput?.value || '50');
-  const data = await apiRequest(`/api/admin-generation-runs?limit=${limit}`);
-  generationRuns = Array.isArray(data.runs) ? data.runs : [];
-  renderGenerationRuns(generationRuns);
-  return Number(data.count || 0);
 }
 
 function saveToken() {
@@ -1361,19 +1322,9 @@ function onPersonaListClick(event) {
     return;
   }
 
-  if (button.classList.contains('btn-expand-stages')) {
-    setAllStagesExpanded(card, true);
-    return;
-  }
-
-  if (button.classList.contains('btn-collapse-stages')) {
-    setAllStagesExpanded(card, false);
-    return;
-  }
-
-  if (button.classList.contains('btn-apply-recommended-stack')) {
-    applyRecommendedStack(card);
-    setMessage(`Recommended model stack applied to '${card.dataset.id}'. Save to persist.`);
+  if (button.classList.contains('btn-toggle-advanced')) {
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    setAdvancedExpanded(card, !isExpanded);
     return;
   }
 
@@ -1385,7 +1336,12 @@ function onPersonaListClick(event) {
   if (button.classList.contains('btn-save-persona')) {
     button.disabled = true;
     savePersona(card)
-      .then(() => setMessage(`Persona '${card.dataset.id}' saved.`))
+      .then(() => {
+        setMessage(`Persona '${card.dataset.id}' saved.`);
+        setAdvancedExpanded(card, false);
+        setPersonaCardExpanded(card, false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      })
       .catch(err => setMessage(`Save failed: ${err.message}`))
       .finally(() => { button.disabled = false; });
   }
@@ -1404,15 +1360,18 @@ function onPersonaListChange(event) {
     return;
   }
 
+  const card = target.closest('.persona-card');
+  if (card && (
+    target.classList.contains('field-pacing-posts-per-day') ||
+    target.classList.contains('field-pacing-enabled') ||
+    target.classList.contains('field-pacing-cadence-enabled')
+  )) {
+    updatePacingControlState(card);
+    return;
+  }
+
   const stageEl = target.closest('.workflow-stage');
   if (!stageEl) return;
-  if (
-    target.classList.contains('field-stage-runner-type') ||
-    target.classList.contains('field-stage-provider') ||
-    target.classList.contains('field-stage-model')
-  ) {
-    updateStageSummary(stageEl);
-  }
 }
 
 function applySignalsFilterControls() {
@@ -1464,45 +1423,17 @@ function onSignalsPanelClick(event) {
     if (!signalId || !action) return;
     button.disabled = true;
     updateSignalAction(signalId, action)
-      .then(() => Promise.all([loadSignals(), loadTopicEngines()]))
+      .then(() => Promise.all([loadSignals()]))
       .then(() => setMessage(`Signal #${signalId} set to '${action}'.`))
       .catch((err) => setMessage(`Signal update failed: ${err.message}`))
       .finally(() => { button.disabled = false; });
     return;
-  }
-
-  if (button.classList.contains('btn-toggle-autonomy')) {
-    const personaId = String(button.getAttribute('data-persona-id') || '').trim();
-    const nextState = String(button.getAttribute('data-next-state') || '').trim().toLowerCase() === 'on';
-    if (!personaId) return;
-    button.disabled = true;
-    setPersonaAutoPromote(personaId, nextState)
-      .then(() => Promise.all([loadTopicEngines(), loadPersonas()]))
-      .then(() => setMessage(`Auto-promote ${nextState ? 'enabled' : 'disabled'} for '${personaId}'.`))
-      .catch((err) => setMessage(`Autonomy toggle failed: ${err.message}`))
-      .finally(() => { button.disabled = false; });
   }
 }
 
 function init() {
   if (unlockAdminBtn) unlockAdminBtn.addEventListener('click', unlock);
   if (saveTokenBtn) saveTokenBtn.addEventListener('click', saveToken);
-  if (saveManualBudgetBtn) {
-    saveManualBudgetBtn.addEventListener('click', () => {
-      saveManualBudget()
-        .then(loadManualBudget)
-        .then(() => setMessage('Manual budget updated.'))
-        .catch((err) => setMessage(`Manual budget update failed: ${err.message}`));
-    });
-  }
-  if (loadRunsBtn) {
-    loadRunsBtn.addEventListener('click', () => {
-      loadGenerationRuns()
-        .then((count) => setMessage(`Loaded ${count} generation run(s).`))
-        .catch((err) => setMessage(`Load failed: ${err.message}`));
-    });
-  }
-  if (runFilterInput) runFilterInput.addEventListener('change', () => renderGenerationRuns(generationRuns));
   if (appSection) appSection.addEventListener('click', onAppSectionClick);
 
   // Inject UI and Styles
@@ -1522,17 +1453,16 @@ function init() {
   const applySignalsFiltersBtn = document.getElementById('apply-signals-filters-btn');
   const signalsQueueListEl = document.getElementById('signals-queue-list');
   const signalsPaginationEl = document.getElementById('signals-pagination');
-  const personaAutonomyGridEl = document.getElementById('persona-autonomy-grid');
+  renderSignalsPersonaOptions();
   if (loadSignalsBtn) loadSignalsBtn.addEventListener('click', onSignalsPanelClick);
   if (applySignalsFiltersBtn) applySignalsFiltersBtn.addEventListener('click', onSignalsPanelClick);
   if (signalsQueueListEl) signalsQueueListEl.addEventListener('click', onSignalsPanelClick);
   if (signalsPaginationEl) signalsPaginationEl.addEventListener('click', onSignalsPanelClick);
-  if (personaAutonomyGridEl) personaAutonomyGridEl.addEventListener('click', onSignalsPanelClick);
 
   loadToken();
   setLockState(sessionStorage.getItem('de_admin_unlocked_settings') === '1');
   if (unlocked && getToken()) {
-    Promise.all([loadManualBudget(), loadGenerationRuns(), loadPersonas(), loadTopicEngines(), loadSignals()])
+    Promise.all([loadPersonas(), loadSignals()])
       .catch((err) => setMessage(`Load failed: ${err.message}`));
   }
 }
