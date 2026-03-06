@@ -16,6 +16,7 @@ let currentSignalFilters = {
   action: '',
   reviewDecision: ''
 };
+let loadedPersonaDisplayNames = new Map();
 
 function setMessage(text) {
   if (!messageEl) return;
@@ -25,6 +26,35 @@ function setMessage(text) {
 
 function getToken() {
   return (tokenInput.value || '').trim();
+}
+
+function getBrowserTimezone() {
+  try {
+    const tz = Intl?.DateTimeFormat?.().resolvedOptions?.().timeZone;
+    return String(tz || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+async function syncAdminTimezoneFromBrowser() {
+  const timezone = getBrowserTimezone();
+  if (!timezone) return;
+
+  const syncKey = 'de_admin_timezone_synced';
+  const alreadySynced = localStorage.getItem(syncKey) || '';
+  if (alreadySynced === timezone) return;
+
+  try {
+    await apiRequest('/api/admin-timezone', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timezone })
+    });
+    localStorage.setItem(syncKey, timezone);
+  } catch (err) {
+    console.warn('Timezone sync skipped:', err?.message || err);
+  }
 }
 
 function setLockState(value) {
@@ -230,6 +260,10 @@ function escapeHtml(text) {
     .replace(/'/g, '&#39;');
 }
 
+function cleanText(value, max = 5000) {
+  return String(value || '').trim().slice(0, max);
+}
+
 async function uploadImageToCloudinary(file) {
   const form = new FormData();
   form.append('file', file);
@@ -312,6 +346,31 @@ function injectPersonaStyles() {
       border-bottom: 1px solid #eee;
       padding-bottom: 0.5rem;
       margin-bottom: 1rem;
+    }
+    .persona-header-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .persona-header-row .draft-header {
+      margin: 0;
+    }
+    .persona-header-row .btn-rename-persona {
+      white-space: nowrap;
+    }
+    .persona-rename-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.5rem;
+    }
+    .persona-rename-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      justify-content: flex-end;
     }
     .persona-summary {
       color: #555;
@@ -421,6 +480,15 @@ function injectPersonaStyles() {
     }
     .workflow-stage-grid .workflow-wide {
       grid-column: 1 / -1;
+    }
+    .time-input-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .time-input-row select {
+      min-width: 4.6rem;
     }
     .stage-explainer p {
       margin: 0 0 0.35rem 0;
@@ -665,7 +733,11 @@ function renderSignalsPersonaOptions() {
   const personas = getAllDefinedPersonas();
   const options = ['<option value="">All</option>']
     .concat(
-      personas.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)} (${escapeHtml(p.id)})</option>`)
+      personas.map((p) => {
+        const override = cleanText(loadedPersonaDisplayNames.get(p.id) || '', 200);
+        const label = override || p.label;
+        return `<option value="${escapeHtml(p.id)}">${escapeHtml(label)} (${escapeHtml(p.id)})</option>`;
+      })
     );
   select.innerHTML = options.join('');
   if (current && Array.from(select.options).some((opt) => opt.value === current)) {
@@ -678,6 +750,9 @@ function renderPersonas(personas) {
   if (!personaListEl) return;
   const definedPersonas = getAllDefinedPersonas();
   const personaDataMap = new Map(personas.map(p => [p.id, p]));
+  loadedPersonaDisplayNames = new Map(
+    personas.map((p) => [String(p.id || '').trim(), cleanText(p.displayName || '', 200)])
+  );
 
   const grouped = new Map();
   for (const persona of definedPersonas) {
@@ -705,22 +780,35 @@ function renderPersonas(personas) {
             <div class="persona-nested-list">
               ${items.map((p) => {
                 const data = personaDataMap.get(p.id) || {};
+                const defaultDisplayName = cleanText(p.label, 200) || p.id;
+                const savedDisplayName = cleanText(data.displayName || '', 200);
+                const displayName = savedDisplayName || defaultDisplayName;
                 const activationMode = String(data.activationMode || 'both');
                 const isAutoPromoteEnabled = data.isAutoPromoteEnabled === true;
                 const pacingConfig = getPacingConfig(data.pacingConfig);
                 const feedsText = formatFeedsForTextArea(data.feeds);
                 return `
-                  <article class="draft-card persona-card" data-id="${p.id}">
-                    <button class="draft-header draft-toggle btn-reset" type="button">
-                      <strong>${escapeHtml(p.label)}</strong>
-                      <span class="draft-meta">${escapeHtml(p.id)}</span>
-                    </button>
+                  <article class="draft-card persona-card" data-id="${p.id}" data-default-name="${escapeHtml(defaultDisplayName)}" data-display-name-committed="${escapeHtml(savedDisplayName)}">
+                    <div class="persona-header-row">
+                      <button class="draft-header draft-toggle btn-reset" type="button">
+                        <strong class="persona-name-text">${escapeHtml(displayName)}</strong>
+                        <span class="draft-meta">${escapeHtml(p.id)}</span>
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-xs btn-rename-persona">Rename</button>
+                    </div>
+                    <div class="persona-rename-row" hidden>
+                      <input type="text" class="field-display-name-inline" value="${escapeHtml(displayName)}" maxlength="160">
+                      <div class="persona-rename-actions">
+                        <button type="button" class="btn btn-primary btn-xs btn-save-display-name">Save</button>
+                        <span class="draft-meta">${escapeHtml(p.id)}</span>
+                      </div>
+                    </div>
                     <div class="article-editor is-collapsed" hidden>
                       <p class="persona-summary">Section: ${escapeHtml(sectionTitle(p.section))} | Beat: ${escapeHtml(p.beat)}</p>
                       <div class="persona-editor-grid">
                         <div class="persona-avatar-editor">
                           <div class="persona-avatar-preview">
-                            <img src="${escapeHtml(data.avatarUrl || '/images/personas/default-avatar.svg')}" alt="Avatar for ${escapeHtml(p.label)}">
+                            <img src="${escapeHtml(data.avatarUrl || '/images/personas/default-avatar.svg')}" alt="Avatar for ${escapeHtml(displayName)}">
                           </div>
                           <input type="text" class="field-avatar-url" value="${escapeHtml(data.avatarUrl || '')}" placeholder="Avatar URL">
                           <input type="file" class="file-image" accept="image/*" hidden>
@@ -745,10 +833,6 @@ function renderPersonas(personas) {
 
                       <div class="workflow-grid">
                         <label>
-                          Pacing Enabled
-                          <input type="checkbox" class="field-pacing-enabled" ${pacingConfig.enabled ? 'checked' : ''}>
-                        </label>
-                        <label>
                           Posts / Active Day
                           <input type="number" min="0" max="24" step="1" class="field-pacing-posts-per-day" value="${escapeHtml(String(pacingConfig.postsPerActiveDay))}">
                         </label>
@@ -758,18 +842,36 @@ function renderPersonas(personas) {
                         </label>
                         <label>
                           Window Start (e.g. 7:30 AM)
-                          <input type="text" class="field-pacing-window-start" value="${escapeHtml(formatTime12(pacingConfig.windowStartLocal))}" placeholder="7:30 AM">
+                          <div class="time-input-row">
+                            <input type="text" class="field-pacing-window-start-time" value="${escapeHtml(getTimeParts12(pacingConfig.windowStartLocal).time)}" placeholder="7:30">
+                            <select class="field-pacing-window-start-meridiem">
+                              <option value="AM" ${getTimeParts12(pacingConfig.windowStartLocal).meridiem === 'AM' ? 'selected' : ''}>AM</option>
+                              <option value="PM" ${getTimeParts12(pacingConfig.windowStartLocal).meridiem === 'PM' ? 'selected' : ''}>PM</option>
+                            </select>
+                          </div>
                         </label>
                         <label>
                           Window End (e.g. 8:00 PM)
-                          <input type="text" class="field-pacing-window-end" value="${escapeHtml(formatTime12(pacingConfig.windowEndLocal))}" placeholder="8:00 PM">
+                          <div class="time-input-row">
+                            <input type="text" class="field-pacing-window-end-time" value="${escapeHtml(getTimeParts12(pacingConfig.windowEndLocal).time)}" placeholder="8:00">
+                            <select class="field-pacing-window-end-meridiem">
+                              <option value="AM" ${getTimeParts12(pacingConfig.windowEndLocal).meridiem === 'AM' ? 'selected' : ''}>AM</option>
+                              <option value="PM" ${getTimeParts12(pacingConfig.windowEndLocal).meridiem === 'PM' ? 'selected' : ''}>PM</option>
+                            </select>
+                          </div>
                         </label>
                         <label>
                           Single Post Time (e.g. 8:30 AM)
-                          <input type="text" class="field-pacing-single-time" value="${escapeHtml(formatTime12(pacingConfig.singlePostTimeLocal || ''))}" placeholder="8:30 AM">
+                          <div class="time-input-row">
+                            <input type="text" class="field-pacing-single-time" value="${escapeHtml(getTimeParts12(pacingConfig.singlePostTimeLocal || '08:30:00').time)}" placeholder="8:30">
+                            <select class="field-pacing-single-time-meridiem">
+                              <option value="AM" ${getTimeParts12(pacingConfig.singlePostTimeLocal || '08:30:00').meridiem === 'AM' ? 'selected' : ''}>AM</option>
+                              <option value="PM" ${getTimeParts12(pacingConfig.singlePostTimeLocal || '08:30:00').meridiem === 'PM' ? 'selected' : ''}>PM</option>
+                            </select>
+                          </div>
                         </label>
                         <label>
-                          Cadence Enabled
+                          Cadence (off = even spacing)
                           <input type="checkbox" class="field-pacing-cadence-enabled" ${pacingConfig.cadenceEnabled ? 'checked' : ''}>
                         </label>
                         <label class="workflow-wide">
@@ -831,24 +933,32 @@ function parsePostingDays(value) {
   return ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((key) => map.has(key));
 }
 
-function formatTime12(value) {
+function getTimeParts12(value) {
   const raw = String(value || '').trim();
-  if (!raw) return '';
-  const m = raw.match(/^(\\d{1,2}):(\\d{2})(?::\\d{2})?$/);
-  if (!m) return raw;
+  if (!raw) return { time: '', meridiem: 'AM' };
+  const m = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!m) return { time: raw, meridiem: 'AM' };
   let hh = Number(m[1]);
   const mm = Number(m[2]);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return raw;
-  const suffix = hh >= 12 ? 'PM' : 'AM';
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return { time: raw, meridiem: 'AM' };
+  const meridiem = hh >= 12 ? 'PM' : 'AM';
   hh = hh % 12;
   if (hh === 0) hh = 12;
-  return `${hh}:${String(mm).padStart(2, '0')} ${suffix}`;
+  return { time: `${hh}:${String(mm).padStart(2, '0')}`, meridiem };
+}
+
+function formatTimeWithMeridiem(timeValue, meridiemValue) {
+  const rawTime = String(timeValue || '').trim();
+  const rawMeridiem = String(meridiemValue || '').trim().toUpperCase();
+  if (!rawTime) return '';
+  if (rawMeridiem !== 'AM' && rawMeridiem !== 'PM') return rawTime;
+  return `${rawTime} ${rawMeridiem}`;
 }
 
 function normalizeTimeInput(value, fallback) {
   const raw = String(value || '').trim();
   if (!raw) return fallback;
-  const twelveHour = raw.match(/^(\\d{1,2}):(\\d{2})\\s*([AaPp][Mm])$/);
+  const twelveHour = raw.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
   if (twelveHour) {
     let hh = Number(twelveHour[1]);
     const mm = Number(twelveHour[2]);
@@ -858,7 +968,7 @@ function normalizeTimeInput(value, fallback) {
     if (ap === 'PM') hh = hh === 12 ? 12 : hh + 12;
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`;
   }
-  const twentyFourHour = raw.match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
+  const twentyFourHour = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (!twentyFourHour) return null;
   const hh = Number(twentyFourHour[1]);
   const mm = Number(twentyFourHour[2]);
@@ -876,13 +986,19 @@ function updatePacingControlState(card) {
   if (!card) return;
   const posts = Number.parseInt(String(card.querySelector('.field-pacing-posts-per-day')?.value || '1'), 10) || 1;
   const isSingleMode = posts <= 1;
-  const windowStart = card.querySelector('.field-pacing-window-start');
-  const windowEnd = card.querySelector('.field-pacing-window-end');
+  const windowStart = card.querySelector('.field-pacing-window-start-time');
+  const windowStartMeridiem = card.querySelector('.field-pacing-window-start-meridiem');
+  const windowEnd = card.querySelector('.field-pacing-window-end-time');
+  const windowEndMeridiem = card.querySelector('.field-pacing-window-end-meridiem');
   const singleTime = card.querySelector('.field-pacing-single-time');
+  const singleTimeMeridiem = card.querySelector('.field-pacing-single-time-meridiem');
   const cadenceToggle = card.querySelector('.field-pacing-cadence-enabled');
   if (windowStart) windowStart.disabled = isSingleMode;
+  if (windowStartMeridiem) windowStartMeridiem.disabled = isSingleMode;
   if (windowEnd) windowEnd.disabled = isSingleMode;
+  if (windowEndMeridiem) windowEndMeridiem.disabled = isSingleMode;
   if (singleTime) singleTime.disabled = !isSingleMode;
+  if (singleTimeMeridiem) singleTimeMeridiem.disabled = !isSingleMode;
   if (cadenceToggle) cadenceToggle.disabled = isSingleMode;
 }
 
@@ -1057,26 +1173,48 @@ async function loadPersonas() {
 
 async function savePersona(card) {
   const id = card.dataset.id;
+  const defaultDisplayName = cleanText(card.dataset.defaultName || id, 160) || id;
+  const committedDisplayName = cleanText(card.dataset.displayNameCommitted || '', 160);
+  const normalizedDisplayName = committedDisplayName && committedDisplayName !== defaultDisplayName
+    ? committedDisplayName
+    : null;
   const avatarUrl = card.querySelector('.field-avatar-url').value;
   const disclosure = card.querySelector('.field-disclosure').value;
   const activationMode = card.querySelector('.field-activation-mode')?.value || 'both';
   const isAutoPromoteEnabled = Boolean(card.querySelector('.field-is-auto-promote-enabled')?.checked);
   const postsPerActiveDay = Number.parseInt(String(card.querySelector('.field-pacing-posts-per-day')?.value || '1'), 10) || 1;
   const isSingleMode = postsPerActiveDay <= 1;
-  const windowStartLocal = normalizeTimeInput(card.querySelector('.field-pacing-window-start')?.value || '', '06:00:00');
-  const windowEndLocal = normalizeTimeInput(card.querySelector('.field-pacing-window-end')?.value || '', '22:00:00');
-  const singlePostTimeLocal = normalizeOptionalTimeInput(card.querySelector('.field-pacing-single-time')?.value || '');
+  const windowStartLocal = normalizeTimeInput(
+    formatTimeWithMeridiem(
+      card.querySelector('.field-pacing-window-start-time')?.value || '',
+      card.querySelector('.field-pacing-window-start-meridiem')?.value || 'AM'
+    ),
+    '06:00:00'
+  );
+  const windowEndLocal = normalizeTimeInput(
+    formatTimeWithMeridiem(
+      card.querySelector('.field-pacing-window-end-time')?.value || '',
+      card.querySelector('.field-pacing-window-end-meridiem')?.value || 'PM'
+    ),
+    '22:00:00'
+  );
+  const singlePostTimeLocal = normalizeOptionalTimeInput(
+    formatTimeWithMeridiem(
+      card.querySelector('.field-pacing-single-time')?.value || '',
+      card.querySelector('.field-pacing-single-time-meridiem')?.value || 'AM'
+    )
+  );
   if (!isSingleMode && (!windowStartLocal || !windowEndLocal)) {
-    throw new Error('Invalid pacing time format. Use HH:MM.');
+    throw new Error('Invalid pacing time format. Use H:MM with AM/PM.');
   }
   if (isSingleMode && !singlePostTimeLocal) {
     throw new Error('Single post time is required when posts/day is 1 or less.');
   }
   if (card.querySelector('.field-pacing-single-time')?.value && !singlePostTimeLocal) {
-    throw new Error('Invalid single post time format. Use HH:MM.');
+    throw new Error('Invalid single post time format. Use H:MM with AM/PM.');
   }
   const pacingConfig = {
-    enabled: Boolean(card.querySelector('.field-pacing-enabled')?.checked),
+    enabled: true,
     postingDays: parsePostingDays(card.querySelector('.field-pacing-posting-days')?.value || ''),
     postsPerActiveDay,
     windowStartLocal: isSingleMode ? '06:00:00' : windowStartLocal,
@@ -1119,7 +1257,17 @@ async function savePersona(card) {
   await apiRequest('/api/admin-personas', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, avatarUrl, disclosure, activationMode, isAutoPromoteEnabled, pacingConfig, feeds, stageConfigs })
+    body: JSON.stringify({
+      id,
+      displayName: normalizedDisplayName,
+      avatarUrl,
+      disclosure,
+      activationMode,
+      isAutoPromoteEnabled,
+      pacingConfig,
+      feeds,
+      stageConfigs
+    })
   });
 }
 
@@ -1249,6 +1397,7 @@ async function unlock() {
     setLockState(true);
     setMessage('Settings unlocked.');
     if (getToken()) {
+      await syncAdminTimezoneFromBrowser();
       await Promise.all([loadPersonas(), loadSignals()]);
     }
   } catch (err) {
@@ -1315,6 +1464,36 @@ function onPersonaListClick(event) {
   const card = button.closest('.persona-card');
   if (!card) return;
 
+  if (button.classList.contains('btn-rename-persona')) {
+    const headerRow = card.querySelector('.persona-header-row');
+    const renameRow = card.querySelector('.persona-rename-row');
+    const input = card.querySelector('.field-display-name-inline');
+    const currentName = card.querySelector('.persona-name-text')?.textContent || card.dataset.defaultName || card.dataset.id || '';
+    if (headerRow) headerRow.setAttribute('hidden', '');
+    if (renameRow) renameRow.removeAttribute('hidden');
+    if (input) {
+      input.value = cleanText(currentName, 160);
+      input.focus();
+      input.select();
+    }
+    return;
+  }
+
+  if (button.classList.contains('btn-save-display-name')) {
+    button.disabled = true;
+    endPersonaRename(card, true);
+    savePersona(card)
+      .then(() => {
+        const savedName = cleanText(card.querySelector('.persona-name-text')?.textContent || '', 160);
+        loadedPersonaDisplayNames.set(card.dataset.id || '', savedName);
+        renderSignalsPersonaOptions();
+        setMessage(`Topic engine name saved for '${card.dataset.id}'.`);
+      })
+      .catch((err) => setMessage(`Name save failed: ${err.message}`))
+      .finally(() => { button.disabled = false; });
+    return;
+  }
+
   if (button.classList.contains('btn-toggle-stage')) {
     const stageEl = button.closest('.workflow-stage');
     const isExpanded = button.getAttribute('aria-expanded') === 'true';
@@ -1337,6 +1516,9 @@ function onPersonaListClick(event) {
     button.disabled = true;
     savePersona(card)
       .then(() => {
+        const savedName = cleanText(card.querySelector('.persona-name-text')?.textContent || '', 160);
+        loadedPersonaDisplayNames.set(card.dataset.id || '', savedName);
+        renderSignalsPersonaOptions();
         setMessage(`Persona '${card.dataset.id}' saved.`);
         setAdvancedExpanded(card, false);
         setPersonaCardExpanded(card, false);
@@ -1345,6 +1527,38 @@ function onPersonaListClick(event) {
       .catch(err => setMessage(`Save failed: ${err.message}`))
       .finally(() => { button.disabled = false; });
   }
+}
+
+function applyPersonaDisplayName(card, nextName) {
+  if (!card) return;
+  const defaultDisplayName = cleanText(card.dataset.defaultName || card.dataset.id || '', 160);
+  const normalized = cleanText(nextName, 160) || defaultDisplayName;
+  const committed = normalized === defaultDisplayName ? '' : normalized;
+  const nameText = card.querySelector('.persona-name-text');
+  const input = card.querySelector('.field-display-name-inline');
+  if (nameText) nameText.textContent = normalized;
+  if (input) input.value = normalized;
+  card.dataset.displayNameCommitted = committed;
+}
+
+function endPersonaRename(card, commit) {
+  if (!card) return;
+  const headerRow = card.querySelector('.persona-header-row');
+  const renameRow = card.querySelector('.persona-rename-row');
+  const input = card.querySelector('.field-display-name-inline');
+  const committedName = cleanText(
+    card.dataset.displayNameCommitted || card.querySelector('.persona-name-text')?.textContent || '',
+    160
+  ) || cleanText(card.dataset.defaultName || card.dataset.id || '', 160);
+
+  if (commit) {
+    applyPersonaDisplayName(card, input?.value || committedName);
+  } else if (input) {
+    input.value = committedName;
+  }
+
+  if (renameRow) renameRow.setAttribute('hidden', '');
+  if (headerRow) headerRow.removeAttribute('hidden');
 }
 
 function onPersonaListChange(event) {
@@ -1363,7 +1577,6 @@ function onPersonaListChange(event) {
   const card = target.closest('.persona-card');
   if (card && (
     target.classList.contains('field-pacing-posts-per-day') ||
-    target.classList.contains('field-pacing-enabled') ||
     target.classList.contains('field-pacing-cadence-enabled')
   )) {
     updatePacingControlState(card);
@@ -1372,6 +1585,36 @@ function onPersonaListChange(event) {
 
   const stageEl = target.closest('.workflow-stage');
   if (!stageEl) return;
+}
+
+function onPersonaListFocusOut(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (!target.classList.contains('field-display-name-inline')) return;
+  const card = target.closest('.persona-card');
+  if (!card) return;
+  const related = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null;
+  if (related && related.closest('.persona-rename-row')) return;
+  endPersonaRename(card, false);
+}
+
+function onPersonaListKeyDown(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (!target.classList.contains('field-display-name-inline')) return;
+  const card = target.closest('.persona-card');
+  if (!card) return;
+
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    endPersonaRename(card, true);
+    renderSignalsPersonaOptions();
+    return;
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    endPersonaRename(card, false);
+  }
 }
 
 function applySignalsFilterControls() {
@@ -1448,6 +1691,8 @@ function init() {
   if (personaListEl) {
     personaListEl.addEventListener('click', onPersonaListClick);
     personaListEl.addEventListener('change', onPersonaListChange);
+    personaListEl.addEventListener('focusout', onPersonaListFocusOut);
+    personaListEl.addEventListener('keydown', onPersonaListKeyDown);
   }
   const loadSignalsBtn = document.getElementById('load-signals-btn');
   const applySignalsFiltersBtn = document.getElementById('apply-signals-filters-btn');
@@ -1462,7 +1707,8 @@ function init() {
   loadToken();
   setLockState(sessionStorage.getItem('de_admin_unlocked_settings') === '1');
   if (unlocked && getToken()) {
-    Promise.all([loadPersonas(), loadSignals()])
+    syncAdminTimezoneFromBrowser()
+      .then(() => Promise.all([loadPersonas(), loadSignals()]))
       .catch((err) => setMessage(`Load failed: ${err.message}`));
   }
 }

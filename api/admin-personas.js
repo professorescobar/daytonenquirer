@@ -16,6 +16,10 @@ async function ensurePersonasTable(sql) {
     ALTER TABLE personas
     ADD COLUMN IF NOT EXISTS activation_mode TEXT DEFAULT 'both'
   `;
+  await sql`
+    ALTER TABLE personas
+    ADD COLUMN IF NOT EXISTS display_name TEXT
+  `;
 }
 
 function normalizeActivationMode(value) {
@@ -174,6 +178,7 @@ module.exports = async (req, res) => {
       const rows = await sql`
         SELECT
           id,
+          display_name as "displayName",
           avatar_url as "avatarUrl",
           disclosure,
           COALESCE(NULLIF(trim(activation_mode), ''), 'both') as "activationMode"
@@ -203,22 +208,25 @@ module.exports = async (req, res) => {
   if (req.method === 'PUT') {
     try {
       await ensurePersonasTable(sql);
-      const { id, avatarUrl, disclosure, activationMode, feeds, stageConfigs, isAutoPromoteEnabled, pacingConfig } = req.body;
+      const { id, displayName, avatarUrl, disclosure, activationMode, feeds, stageConfigs, isAutoPromoteEnabled, pacingConfig } = req.body;
       if (!id) {
         return res.status(400).json({ error: 'Persona ID is required' });
       }
       const normalizedActivationMode = normalizeActivationMode(activationMode);
+      const normalizedDisplayName = cleanText(displayName, 160) || null;
 
       const rows = await sql`
-        INSERT INTO personas (id, avatar_url, disclosure, activation_mode)
-        VALUES (${id}, ${avatarUrl}, ${disclosure}, ${normalizedActivationMode})
+        INSERT INTO personas (id, display_name, avatar_url, disclosure, activation_mode)
+        VALUES (${id}, ${normalizedDisplayName}, ${avatarUrl}, ${disclosure}, ${normalizedActivationMode})
         ON CONFLICT (id) DO UPDATE
-        SET avatar_url = EXCLUDED.avatar_url,
+        SET display_name = EXCLUDED.display_name,
+            avatar_url = EXCLUDED.avatar_url,
             disclosure = EXCLUDED.disclosure,
             activation_mode = EXCLUDED.activation_mode,
             updated_at = now()
         RETURNING
           id,
+          display_name as "displayName",
           avatar_url as "avatarUrl",
           disclosure,
           COALESCE(NULLIF(trim(activation_mode), ''), 'both') as "activationMode";
