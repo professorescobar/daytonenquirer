@@ -16,9 +16,7 @@ let currentSignalFilters = {
   action: '',
   reviewDecision: ''
 };
-let currentPipelineRunsFilters = {
-  personaId: ''
-};
+let latestPipelineRuns = [];
 let loadedPersonaDisplayNames = new Map();
 let loadedPersonas = [];
 let customBeatsBySection = {};
@@ -685,34 +683,31 @@ function injectPersonaStyles() {
       gap: 0.5rem;
       margin-top: 0.65rem;
     }
-    .pipeline-runs-toolbar {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 0.65rem;
-      margin-bottom: 0.75rem;
-      align-items: end;
-    }
-    .pipeline-runs-toolbar label {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-      font-weight: 600;
-    }
-    .pipeline-runs-summary {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 0.5rem;
-      margin-bottom: 0.8rem;
-    }
-    .pipeline-runs-summary .summary-card {
+    .persona-pipeline-runs {
+      margin-top: 0.85rem;
       border: 1px solid #ddd;
-      background: #fff;
-      padding: 0.55rem;
+      border-radius: 6px;
+      background: #fbfbfb;
+      padding: 0.65rem;
     }
-    .pipeline-runs-list {
+    .persona-pipeline-runs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      text-align: left;
+    }
+    .persona-pipeline-runs-body[hidden] {
+      display: none !important;
+    }
+    .persona-pipeline-runs-body {
+      margin-top: 0.75rem;
+    }
+    .persona-pipeline-runs-list {
       display: flex;
       flex-direction: column;
-      gap: 0.7rem;
+      gap: 0.65rem;
     }
     .pipeline-run-status {
       display: inline-flex;
@@ -802,12 +797,10 @@ function injectPersonaStyles() {
       .signals-toolbar {
         grid-template-columns: 1fr;
       }
-      .pipeline-runs-toolbar {
-        grid-template-columns: 1fr;
-      }
     }
     html[data-theme="dark"] .persona-card .workflow-stage,
     html[data-theme="dark"] .persona-card .persona-advanced,
+    html[data-theme="dark"] .persona-card .persona-pipeline-runs,
     html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-grid,
     html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-top {
       background: #1a1f2b !important;
@@ -827,7 +820,6 @@ function injectPersonaStyles() {
       border-color: #3a455b !important;
       color: #e6edf9 !important;
     }
-    html[data-theme="dark"] .pipeline-runs-summary .summary-card,
     html[data-theme="dark"] .pipeline-stage-chip,
     html[data-theme="dark"] .pipeline-stage-detail-item {
       background: #1a1f2b !important;
@@ -1117,34 +1109,6 @@ function ensureSignalsUi() {
   appRoot.appendChild(section);
 }
 
-function ensurePipelineRunsUi() {
-  if (document.getElementById('pipeline-runs-list')) return;
-  const appRoot = document.getElementById('settings-app');
-  if (!appRoot) return;
-
-  const section = document.createElement('section');
-  section.className = 'admin-section';
-  section.innerHTML = `
-    <div class="section-header">
-      <h2>Persona Pipeline Runs</h2>
-      <button id="load-pipeline-runs-btn" class="btn btn-secondary" type="button">Refresh Runs</button>
-    </div>
-    <p class="hint">Promoted signals appear here and show stage-by-stage progress. Expand a run to inspect stage details and artifacts.</p>
-    <div class="pipeline-runs-toolbar">
-      <label>
-        Persona
-        <select id="pipeline-runs-filter-persona">
-          <option value="">All</option>
-        </select>
-      </label>
-      <button id="apply-pipeline-runs-filters-btn" class="btn btn-primary" type="button">Apply Filter</button>
-    </div>
-    <div id="pipeline-runs-summary" class="pipeline-runs-summary"></div>
-    <div id="pipeline-runs-list" class="pipeline-runs-list"></div>
-  `;
-  appRoot.appendChild(section);
-}
-
 function renderSignalsPersonaOptions() {
   const select = document.getElementById('signals-filter-persona');
   if (!select) return;
@@ -1164,28 +1128,8 @@ function renderSignalsPersonaOptions() {
   }
 }
 
-function renderPipelineRunsPersonaOptions() {
-  const select = document.getElementById('pipeline-runs-filter-persona');
-  if (!select) return;
-  const current = String(select.value || '').trim();
-  const personas = getAllDefinedPersonas();
-  const options = ['<option value="">All</option>']
-    .concat(
-      personas.map((p) => {
-        const override = cleanText(loadedPersonaDisplayNames.get(p.id) || '', 200);
-        const label = override || p.label;
-        return `<option value="${escapeHtml(p.id)}">${escapeHtml(label)} (${escapeHtml(p.id)})</option>`;
-      })
-    );
-  select.innerHTML = options.join('');
-  if (current && Array.from(select.options).some((opt) => opt.value === current)) {
-    select.value = current;
-  }
-}
-
 function renderPersonaFilterOptions() {
   renderSignalsPersonaOptions();
-  renderPipelineRunsPersonaOptions();
 }
 
 function renderPersonas(personas) {
@@ -1324,6 +1268,16 @@ function renderPersonas(personas) {
                           <textarea class="field-feeds" rows="4" placeholder="https://example.com/rss | City Hall Agenda | 20">${escapeHtml(feedsText)}</textarea>
                         </label>
                       </div>
+
+                      <section class="persona-pipeline-runs">
+                        <button type="button" class="persona-pipeline-runs-header btn-reset btn-toggle-persona-pipeline-runs" aria-expanded="false">
+                          <strong>Persona Pipeline Runs</strong>
+                          <span class="draft-meta">Show</span>
+                        </button>
+                        <div class="persona-pipeline-runs-body" hidden>
+                          <p class="signal-meta">Loading promoted runs...</p>
+                        </div>
+                      </section>
 
                       <section class="persona-advanced">
                         <button type="button" class="persona-advanced-header btn-reset btn-toggle-advanced" aria-expanded="false">
@@ -1591,6 +1545,17 @@ function setAdvancedExpanded(card, expanded) {
   else body.setAttribute('hidden', '');
 }
 
+function setPersonaPipelineRunsExpanded(card, expanded) {
+  const btn = card?.querySelector('.btn-toggle-persona-pipeline-runs');
+  const body = card?.querySelector('.persona-pipeline-runs-body');
+  if (!btn || !body) return;
+  btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  const meta = btn.querySelector('.draft-meta');
+  if (meta) meta.textContent = expanded ? 'Hide' : 'Show';
+  if (expanded) body.removeAttribute('hidden');
+  else body.setAttribute('hidden', '');
+}
+
 function setPersonaCardExpanded(card, expanded) {
   const editor = card?.querySelector(':scope > .article-editor');
   if (!editor) return;
@@ -1637,6 +1602,7 @@ async function loadPersonas() {
     renderPersonas(data.personas || []);
     renderPersonaFilterOptions();
     document.querySelectorAll('.persona-card').forEach((card) => updatePacingControlState(card));
+    renderPersonaPipelineRuns();
     setMessage(`Loaded ${data.personas?.length || 0} persona configurations.`);
   } catch (err) {
     setMessage(`Failed to load personas: ${err.message}`);
@@ -1869,47 +1835,8 @@ function formatStageStatusLabel(status) {
 
 function buildPipelineRunsQueryParams() {
   const params = new URLSearchParams();
-  if (currentPipelineRunsFilters.personaId) params.set('persona_id', currentPipelineRunsFilters.personaId);
-  params.set('limit', '40');
+  params.set('limit', '100');
   return params;
-}
-
-function applyPipelineRunsFilterControls() {
-  const personaInput = document.getElementById('pipeline-runs-filter-persona');
-  currentPipelineRunsFilters = {
-    personaId: String(personaInput?.value || '').trim()
-  };
-}
-
-function renderPipelineRunsSummary(summary) {
-  const container = document.getElementById('pipeline-runs-summary');
-  if (!container) return;
-  const total = Number(summary?.total || 0);
-  const byStatus = summary?.byStatus || {};
-  const byCurrentStage = summary?.byCurrentStage || {};
-  const inProgress = Number(byStatus.in_progress || 0);
-  const queued = Number(byStatus.queued || 0);
-  const phase3Complete = Number(byStatus.phase_3_complete || 0);
-  const blocked = Number(byStatus.blocked || 0);
-  const mostActiveStage = Object.entries(byCurrentStage).sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0))[0];
-  container.innerHTML = `
-    <article class="summary-card">
-      <strong>Total Promoted Runs</strong>
-      <div class="signal-meta">${total.toLocaleString()}</div>
-    </article>
-    <article class="summary-card">
-      <strong>In Progress / Queued / Blocked</strong>
-      <div class="signal-meta">${inProgress.toLocaleString()} / ${queued.toLocaleString()} / ${blocked.toLocaleString()}</div>
-    </article>
-    <article class="summary-card">
-      <strong>Phase 3 Complete</strong>
-      <div class="signal-meta">${phase3Complete.toLocaleString()}</div>
-    </article>
-    <article class="summary-card">
-      <strong>Most Active Stage</strong>
-      <div class="signal-meta">${mostActiveStage ? `${escapeHtml(STAGE_LABELS[mostActiveStage[0]] || mostActiveStage[0])} (${Number(mostActiveStage[1] || 0).toLocaleString()})` : 'none'}</div>
-    </article>
-  `;
 }
 
 function renderPipelineStageDetailItems(items) {
@@ -1932,67 +1859,82 @@ function renderPipelineStageDetailItems(items) {
   `).join('');
 }
 
-function renderPipelineRunsList(data) {
-  const list = document.getElementById('pipeline-runs-list');
-  if (!list) return;
-  const runs = Array.isArray(data?.runs) ? data.runs : [];
-  if (!runs.length) {
-    list.innerHTML = '<p class="signal-meta">No promoted runs found for this filter.</p>';
-    return;
-  }
+function renderPersonaPipelineRunCard(run) {
+  const statusClass = getStageStatusClass(
+    run.runStatus === 'phase_3_complete' ? 'completed' : run.runStatus === 'queued' ? 'in_progress' : run.runStatus
+  );
+  const stageChips = (Array.isArray(run.stageProgress) ? run.stageProgress : []).map((stage) => `
+    <article class="pipeline-stage-chip">
+      <h5>${escapeHtml(STAGE_LABELS[stage.stage] || stage.stage)}</h5>
+      <span class="pipeline-run-status ${getStageStatusClass(stage.status)}">${escapeHtml(formatStageStatusLabel(stage.status))}</span>
+      <p class="signal-meta">artifacts=${Number(stage.artifactCount || 0).toLocaleString()}</p>
+      ${stage.latestAt ? `<p class="signal-meta">latest=${escapeHtml(formatDate(stage.latestAt))}</p>` : ''}
+    </article>
+  `).join('');
 
-  list.innerHTML = runs.map((run) => {
-    const statusClass = getStageStatusClass(run.runStatus === 'phase_3_complete' ? 'completed' : run.runStatus === 'queued' ? 'in_progress' : run.runStatus);
-    const stageChips = (Array.isArray(run.stageProgress) ? run.stageProgress : []).map((stage) => `
-      <article class="pipeline-stage-chip">
-        <h5>${escapeHtml(STAGE_LABELS[stage.stage] || stage.stage)}</h5>
-        <span class="pipeline-run-status ${getStageStatusClass(stage.status)}">${escapeHtml(formatStageStatusLabel(stage.status))}</span>
-        <p class="signal-meta">artifacts=${Number(stage.artifactCount || 0).toLocaleString()}</p>
-        ${stage.latestAt ? `<p class="signal-meta">latest=${escapeHtml(formatDate(stage.latestAt))}</p>` : ''}
-      </article>
-    `).join('');
+  const stageDetails = (Array.isArray(run.stageProgress) ? run.stageProgress : []).map((stage) => `
+    <details>
+      <summary>${escapeHtml(STAGE_LABELS[stage.stage] || stage.stage)} (${escapeHtml(formatStageStatusLabel(stage.status))})</summary>
+      <div class="pipeline-stage-detail-body">
+        <p class="signal-meta">Artifacts: ${Number(stage.artifactCount || 0).toLocaleString()}</p>
+        ${stage.latestAt ? `<p class="signal-meta">Latest update: ${escapeHtml(formatDate(stage.latestAt))}</p>` : ''}
+        ${renderPipelineStageDetailItems(stage.details || [])}
+      </div>
+    </details>
+  `).join('');
 
-    const stageDetails = (Array.isArray(run.stageProgress) ? run.stageProgress : []).map((stage) => `
-      <details>
-        <summary>${escapeHtml(STAGE_LABELS[stage.stage] || stage.stage)} (${escapeHtml(formatStageStatusLabel(stage.status))})</summary>
+  return `
+    <article class="draft-card" data-pipeline-signal-id="${run.signalId}">
+      <div class="pipeline-run-header">
+        <h4 class="pipeline-run-title">${escapeHtml(run.title || `(signal ${run.signalId})`)}</h4>
+        <span class="pipeline-run-status ${statusClass}">${escapeHtml(cleanText(run.runStatus, 40).replace(/_/g, ' '))}</span>
+      </div>
+      <p class="signal-meta">signal=#${Number(run.signalId)} | current=${escapeHtml(STAGE_LABELS[run.currentStage] || run.currentStage || 'n/a')}</p>
+      <p class="signal-meta">action=${escapeHtml(run.action || 'n/a')} | review=${escapeHtml(run.reviewDecision || 'n/a')} | next=${escapeHtml(run.nextStep || 'n/a')}</p>
+      <p class="signal-meta">event=${escapeHtml(run.eventKey || 'n/a')} | lastActivity=${escapeHtml(run.lastActivityAt ? formatDate(run.lastActivityAt) : 'n/a')}</p>
+      ${run.queue ? `<p class="signal-meta">queue=${escapeHtml(run.queue.status || 'n/a')} | reason=${escapeHtml(run.queue.reasonCode || 'n/a')} | scheduled=${escapeHtml(run.queue.scheduledForUtc ? formatDate(run.queue.scheduledForUtc) : 'n/a')} | released=${escapeHtml(run.queue.releasedAt ? formatDate(run.queue.releasedAt) : 'n/a')}</p>` : '<p class="signal-meta">queue=n/a (manual route or pacing bypass)</p>'}
+      <div class="pipeline-stages">${stageChips}</div>
+      <details class="pipeline-stage-details">
+        <summary>Expand Full Stage Details</summary>
         <div class="pipeline-stage-detail-body">
-          <p class="signal-meta">Artifacts: ${Number(stage.artifactCount || 0).toLocaleString()}</p>
-          ${stage.latestAt ? `<p class="signal-meta">Latest update: ${escapeHtml(formatDate(stage.latestAt))}</p>` : ''}
-          ${renderPipelineStageDetailItems(stage.details || [])}
+          ${run.decisionDetails?.reasoning ? `<p class="signal-meta"><strong>Gatekeeper reasoning:</strong> ${escapeHtml(run.decisionDetails.reasoning)}</p>` : ''}
+          ${run.decisionDetails?.reviewNotes ? `<p class="signal-meta"><strong>Review notes:</strong> ${escapeHtml(run.decisionDetails.reviewNotes)}</p>` : ''}
+          ${(run.decisionDetails?.policyFlags || []).length ? `<p class="signal-meta"><strong>Policy flags:</strong> ${(run.decisionDetails.policyFlags || []).map((f) => escapeHtml(f)).join(', ')}</p>` : ''}
+          ${stageDetails}
         </div>
       </details>
-    `).join('');
+    </article>
+  `;
+}
 
-    return `
-      <article class="draft-card" data-pipeline-signal-id="${run.signalId}">
-        <div class="pipeline-run-header">
-          <h4 class="pipeline-run-title">${escapeHtml(run.title || `(signal ${run.signalId})`)}</h4>
-          <span class="pipeline-run-status ${statusClass}">${escapeHtml(cleanText(run.runStatus, 40).replace(/_/g, ' '))}</span>
-        </div>
-        <p class="signal-meta">signal=#${Number(run.signalId)} | persona=${escapeHtml(run.personaId || 'n/a')} | current=${escapeHtml(STAGE_LABELS[run.currentStage] || run.currentStage || 'n/a')}</p>
-        <p class="signal-meta">action=${escapeHtml(run.action || 'n/a')} | review=${escapeHtml(run.reviewDecision || 'n/a')} | next=${escapeHtml(run.nextStep || 'n/a')} | relation=${escapeHtml(run.relationToArchive || 'n/a')}</p>
-        <p class="signal-meta">event=${escapeHtml(run.eventKey || 'n/a')} | lastActivity=${escapeHtml(run.lastActivityAt ? formatDate(run.lastActivityAt) : 'n/a')}</p>
-        ${run.queue ? `<p class="signal-meta">queue=${escapeHtml(run.queue.status || 'n/a')} | reason=${escapeHtml(run.queue.reasonCode || 'n/a')} | scheduled=${escapeHtml(run.queue.scheduledForUtc ? formatDate(run.queue.scheduledForUtc) : 'n/a')} | released=${escapeHtml(run.queue.releasedAt ? formatDate(run.queue.releasedAt) : 'n/a')}</p>` : '<p class="signal-meta">queue=n/a (manual route or pacing bypass)</p>'}
-        <div class="pipeline-stages">${stageChips}</div>
-        <details class="pipeline-stage-details">
-          <summary>Expand Full Stage Details</summary>
-          <div class="pipeline-stage-detail-body">
-            ${run.decisionDetails?.reasoning ? `<p class="signal-meta"><strong>Gatekeeper reasoning:</strong> ${escapeHtml(run.decisionDetails.reasoning)}</p>` : ''}
-            ${run.decisionDetails?.reviewNotes ? `<p class="signal-meta"><strong>Review notes:</strong> ${escapeHtml(run.decisionDetails.reviewNotes)}</p>` : ''}
-            ${(run.decisionDetails?.policyFlags || []).length ? `<p class="signal-meta"><strong>Policy flags:</strong> ${(run.decisionDetails.policyFlags || []).map((f) => escapeHtml(f)).join(', ')}</p>` : ''}
-            ${stageDetails}
-          </div>
-        </details>
-      </article>
-    `;
-  }).join('');
+function renderPersonaPipelineRuns() {
+  const runs = Array.isArray(latestPipelineRuns) ? latestPipelineRuns : [];
+  const runsByPersona = new Map();
+  for (const run of runs) {
+    const personaId = cleanText(run?.personaId || '', 255);
+    if (!personaId) continue;
+    if (!runsByPersona.has(personaId)) runsByPersona.set(personaId, []);
+    runsByPersona.get(personaId).push(run);
+  }
+
+  document.querySelectorAll('.persona-card').forEach((card) => {
+    const personaId = cleanText(card?.dataset?.id || '', 255);
+    const body = card.querySelector('.persona-pipeline-runs-body');
+    if (!body) return;
+    const personaRuns = runsByPersona.get(personaId) || [];
+    if (!personaRuns.length) {
+      body.innerHTML = '<p class="signal-meta">No promoted runs yet for this persona.</p>';
+      return;
+    }
+    body.innerHTML = `<div class="persona-pipeline-runs-list">${personaRuns.map((run) => renderPersonaPipelineRunCard(run)).join('')}</div>`;
+  });
 }
 
 async function loadPipelineRuns() {
   const params = buildPipelineRunsQueryParams();
   const data = await apiRequest(`/api/admin/persona-pipeline-runs?${params.toString()}`);
-  renderPipelineRunsSummary(data.summary || {});
-  renderPipelineRunsList(data);
+  latestPipelineRuns = Array.isArray(data?.runs) ? data.runs : [];
+  renderPersonaPipelineRuns();
   return data;
 }
 
@@ -2121,6 +2063,12 @@ function onPersonaListClick(event) {
   if (button.classList.contains('btn-toggle-advanced')) {
     const isExpanded = button.getAttribute('aria-expanded') === 'true';
     setAdvancedExpanded(card, !isExpanded);
+    return;
+  }
+
+  if (button.classList.contains('btn-toggle-persona-pipeline-runs')) {
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    setPersonaPipelineRunsExpanded(card, !isExpanded);
     return;
   }
 
@@ -2312,20 +2260,6 @@ function onSignalsPanelClick(event) {
   }
 }
 
-function onPipelineRunsPanelClick(event) {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
-  const button = target.closest('button');
-  if (!(button instanceof HTMLElement)) return;
-
-  if (button.id === 'load-pipeline-runs-btn' || button.id === 'apply-pipeline-runs-filters-btn') {
-    applyPipelineRunsFilterControls();
-    loadPipelineRuns()
-      .then(() => setMessage('Pipeline runs loaded.'))
-      .catch((err) => setMessage(`Pipeline runs load failed: ${err.message}`));
-  }
-}
-
 function init() {
   if (unlockAdminBtn) unlockAdminBtn.addEventListener('click', unlock);
   if (saveTokenBtn) saveTokenBtn.addEventListener('click', saveToken);
@@ -2335,7 +2269,6 @@ function init() {
   injectPersonaStyles();
   ensurePersonaUi();
   ensureSignalsUi();
-  ensurePipelineRunsUi();
 
   // Bind Persona Events
   const loadPersonasBtn = document.getElementById('load-personas-btn');
@@ -2409,15 +2342,11 @@ function init() {
   const applySignalsFiltersBtn = document.getElementById('apply-signals-filters-btn');
   const signalsQueueListEl = document.getElementById('signals-queue-list');
   const signalsPaginationEl = document.getElementById('signals-pagination');
-  const loadPipelineRunsBtn = document.getElementById('load-pipeline-runs-btn');
-  const applyPipelineRunsFiltersBtn = document.getElementById('apply-pipeline-runs-filters-btn');
   renderPersonaFilterOptions();
   if (loadSignalsBtn) loadSignalsBtn.addEventListener('click', onSignalsPanelClick);
   if (applySignalsFiltersBtn) applySignalsFiltersBtn.addEventListener('click', onSignalsPanelClick);
   if (signalsQueueListEl) signalsQueueListEl.addEventListener('click', onSignalsPanelClick);
   if (signalsPaginationEl) signalsPaginationEl.addEventListener('click', onSignalsPanelClick);
-  if (loadPipelineRunsBtn) loadPipelineRunsBtn.addEventListener('click', onPipelineRunsPanelClick);
-  if (applyPipelineRunsFiltersBtn) applyPipelineRunsFiltersBtn.addEventListener('click', onPipelineRunsPanelClick);
 
   loadToken();
   setLockState(sessionStorage.getItem('de_admin_unlocked_settings') === '1');
