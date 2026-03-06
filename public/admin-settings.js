@@ -1429,6 +1429,33 @@ function setPersonaCardExpanded(card, expanded) {
   }
 }
 
+async function savePersonaDisplayName(card) {
+  const id = cleanText(card?.dataset?.id || '', 255);
+  if (!id) throw new Error('Persona ID is required');
+  const section = cleanText(card.dataset.section || 'local', 80).toLowerCase() || 'local';
+  const beat = cleanText(card.dataset.beat || 'general-local', 120) || 'general-local';
+  const defaultDisplayName = cleanText(card.dataset.defaultName || id, 160);
+  const currentVisibleName = cleanText(card.querySelector('.persona-name-text')?.textContent || '', 160);
+  const normalizedDisplayName = currentVisibleName && currentVisibleName !== defaultDisplayName ? currentVisibleName : null;
+  const avatarUrl = cleanText(card.querySelector('.field-avatar-url')?.value || '', 5000);
+  const disclosure = cleanText(card.querySelector('.field-disclosure')?.value || '', 5000);
+  const activationMode = cleanText(card.querySelector('.field-activation-mode')?.value || 'both', 20) || 'both';
+
+  await apiRequest('/api/admin-personas', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id,
+      displayName: normalizedDisplayName,
+      section,
+      beat,
+      avatarUrl,
+      disclosure,
+      activationMode
+    })
+  });
+}
+
 async function loadPersonas() {
   try {
     setMessage('Loading personas...');
@@ -1714,6 +1741,9 @@ function onAppSectionClick(event) {
   if (!button || !button.classList.contains('draft-toggle')) return;
   const card = button.closest('.draft-card');
   if (!card) return;
+  if (card.classList.contains('persona-card')) {
+    endPersonaRename(card, false);
+  }
   const editors = card.querySelectorAll(':scope > .section-editor, :scope > .article-editor');
   const isHidden = editors[0]?.hasAttribute('hidden');
   editors.forEach((el) => {
@@ -1752,7 +1782,7 @@ function onPersonaListClick(event) {
   if (button.classList.contains('btn-save-display-name')) {
     button.disabled = true;
     endPersonaRename(card, true);
-    savePersona(card)
+    savePersonaDisplayName(card)
       .then(() => {
         const savedName = cleanText(card.querySelector('.persona-name-text')?.textContent || '', 160);
         loadedPersonaDisplayNames.set(card.dataset.id || '', savedName);
@@ -1875,8 +1905,13 @@ function onPersonaListKeyDown(event) {
 
   if (event.key === 'Enter') {
     event.preventDefault();
-    endPersonaRename(card, true);
-    renderSignalsPersonaOptions();
+    const saveButton = card.querySelector('.btn-save-display-name');
+    if (saveButton instanceof HTMLButtonElement && !saveButton.disabled) {
+      saveButton.click();
+    } else {
+      endPersonaRename(card, true);
+      renderSignalsPersonaOptions();
+    }
     return;
   }
   if (event.key === 'Escape') {
