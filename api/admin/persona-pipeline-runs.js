@@ -1,0 +1,341 @@
+const { neon } = require('@neondatabase/serverless');
+const { requireAdmin } = require('../_admin-auth');
+
+const STAGE_ORDER = [
+  'topic_qualification',
+  'quota_pacing',
+  'research_discovery',
+  'evidence_extraction',
+  'story_planning',
+  'draft_writing',
+  'final_review'
+];
+
+function cleanText(value, max = 255) {
+  return String(value || '').trim().slice(0, max);
+}
+
+function parsePositiveInt(value, fallback, min, max) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function tableNameToLiteral(name) {
+  return cleanText(name, 80).replace(/[^a-z0-9_]/gi, '');
+}
+
+async function tableExists(sql, tableName) {
+  const safe = tableNameToLiteral(tableName);
+  if (!safe) return false;
+  const rows = await sql`SELECT to_regclass(${`public.${safe}`}) as name`;
+  return Boolean(rows[0]?.name);
+}
+
+function toMetadataObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
+}
+
+function summarizeStageStatus({ signal, queue, stageCounts }) {
+  const researchCount = Number(stageCounts?.research_discovery || 0);
+  const evidenceCount = Number(stageCounts?.evidence_extraction || 0);
+  const queueStatus = cleanText(queue?.status || '', 40).toLowerCase();
+  const promoted = cleanText(signal?.action || '', 40).toLowerCase() === 'promote';
+
+  const stages = {
+    topic_qualification: promoted ? 'completed' : 'pending',
+    quota_pacing: 'pending',
+    research_discovery: 'pending',
+    evidence_extraction: 'pending',
+    story_planning: 'pending',
+    draft_writing: 'pending',
+    final_review: 'pending'
+  };
+
+  if (queueStatus === 'released') {
+    stages.quota_pacing = 'completed';
+  } else if (queueStatus === 'queued' || queueStatus === 'deferred') {
+    stages.quota_pacing = 'in_progress';
+  } else if (queueStatus === 'rejected') {
+    stages.quota_pacing = 'failed';
+  } else if (promoted) {
+    stages.quota_pacing = 'completed';
+  }
+
+  if (researchCount > 0) {
+    stages.research_discovery = 'completed';
+  } else if (promoted && queueStatus !== 'queued' && queueStatus !== 'deferred' && queueStatus !== 'rejected') {
+    stages.research_discovery = 'in_progress';
+  }
+
+  if (evidenceCount > 0) {
+    stages.evidence_extraction = 'completed';
+  } else if (stages.research_discovery === 'completed') {
+    stages.evidence_extraction = 'in_progress';
+  }
+
+  let currentStage = 'topic_qualification';
+  if (stages.evidence_extraction === 'in_progress') currentStage = 'evidence_extraction';
+  else if (stages.research_discovery === 'in_progress') currentStage = 'research_discovery';
+  else if (stages.quota_pacing === 'in_progress') currentStage = 'quota_pacing';
+  else if (stages.quota_pacing === 'failed') currentStage = 'quota_pacing';
+  else if (stages.evidence_extraction === 'completed') currentStage = 'story_planning';
+  else if (stages.research_discovery === 'completed') currentStage = 'evidence_extraction';
+
+  return { stages, currentStage };
+}
+
+function summarizeRunStatus({ queue, stageStatuses }) {
+  const queueStatus = cleanText(queue?.status || '', 40).toLowerCase();
+  if (queueStatus === 'queued' || queueStatus === 'deferred') return 'queued';
+  if (queueStatus === 'rejected' || stageStatuses.quota_pacing === 'failed') return 'blocked';
+  if (stageStatuses.evidence_extraction === 'completed') return 'phase_3_complete';
+  if (stageStatuses.research_discovery === 'completed') return 'phase_2_complete';
+  if (stageStatuses.research_discovery === 'in_progress') return 'in_progress';
+  return 'promoted';
+}
+
+module.exports = async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', ['GET']);
+    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+  }
+
+  const personaId = cleanText(req.query?.persona_id || req.query?.personaId || '', 255);
+  const limit = parsePositiveInt(req.query?.limit, 30, 1, 100);
+
+  try {
+    const sql = neon(process.env.DATABASE_URL);
+    const hasReleaseQueue = await tableExists(sql, 'topic_engine_release_queue');
+    const hasResearchArtifacts = await tableExists(sql, 'research_artifacts');
+
+    const promotedSignals = await sql`
+      SELECT
+        s.id,
+        s.persona_id as "personaId",
+        s.title,
+        s.snippet,
+        s.source_type as "sourceType",
+        s.source_name as "sourceName",
+        s.action,
+        s.next_step as "nextStep",
+        s.review_decision as "reviewDecision",
+        s.review_notes as "reviewNotes",
+        s.reasoning,
+        s.policy_flags as "policyFlags",
+        s.event_key as "eventKey",
+        s.dedupe_key as "dedupeKey",
+        s.relation_to_archive as "relationToArchive",
+        s.is_newsworthy as "isNewsworthy",
+        s.confidence,
+        s.processed_at as "processedAt",
+        s.created_at as "createdAt",
+        s.updated_at as "updatedAt"
+      FROM topic_signals s
+      WHERE s.action = 'promote'
+        AND (${personaId || null}::text IS NULL OR s.persona_id = ${personaId || null})
+      ORDER BY COALESCE(s.processed_at, s.updated_at, s.created_at) DESC, s.id DESC
+      LIMIT ${limit}
+    `;
+
+    const signalIds = promotedSignals.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
+
+    let queueRows = [];
+    if (hasReleaseQueue && signalIds.length) {
+      queueRows = await sql`
+        SELECT
+          signal_id as "signalId",
+          persona_id as "personaId",
+          status,
+          reason_code as "reasonCode",
+          scheduled_for_utc as "scheduledForUtc",
+          released_at as "releasedAt",
+          released_day_local as "releasedDayLocal",
+          attempt_count as "attemptCount",
+          last_error as "lastError",
+          created_at as "createdAt",
+          updated_at as "updatedAt"
+        FROM topic_engine_release_queue
+        WHERE signal_id = ANY(${signalIds}::bigint[])
+      `;
+    }
+    const queueBySignal = new Map(queueRows.map((row) => [Number(row.signalId), row]));
+
+    let artifactStatsRows = [];
+    let artifactDetailRows = [];
+    if (hasResearchArtifacts && signalIds.length) {
+      artifactStatsRows = await sql`
+        SELECT
+          signal_id as "signalId",
+          stage,
+          COUNT(*)::int as count,
+          MAX(created_at) as "latestCreatedAt"
+        FROM research_artifacts
+        WHERE signal_id = ANY(${signalIds}::bigint[])
+        GROUP BY signal_id, stage
+      `;
+
+      artifactDetailRows = await sql`
+        WITH ranked AS (
+          SELECT
+            signal_id as "signalId",
+            stage,
+            artifact_type as "artifactType",
+            source_url as "sourceUrl",
+            title,
+            content,
+            metadata,
+            created_at as "createdAt",
+            ROW_NUMBER() OVER (
+              PARTITION BY signal_id, stage
+              ORDER BY created_at DESC
+            ) as rank_idx
+          FROM research_artifacts
+          WHERE signal_id = ANY(${signalIds}::bigint[])
+        )
+        SELECT
+          "signalId",
+          stage,
+          "artifactType",
+          "sourceUrl",
+          title,
+          content,
+          metadata,
+          "createdAt"
+        FROM ranked
+        WHERE rank_idx <= 4
+        ORDER BY "signalId" DESC, stage ASC, "createdAt" DESC
+      `;
+    }
+
+    const stageCountBySignal = new Map();
+    for (const row of artifactStatsRows) {
+      const signalIdNum = Number(row.signalId);
+      const stage = cleanText(row.stage, 80).toLowerCase();
+      if (!stageCountBySignal.has(signalIdNum)) stageCountBySignal.set(signalIdNum, {});
+      const bucket = stageCountBySignal.get(signalIdNum);
+      bucket[stage] = Number(row.count || 0);
+      const latest = row.latestCreatedAt ? new Date(row.latestCreatedAt).toISOString() : null;
+      if (latest) bucket[`${stage}Latest`] = latest;
+    }
+
+    const stageArtifactsBySignal = new Map();
+    for (const row of artifactDetailRows) {
+      const signalIdNum = Number(row.signalId);
+      const stage = cleanText(row.stage, 80).toLowerCase();
+      if (!stageArtifactsBySignal.has(signalIdNum)) stageArtifactsBySignal.set(signalIdNum, {});
+      const byStage = stageArtifactsBySignal.get(signalIdNum);
+      if (!byStage[stage]) byStage[stage] = [];
+
+      const metadata = toMetadataObject(row.metadata);
+      byStage[stage].push({
+        artifactType: cleanText(row.artifactType, 120),
+        sourceUrl: cleanText(row.sourceUrl, 2000),
+        title: cleanText(row.title, 300),
+        content: cleanText(row.content, 900),
+        createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+        query: cleanText(metadata.query || '', 200),
+        score: Number.isFinite(Number(metadata.score)) ? Number(metadata.score) : null,
+        confidence: Number.isFinite(Number(metadata.confidence)) ? Number(metadata.confidence) : null,
+        rank: Number.isFinite(Number(metadata.rank)) ? Number(metadata.rank) : null,
+        evidenceQuote: cleanText(metadata.evidenceQuote || '', 320),
+        whyItMatters: cleanText(metadata.whyItMatters || '', 320)
+      });
+    }
+
+    const runs = promotedSignals.map((signal) => {
+      const signalIdNum = Number(signal.id);
+      const queue = queueBySignal.get(signalIdNum) || null;
+      const stageCounts = stageCountBySignal.get(signalIdNum) || {};
+      const artifactsByStage = stageArtifactsBySignal.get(signalIdNum) || {};
+      const stageInfo = summarizeStageStatus({ signal, queue, stageCounts });
+      const runStatus = summarizeRunStatus({ queue, stageStatuses: stageInfo.stages });
+
+      const timestamps = [
+        signal.processedAt,
+        signal.updatedAt,
+        signal.createdAt,
+        queue?.updatedAt,
+        queue?.releasedAt,
+        stageCounts.research_discoveryLatest,
+        stageCounts.evidence_extractionLatest
+      ].filter(Boolean);
+      const lastActivityAt = timestamps.length
+        ? new Date(Math.max(...timestamps.map((t) => new Date(t).getTime()))).toISOString()
+        : null;
+
+      return {
+        signalId: signalIdNum,
+        personaId: cleanText(signal.personaId, 255),
+        title: cleanText(signal.title, 400),
+        snippet: cleanText(signal.snippet, 1200),
+        sourceType: cleanText(signal.sourceType, 80),
+        sourceName: cleanText(signal.sourceName, 255),
+        action: cleanText(signal.action, 40),
+        nextStep: cleanText(signal.nextStep, 80),
+        reviewDecision: cleanText(signal.reviewDecision, 80),
+        relationToArchive: cleanText(signal.relationToArchive, 80),
+        eventKey: cleanText(signal.eventKey || signal.dedupeKey, 300),
+        isNewsworthy: Number.isFinite(Number(signal.isNewsworthy)) ? Number(signal.isNewsworthy) : null,
+        confidence: Number.isFinite(Number(signal.confidence)) ? Number(signal.confidence) : null,
+        processedAt: signal.processedAt ? new Date(signal.processedAt).toISOString() : null,
+        createdAt: signal.createdAt ? new Date(signal.createdAt).toISOString() : null,
+        updatedAt: signal.updatedAt ? new Date(signal.updatedAt).toISOString() : null,
+        lastActivityAt,
+        runStatus,
+        currentStage: stageInfo.currentStage,
+        queue: queue
+          ? {
+              status: cleanText(queue.status, 60),
+              reasonCode: cleanText(queue.reasonCode, 120),
+              scheduledForUtc: queue.scheduledForUtc ? new Date(queue.scheduledForUtc).toISOString() : null,
+              releasedAt: queue.releasedAt ? new Date(queue.releasedAt).toISOString() : null,
+              releasedDayLocal: queue.releasedDayLocal ? String(queue.releasedDayLocal) : null,
+              attemptCount: Number(queue.attemptCount || 0),
+              lastError: cleanText(queue.lastError, 500)
+            }
+          : null,
+        stageProgress: STAGE_ORDER.map((stageName) => ({
+          stage: stageName,
+          status: stageInfo.stages[stageName] || 'pending',
+          artifactCount: Number(stageCounts[stageName] || 0),
+          latestAt: stageCounts[`${stageName}Latest`] || null,
+          details: artifactsByStage[stageName] || []
+        })),
+        decisionDetails: {
+          reasoning: cleanText(signal.reasoning, 4000),
+          reviewNotes: cleanText(signal.reviewNotes, 4000),
+          policyFlags: Array.isArray(signal.policyFlags) ? signal.policyFlags.map((f) => cleanText(f, 120)).filter(Boolean) : []
+        }
+      };
+    });
+
+    const summary = {
+      total: runs.length,
+      byStatus: runs.reduce((acc, run) => {
+        const key = cleanText(run.runStatus, 80) || 'unknown';
+        acc[key] = Number(acc[key] || 0) + 1;
+        return acc;
+      }, {}),
+      byCurrentStage: runs.reduce((acc, run) => {
+        const key = cleanText(run.currentStage, 80) || 'unknown';
+        acc[key] = Number(acc[key] || 0) + 1;
+        return acc;
+      }, {})
+    };
+
+    return res.status(200).json({
+      filters: { personaId: personaId || null, limit },
+      summary,
+      runs
+    });
+  } catch (error) {
+    console.error('Admin persona pipeline runs error:', error);
+    return res.status(500).json({
+      error: 'Failed to load persona pipeline runs',
+      details: cleanText(error?.message || '', 500)
+    });
+  }
+};
