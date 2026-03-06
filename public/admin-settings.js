@@ -1672,7 +1672,7 @@ async function loadSignals() {
 
 async function updateSignalAction(signalId, action) {
   const notes = window.prompt('Optional review note (can be blank):', '') || '';
-  await apiRequest(`/api/admin/signals/${encodeURIComponent(String(signalId))}`, {
+  return apiRequest(`/api/admin/signals/${encodeURIComponent(String(signalId))}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, reviewNotes: notes })
@@ -1968,9 +1968,27 @@ function onSignalsPanelClick(event) {
     const action = String(button.getAttribute('data-action') || '').trim().toLowerCase();
     if (!signalId || !action) return;
     button.disabled = true;
+    let actionResult = null;
     updateSignalAction(signalId, action)
+      .then((result) => {
+        actionResult = result || null;
+      })
       .then(() => Promise.all([loadSignals()]))
-      .then(() => setMessage(`Signal #${signalId} set to '${action}'.`))
+      .then(() => {
+        const finalAction = String(actionResult?.signal?.action || action).toLowerCase();
+        const nextStep = String(actionResult?.signal?.nextStep || '').toLowerCase();
+        const trigger = actionResult?.manualTrigger || null;
+        if (finalAction === 'promote' && nextStep === 'research_discovery') {
+          if (trigger?.sent) {
+            setMessage(`Signal #${signalId} set to 'promote' and routed to research.`);
+            return;
+          }
+          const reason = trigger?.reason || (Number.isFinite(trigger?.status) ? `HTTP ${trigger.status}` : 'event_send_failed');
+          setMessage(`Signal #${signalId} set to 'promote', but routing failed (${reason}).`);
+          return;
+        }
+        setMessage(`Signal #${signalId} set to '${finalAction}'.`);
+      })
       .catch((err) => setMessage(`Signal update failed: ${err.message}`))
       .finally(() => { button.disabled = false; });
     return;

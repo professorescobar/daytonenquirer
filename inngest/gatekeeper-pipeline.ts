@@ -2064,13 +2064,37 @@ export function createManualGatekeeperRouteFunction(inngest: Inngest) {
 
       const nextStep = cleanText(event?.data?.nextStep || event?.data?.next_step || "", 40).toLowerCase();
       const action = cleanText(event?.data?.action || "", 30).toLowerCase();
-      const shouldResearch = nextStep === "research_discovery" || action === "promote";
-      if (!shouldResearch) {
+      const targetStep =
+        nextStep === "cluster_update"
+          ? "cluster_update"
+          : nextStep === "research_discovery"
+            ? "research_discovery"
+            : action === "promote"
+              ? "research_discovery"
+              : "none";
+
+      if (targetStep === "none") {
         return {
           ok: true,
           signalId,
           routed: false,
-          reason: "next_step_not_research_discovery"
+          reason: "next_step_not_routable"
+        };
+      }
+
+      if (targetStep === "cluster_update") {
+        await step.sendEvent("emit-cluster-update-from-manual", {
+          name: "cluster.update.start",
+          data: {
+            signalId,
+            trigger: "admin_manual"
+          }
+        });
+        return {
+          ok: true,
+          signalId,
+          routed: true,
+          targetEvent: "cluster.update.start"
         };
       }
 

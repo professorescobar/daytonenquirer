@@ -57,8 +57,24 @@ function buildDedupeKey({
   return crypto.createHash('sha256').update(canonical).digest('hex');
 }
 
-async function emitSignalReceivedEvent(signal) {
-  const endpoint = cleanText(process.env.INNGEST_EVENT_URL || '', 1200);
+function getRequestOrigin(req) {
+  const host = cleanText(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '', 1000);
+  if (!host) return '';
+  const forwardedProto = cleanText(req?.headers?.['x-forwarded-proto'] || '', 50).toLowerCase();
+  const protocol = forwardedProto || (host.startsWith('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https');
+  return `${protocol}://${host}`;
+}
+
+function resolveInngestEventEndpoint(req) {
+  const configured = cleanText(process.env.INNGEST_EVENT_URL || '', 1200);
+  if (configured) return configured;
+  const origin = getRequestOrigin(req);
+  if (!origin) return '';
+  return `${origin}/api/inngest`;
+}
+
+async function emitSignalReceivedEvent(signal, req) {
+  const endpoint = resolveInngestEventEndpoint(req);
   if (!endpoint) return { attempted: false, sent: false, reason: 'missing_inngest_event_url' };
 
   const key = cleanText(process.env.INNGEST_EVENT_KEY || '', 600);
@@ -180,7 +196,7 @@ module.exports = async (req, res) => {
     `;
 
     if (inserted[0]) {
-      const eventResult = await emitSignalReceivedEvent(inserted[0]);
+      const eventResult = await emitSignalReceivedEvent(inserted[0], req);
       return res.status(200).json({
         ok: true,
         inserted: true,

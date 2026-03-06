@@ -7,8 +7,24 @@ function cleanText(value, max = 2000) {
   return String(value || '').trim().slice(0, max);
 }
 
-async function emitManualNextStepEvent(payload) {
-  const endpoint = cleanText(process.env.INNGEST_EVENT_URL || '', 1000);
+function getRequestOrigin(req) {
+  const host = cleanText(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '', 1000);
+  if (!host) return '';
+  const forwardedProto = cleanText(req?.headers?.['x-forwarded-proto'] || '', 50).toLowerCase();
+  const protocol = forwardedProto || (host.startsWith('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https');
+  return `${protocol}://${host}`;
+}
+
+function resolveInngestEventEndpoint(req) {
+  const configured = cleanText(process.env.INNGEST_EVENT_URL || '', 1000);
+  if (configured) return configured;
+  const origin = getRequestOrigin(req);
+  if (!origin) return '';
+  return `${origin}/api/inngest`;
+}
+
+async function emitManualNextStepEvent(payload, req) {
+  const endpoint = resolveInngestEventEndpoint(req);
   if (!endpoint) {
     return { attempted: false, sent: false, reason: 'missing_inngest_event_url' };
   }
@@ -157,7 +173,7 @@ module.exports = async (req, res) => {
       relationToArchive: signal.relationToArchive,
       eventKey: signal.eventKey || signal.dedupeKey,
       trigger: 'admin_manual'
-    });
+    }, req);
 
     return res.status(200).json({
       ok: true,
