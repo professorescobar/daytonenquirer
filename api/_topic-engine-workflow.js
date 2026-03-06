@@ -75,9 +75,31 @@ async function ensureTopicEngineTables(sql) {
     ADD COLUMN IF NOT EXISTS activation_mode TEXT DEFAULT 'both'
   `;
   await sql`
+    ALTER TABLE personas
+    ADD COLUMN IF NOT EXISTS display_name TEXT
+  `;
+  await sql`
+    ALTER TABLE personas
+    ADD COLUMN IF NOT EXISTS section TEXT DEFAULT 'local'
+  `;
+  await sql`
+    ALTER TABLE personas
+    ADD COLUMN IF NOT EXISTS beat TEXT DEFAULT 'general-local'
+  `;
+  await sql`
     UPDATE personas
     SET activation_mode = 'both'
     WHERE activation_mode IS NULL OR trim(activation_mode) = ''
+  `;
+  await sql`
+    UPDATE personas
+    SET section = 'local'
+    WHERE section IS NULL OR trim(section) = ''
+  `;
+  await sql`
+    UPDATE personas
+    SET beat = 'general-local'
+    WHERE beat IS NULL OR trim(beat) = ''
   `;
   await sql`
     CREATE TABLE IF NOT EXISTS topic_engines (

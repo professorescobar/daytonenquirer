@@ -79,7 +79,7 @@ const BEAT_OPTIONS_BY_SECTION = {
   ]
 };
 
-const PERSONA_OPTIONS_BY_BEAT = {
+const STATIC_PERSONA_OPTIONS_BY_BEAT = {
   'general-local': [{ value: 'local-reporter', label: 'Local Reporter' }],
   government: [{ value: 'city-hall-reporter', label: 'City Hall Beat Reporter' }],
   crime: [{ value: 'crime-justice-reporter', label: 'Crime & Justice Reporter' }],
@@ -118,6 +118,7 @@ let loadedArticles = [];
 let lastTotalCount = 0;
 let totalAllArticles = 0;
 let removeTargetArticleId = 0;
+let dynamicPersonasByBeat = {};
 const ET_TIME_ZONE = 'America/New_York';
 const CLOUDINARY_CLOUD_NAME = 'dtlkzlp87';
 const CLOUDINARY_UPLOAD_PRESET = 'dayton-enquirer';
@@ -131,6 +132,47 @@ function setSelectOptions(selectEl, options, fallbackOption) {
     return;
   }
   selectEl.innerHTML = validOptions.map((opt) => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
+}
+
+function normalizeDynamicPersonasByBeat(rows) {
+  const result = {};
+  const validBeats = new Set(
+    Object.values(BEAT_OPTIONS_BY_SECTION).flatMap((items) => items.map((item) => String(item.value || '').trim()))
+  );
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const id = String(row?.id || '').trim();
+    const beat = String(row?.beat || '').trim();
+    if (!id || !beat || !validBeats.has(beat)) continue;
+    const label = String(row?.displayName || '').trim() || id;
+    if (!result[beat]) result[beat] = [];
+    result[beat].push({ value: id, label });
+  }
+  return result;
+}
+
+function getPersonasForBeat(beat) {
+  const key = String(beat || '').trim();
+  const merged = new Map();
+  const fallback = STATIC_PERSONA_OPTIONS_BY_BEAT['general-local'] || [];
+  for (const option of STATIC_PERSONA_OPTIONS_BY_BEAT[key] || []) {
+    if (!option?.value || !option?.label) continue;
+    merged.set(option.value, { value: option.value, label: option.label });
+  }
+  for (const option of dynamicPersonasByBeat[key] || []) {
+    if (!option?.value || !option?.label) continue;
+    merged.set(option.value, { value: option.value, label: option.label });
+  }
+  const options = Array.from(merged.values());
+  return options.length ? options : fallback;
+}
+
+async function loadPersonaDirectory() {
+  try {
+    const data = await apiRequest('/api/admin-personas');
+    dynamicPersonasByBeat = normalizeDynamicPersonasByBeat(data?.personas || []);
+  } catch (_) {
+    dynamicPersonasByBeat = {};
+  }
 }
 
 function aiModelSelectHtml(defaultValue = 'anthropic:claude-sonnet-4-6') {
@@ -247,7 +289,7 @@ function syncPersonaOptions(card) {
   const beat = card.querySelector('.field-beat')?.value;
   const personaSelect = card.querySelector('.field-persona');
   const currentPersona = personaSelect?.value;
-  const personas = PERSONA_OPTIONS_BY_BEAT[beat] || [];
+  const personas = getPersonasForBeat(beat);
   setSelectOptions(personaSelect, personas, personas[0]);
   if (currentPersona && personas.some((p) => p.value === currentPersona)) {
     personaSelect.value = currentPersona;
@@ -877,7 +919,7 @@ function renderArticles(articles) {
         <label>
           Persona
           <select class="field-persona">${
-            (PERSONA_OPTIONS_BY_BEAT[article.beat] || []).map(opt =>
+            getPersonasForBeat(article.beat).map(opt =>
               `<option value="${escapeHtml(opt.value)}" ${article.persona === opt.value ? 'selected' : ''}>${escapeHtml(opt.label)}</option>`
             ).join('')
           }</select>
@@ -948,6 +990,7 @@ function applySearchFilter() {
 async function loadArticles() {
   try {
     setMessage('Loading published articles...');
+    await loadPersonaDirectory();
     const section = encodeURIComponent(sectionFilterInput.value || 'all');
     const limit = encodeURIComponent(limitInput.value || '50');
     const data = await apiRequest(`/api/admin-articles?section=${section}&limit=${limit}`);

@@ -17,6 +17,7 @@ let currentSignalFilters = {
   reviewDecision: ''
 };
 let loadedPersonaDisplayNames = new Map();
+let loadedPersonas = [];
 
 function setMessage(text) {
   if (!messageEl) return;
@@ -232,6 +233,20 @@ function getAllDefinedPersonas() {
         section: beatToSection.get(beat) || 'local'
       });
     }
+  }
+  for (const row of loadedPersonas) {
+    const id = cleanText(row?.id || '', 255);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const section = cleanText(row?.section || beatToSection.get(row?.beat) || 'local', 60).toLowerCase() || 'local';
+    const beat = cleanText(row?.beat || (BEAT_OPTIONS_BY_SECTION[section]?.[0]?.value || 'general-local'), 80);
+    const dbLabel = cleanText(row?.displayName || '', 200);
+    personas.push({
+      id,
+      label: dbLabel || id,
+      beat,
+      section
+    });
   }
   return personas;
 }
@@ -657,12 +672,134 @@ function ensurePersonaUi() {
   container.innerHTML = `
     <div class="section-header">
       <h2>Persona Management</h2>
-      <button id="load-personas-btn" class="btn btn-secondary" type="button">Refresh Personas</button>
+      <div class="admin-actions">
+        <button id="add-persona-btn" class="btn btn-primary" type="button">Add Persona</button>
+        <button id="load-personas-btn" class="btn btn-secondary" type="button">Refresh Personas</button>
+      </div>
     </div>
     <p class="hint">Curate avatar/disclosure, activation mode, discovery feeds, and full per-stage workflow settings for each topic engine.</p>
+    <div id="add-persona-panel" class="draft-card" hidden>
+      <div class="workflow-grid">
+        <label>
+          Persona ID (slug)
+          <input id="new-persona-id" type="text" placeholder="example: neighborhood-desk" maxlength="255">
+        </label>
+        <label>
+          Display Name
+          <input id="new-persona-display-name" type="text" placeholder="Example: Neighborhood Desk" maxlength="160">
+        </label>
+        <label>
+          Section
+          <select id="new-persona-section">
+            ${Object.keys(BEAT_OPTIONS_BY_SECTION).map((section) => `<option value="${escapeHtml(section)}">${escapeHtml(section.replace(/\b\w/g, (m) => m.toUpperCase()))}</option>`).join('')}
+          </select>
+        </label>
+        <label>
+          Beat
+          <select id="new-persona-beat"></select>
+        </label>
+      </div>
+      <div class="admin-actions">
+        <button id="create-persona-btn" class="btn btn-primary" type="button">Create Persona</button>
+        <button id="cancel-add-persona-btn" class="btn btn-secondary" type="button">Cancel</button>
+      </div>
+      <p class="draft-meta">New personas get the same default stage stack and pacing controls as existing engines.</p>
+    </div>
     <div id="persona-settings-list" class="draft-list"></div>
   `;
   appSection.appendChild(container);
+}
+
+function slugifyPersonaId(value) {
+  return cleanText(value, 255)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function getDefaultStageConfigs() {
+  const stageConfigs = {};
+  for (const stageName of TOPIC_ENGINE_STAGES) {
+    stageConfigs[stageName] = {
+      runnerType: HARD_CODED_STAGE_STACK[stageName]?.runnerType || 'llm',
+      provider: HARD_CODED_STAGE_STACK[stageName]?.provider || '',
+      modelOrEndpoint: HARD_CODED_STAGE_STACK[stageName]?.modelOrEndpoint || '',
+      enabled: true,
+      promptTemplate: '',
+      workflowConfig: {}
+    };
+  }
+  return stageConfigs;
+}
+
+function syncNewPersonaBeatOptions() {
+  const sectionSelect = document.getElementById('new-persona-section');
+  const beatSelect = document.getElementById('new-persona-beat');
+  if (!sectionSelect || !beatSelect) return;
+  const section = cleanText(sectionSelect.value, 80).toLowerCase() || 'local';
+  const beats = BEAT_OPTIONS_BY_SECTION[section] || BEAT_OPTIONS_BY_SECTION.local || [];
+  const current = String(beatSelect.value || '').trim();
+  beatSelect.innerHTML = beats.map((beat) =>
+    `<option value="${escapeHtml(beat.value)}">${escapeHtml(beat.label)}</option>`
+  ).join('');
+  if (current && beats.some((beat) => beat.value === current)) beatSelect.value = current;
+}
+
+function toggleAddPersonaPanel(show) {
+  const panel = document.getElementById('add-persona-panel');
+  const addBtn = document.getElementById('add-persona-btn');
+  if (!panel || !addBtn) return;
+  if (show) {
+    panel.removeAttribute('hidden');
+    addBtn.setAttribute('hidden', '');
+    syncNewPersonaBeatOptions();
+  } else {
+    panel.setAttribute('hidden', '');
+    addBtn.removeAttribute('hidden');
+  }
+}
+
+async function createPersonaFromInputs() {
+  const idInput = document.getElementById('new-persona-id');
+  const nameInput = document.getElementById('new-persona-display-name');
+  const sectionSelect = document.getElementById('new-persona-section');
+  const beatSelect = document.getElementById('new-persona-beat');
+  const rawName = cleanText(nameInput?.value || '', 160);
+  const normalizedId = slugifyPersonaId(idInput?.value || rawName);
+  if (!normalizedId) throw new Error('Persona ID is required');
+  if (loadedPersonas.some((row) => cleanText(row?.id || '', 255) === normalizedId)) {
+    throw new Error(`Persona '${normalizedId}' already exists`);
+  }
+
+  const section = cleanText(sectionSelect?.value || 'local', 80).toLowerCase() || 'local';
+  const beat = cleanText(beatSelect?.value || (BEAT_OPTIONS_BY_SECTION[section]?.[0]?.value || 'general-local'), 120);
+
+  await apiRequest('/api/admin-personas', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: normalizedId,
+      displayName: rawName || normalizedId,
+      section,
+      beat,
+      avatarUrl: '',
+      disclosure: '',
+      activationMode: 'both',
+      isAutoPromoteEnabled: false,
+      pacingConfig: getPacingConfig(null),
+      feeds: [],
+      stageConfigs: getDefaultStageConfigs()
+    })
+  });
+
+  if (idInput) idInput.value = '';
+  if (nameInput) nameInput.value = '';
+  if (sectionSelect) sectionSelect.value = 'local';
+  syncNewPersonaBeatOptions();
+  toggleAddPersonaPanel(false);
+  await loadPersonas();
+  renderSignalsPersonaOptions();
+  setMessage(`Persona '${normalizedId}' created.`);
 }
 
 function ensureSignalsUi() {
@@ -748,10 +885,11 @@ function renderSignalsPersonaOptions() {
 function renderPersonas(personas) {
   const personaListEl = document.getElementById('persona-settings-list');
   if (!personaListEl) return;
+  loadedPersonas = Array.isArray(personas) ? personas : [];
   const definedPersonas = getAllDefinedPersonas();
-  const personaDataMap = new Map(personas.map(p => [p.id, p]));
+  const personaDataMap = new Map(loadedPersonas.map((p) => [p.id, p]));
   loadedPersonaDisplayNames = new Map(
-    personas.map((p) => [String(p.id || '').trim(), cleanText(p.displayName || '', 200)])
+    loadedPersonas.map((p) => [String(p.id || '').trim(), cleanText(p.displayName || '', 200)])
   );
 
   const grouped = new Map();
@@ -788,7 +926,7 @@ function renderPersonas(personas) {
                 const pacingConfig = getPacingConfig(data.pacingConfig);
                 const feedsText = formatFeedsForTextArea(data.feeds);
                 return `
-                  <article class="draft-card persona-card" data-id="${p.id}" data-default-name="${escapeHtml(defaultDisplayName)}" data-display-name-committed="${escapeHtml(savedDisplayName)}">
+                  <article class="draft-card persona-card" data-id="${p.id}" data-default-name="${escapeHtml(defaultDisplayName)}" data-display-name-committed="${escapeHtml(savedDisplayName)}" data-section="${escapeHtml(p.section || 'local')}" data-beat="${escapeHtml(p.beat || 'general-local')}">
                     <div class="persona-header-row">
                       <button class="draft-header draft-toggle btn-reset" type="button">
                         <strong class="persona-name-text">${escapeHtml(displayName)}</strong>
@@ -1173,6 +1311,8 @@ async function loadPersonas() {
 
 async function savePersona(card) {
   const id = card.dataset.id;
+  const section = cleanText(card.dataset.section || 'local', 80).toLowerCase() || 'local';
+  const beat = cleanText(card.dataset.beat || 'general-local', 120) || 'general-local';
   const defaultDisplayName = cleanText(card.dataset.defaultName || id, 160) || id;
   const committedDisplayName = cleanText(card.dataset.displayNameCommitted || '', 160);
   const normalizedDisplayName = committedDisplayName && committedDisplayName !== defaultDisplayName
@@ -1260,6 +1400,8 @@ async function savePersona(card) {
     body: JSON.stringify({
       id,
       displayName: normalizedDisplayName,
+      section,
+      beat,
       avatarUrl,
       disclosure,
       activationMode,
@@ -1686,8 +1828,32 @@ function init() {
 
   // Bind Persona Events
   const loadPersonasBtn = document.getElementById('load-personas-btn');
+  const addPersonaBtn = document.getElementById('add-persona-btn');
+  const cancelAddPersonaBtn = document.getElementById('cancel-add-persona-btn');
+  const createPersonaBtn = document.getElementById('create-persona-btn');
+  const newPersonaSection = document.getElementById('new-persona-section');
+  const newPersonaIdInput = document.getElementById('new-persona-id');
+  const newPersonaNameInput = document.getElementById('new-persona-display-name');
   const personaListEl = document.getElementById('persona-settings-list');
   if (loadPersonasBtn) loadPersonasBtn.addEventListener('click', loadPersonas);
+  if (addPersonaBtn) addPersonaBtn.addEventListener('click', () => toggleAddPersonaPanel(true));
+  if (cancelAddPersonaBtn) cancelAddPersonaBtn.addEventListener('click', () => toggleAddPersonaPanel(false));
+  if (newPersonaSection) newPersonaSection.addEventListener('change', syncNewPersonaBeatOptions);
+  if (newPersonaNameInput) {
+    newPersonaNameInput.addEventListener('input', () => {
+      if (!newPersonaIdInput) return;
+      if (cleanText(newPersonaIdInput.value, 255)) return;
+      newPersonaIdInput.value = slugifyPersonaId(newPersonaNameInput.value);
+    });
+  }
+  if (createPersonaBtn) {
+    createPersonaBtn.addEventListener('click', () => {
+      createPersonaBtn.disabled = true;
+      createPersonaFromInputs()
+        .catch((err) => setMessage(`Create failed: ${err.message}`))
+        .finally(() => { createPersonaBtn.disabled = false; });
+    });
+  }
   if (personaListEl) {
     personaListEl.addEventListener('click', onPersonaListClick);
     personaListEl.addEventListener('change', onPersonaListChange);

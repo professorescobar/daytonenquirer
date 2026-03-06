@@ -314,10 +314,11 @@ module.exports = async (req, res) => {
     if (article.persona) {
       try {
         const personaRows = await sql`
-          SELECT avatar_url, disclosure FROM personas WHERE id = ${article.persona}
+          SELECT display_name, avatar_url, disclosure FROM personas WHERE id = ${article.persona}
         `;
         const personaData = personaRows[0];
         if (personaData) {
+          if (personaData.display_name) author.name = String(personaData.display_name);
           author.avatarUrl = personaData.avatar_url || author.avatarUrl;
           author.disclosure = personaData.disclosure || author.disclosure;
         }

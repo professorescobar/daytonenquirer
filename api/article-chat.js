@@ -201,6 +201,23 @@ async function getPersonaChatConfig(sql, personaId) {
   }
 }
 
+async function getPersonaName(sql, personaId) {
+  if (!personaId) return getPersonaLabel(personaId);
+  try {
+    const rows = await sql`
+      SELECT COALESCE(NULLIF(trim(display_name), ''), '') as "displayName"
+      FROM personas
+      WHERE id = ${personaId}
+      LIMIT 1
+    `;
+    const fromDb = cleanText(rows[0]?.displayName || '', 160);
+    if (fromDb) return fromDb;
+  } catch (_) {
+    // fall through to static fallback
+  }
+  return getPersonaLabel(personaId);
+}
+
 function buildPrompt({ article, query, personaName, history, promptTemplate }) {
   const articleText = cleanText(
     `${toPlainText(article.description || '')}\n\n${toPlainText(article.content || '')}`,
@@ -263,7 +280,7 @@ module.exports = async (req, res) => {
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
     const personaId = cleanText(article.persona || '', 255) || null;
-    const personaName = getPersonaLabel(personaId);
+    const personaName = await getPersonaName(sql, personaId);
     const stageConfig = await getPersonaChatConfig(sql, personaId);
     const workflowConfig = stageConfig?.workflowConfig && typeof stageConfig.workflowConfig === 'object'
       ? stageConfig.workflowConfig

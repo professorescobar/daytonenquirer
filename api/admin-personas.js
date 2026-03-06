@@ -9,6 +9,19 @@ const HARD_CODED_STAGE_STACK = {
   draft_writing: { runnerType: 'llm', provider: 'anthropic', modelOrEndpoint: 'claude-3-5-sonnet' },
   final_review: { runnerType: 'llm', provider: 'openai', modelOrEndpoint: 'gpt-4o' }
 };
+const BEAT_OPTIONS_BY_SECTION = {
+  local: ['general-local', 'government', 'crime', 'education'],
+  national: ['general-national', 'politics', 'social-issues'],
+  world: ['general-world', 'conflict', 'diplomacy'],
+  business: ['general-business', 'local-business', 'markets', 'real-estate'],
+  sports: ['general-sports', 'high-school', 'college', 'professional'],
+  health: ['general-health', 'local-health', 'wellness', 'medical-research'],
+  entertainment: ['general-entertainment', 'local-entertainment', 'movies', 'music', 'gaming'],
+  technology: ['general-technology', 'local-tech', 'ai', 'consumer-tech']
+};
+const DEFAULT_SECTION = 'local';
+const DEFAULT_BEAT = 'general-local';
+const VALID_SECTION_SET = new Set(Object.keys(BEAT_OPTIONS_BY_SECTION));
 
 async function ensurePersonasTable(sql) {
   await ensureTopicEngineTables(sql);
@@ -19,6 +32,24 @@ async function ensurePersonasTable(sql) {
   await sql`
     ALTER TABLE personas
     ADD COLUMN IF NOT EXISTS display_name TEXT
+  `;
+  await sql`
+    ALTER TABLE personas
+    ADD COLUMN IF NOT EXISTS section TEXT DEFAULT ${DEFAULT_SECTION}
+  `;
+  await sql`
+    ALTER TABLE personas
+    ADD COLUMN IF NOT EXISTS beat TEXT DEFAULT ${DEFAULT_BEAT}
+  `;
+  await sql`
+    UPDATE personas
+    SET section = ${DEFAULT_SECTION}
+    WHERE section IS NULL OR trim(section) = ''
+  `;
+  await sql`
+    UPDATE personas
+    SET beat = ${DEFAULT_BEAT}
+    WHERE beat IS NULL OR trim(beat) = ''
   `;
 }
 
@@ -36,6 +67,21 @@ function normalizeRunnerType(value) {
 
 function cleanText(value, max = 5000) {
   return String(value || '').trim().slice(0, max);
+}
+
+function cleanPersonaId(value) {
+  return cleanText(value, 255).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function normalizeSection(value) {
+  const section = cleanText(value, 120).toLowerCase();
+  return VALID_SECTION_SET.has(section) ? section : DEFAULT_SECTION;
+}
+
+function normalizeBeat(section, beatValue) {
+  const beats = BEAT_OPTIONS_BY_SECTION[section] || BEAT_OPTIONS_BY_SECTION[DEFAULT_SECTION];
+  const beat = cleanText(beatValue, 120).toLowerCase();
+  return beats.includes(beat) ? beat : beats[0];
 }
 
 function normalizePostingDays(value) {
@@ -181,7 +227,9 @@ module.exports = async (req, res) => {
           display_name as "displayName",
           avatar_url as "avatarUrl",
           disclosure,
-          COALESCE(NULLIF(trim(activation_mode), ''), 'both') as "activationMode"
+          COALESCE(NULLIF(trim(activation_mode), ''), 'both') as "activationMode",
+          COALESCE(NULLIF(trim(section), ''), ${DEFAULT_SECTION}) as section,
+          COALESCE(NULLIF(trim(beat), ''), ${DEFAULT_BEAT}) as beat
         FROM personas
       `;
       const personas = [];
@@ -191,6 +239,7 @@ module.exports = async (req, res) => {
           ...row,
           feeds: workflow.feeds,
           stageConfigs: workflow.stageConfigs,
+          isAutoPromoteEnabled: workflow.isAutoPromoteEnabled,
           pacingConfig: workflow.pacingConfig
         });
       }
@@ -208,28 +257,47 @@ module.exports = async (req, res) => {
   if (req.method === 'PUT') {
     try {
       await ensurePersonasTable(sql);
-      const { id, displayName, avatarUrl, disclosure, activationMode, feeds, stageConfigs, isAutoPromoteEnabled, pacingConfig } = req.body;
-      if (!id) {
+      const {
+        id,
+        displayName,
+        avatarUrl,
+        disclosure,
+        activationMode,
+        section,
+        beat,
+        feeds,
+        stageConfigs,
+        isAutoPromoteEnabled,
+        pacingConfig
+      } = req.body;
+      const normalizedId = cleanPersonaId(id);
+      if (!normalizedId) {
         return res.status(400).json({ error: 'Persona ID is required' });
       }
       const normalizedActivationMode = normalizeActivationMode(activationMode);
       const normalizedDisplayName = cleanText(displayName, 160) || null;
+      const normalizedSection = normalizeSection(section);
+      const normalizedBeat = normalizeBeat(normalizedSection, beat);
 
       const rows = await sql`
-        INSERT INTO personas (id, display_name, avatar_url, disclosure, activation_mode)
-        VALUES (${id}, ${normalizedDisplayName}, ${avatarUrl}, ${disclosure}, ${normalizedActivationMode})
+        INSERT INTO personas (id, display_name, avatar_url, disclosure, activation_mode, section, beat)
+        VALUES (${normalizedId}, ${normalizedDisplayName}, ${avatarUrl}, ${disclosure}, ${normalizedActivationMode}, ${normalizedSection}, ${normalizedBeat})
         ON CONFLICT (id) DO UPDATE
         SET display_name = EXCLUDED.display_name,
             avatar_url = EXCLUDED.avatar_url,
             disclosure = EXCLUDED.disclosure,
             activation_mode = EXCLUDED.activation_mode,
+            section = EXCLUDED.section,
+            beat = EXCLUDED.beat,
             updated_at = now()
         RETURNING
           id,
           display_name as "displayName",
           avatar_url as "avatarUrl",
           disclosure,
-          COALESCE(NULLIF(trim(activation_mode), ''), 'both') as "activationMode";
+          COALESCE(NULLIF(trim(activation_mode), ''), 'both') as "activationMode",
+          COALESCE(NULLIF(trim(section), ''), ${DEFAULT_SECTION}) as section,
+          COALESCE(NULLIF(trim(beat), ''), ${DEFAULT_BEAT}) as beat;
       `;
 
       if (Array.isArray(feeds)) {
@@ -237,11 +305,11 @@ module.exports = async (req, res) => {
           .map(normalizeFeedEntry)
           .filter(Boolean)
           .filter((item, index, arr) => arr.findIndex((x) => x.feedUrl === item.feedUrl) === index);
-        await sql`DELETE FROM topic_engine_feeds WHERE persona_id = ${id}`;
+        await sql`DELETE FROM topic_engine_feeds WHERE persona_id = ${normalizedId}`;
         for (const feed of normalizedFeeds) {
           await sql`
             INSERT INTO topic_engine_feeds (persona_id, feed_url, source_name, priority, enabled, updated_at)
-            VALUES (${id}, ${feed.feedUrl}, ${feed.sourceName || null}, ${feed.priority}, true, NOW())
+            VALUES (${normalizedId}, ${feed.feedUrl}, ${feed.sourceName || null}, ${feed.priority}, true, NOW())
           `;
         }
       }
@@ -272,7 +340,7 @@ module.exports = async (req, res) => {
               updated_at
             )
             VALUES (
-              ${id},
+              ${normalizedId},
               ${stageName},
               ${runnerType},
               ${provider},
@@ -298,7 +366,7 @@ module.exports = async (req, res) => {
       if (typeof isAutoPromoteEnabled === 'boolean') {
         await sql`
           INSERT INTO topic_engines (persona_id, is_auto_promote_enabled, updated_at)
-          VALUES (${id}, ${isAutoPromoteEnabled}, NOW())
+          VALUES (${normalizedId}, ${isAutoPromoteEnabled}, NOW())
           ON CONFLICT (persona_id) DO UPDATE
           SET
             is_auto_promote_enabled = EXCLUDED.is_auto_promote_enabled,
@@ -325,7 +393,7 @@ module.exports = async (req, res) => {
             updated_at
           )
           VALUES (
-            ${id},
+            ${normalizedId},
             ${pacing.enabled},
             ${pacing.postingDays},
             ${pacing.postsPerActiveDay},
@@ -356,12 +424,13 @@ module.exports = async (req, res) => {
         `;
       }
 
-      const workflow = await fetchPersonaWorkflow(sql, id);
+      const workflow = await fetchPersonaWorkflow(sql, normalizedId);
       return res.status(200).json({
         persona: {
           ...rows[0],
           feeds: workflow.feeds,
           stageConfigs: workflow.stageConfigs,
+          isAutoPromoteEnabled: workflow.isAutoPromoteEnabled,
           pacingConfig: workflow.pacingConfig
         }
       });

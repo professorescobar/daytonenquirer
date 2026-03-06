@@ -2,7 +2,6 @@ const { neon } = require('@neondatabase/serverless');
 const Parser = require('rss-parser');
 const { requireAdmin } = require('./_admin-auth');
 const { ensureTopicEngineTables, runTopicEngineWorkflow, normalizeUrl } = require('./_topic-engine-workflow');
-const { getPersonaSection } = require('../lib/personas');
 
 const parser = new Parser({
   timeout: 12000,
@@ -46,7 +45,10 @@ function parsePositiveInt(value, fallback, min, max) {
 
 async function getScheduledPersonas(sql, maxEngines) {
   const rows = await sql`
-    SELECT id, COALESCE(NULLIF(trim(activation_mode), ''), 'both') as "activationMode"
+    SELECT
+      id,
+      COALESCE(NULLIF(trim(activation_mode), ''), 'both') as "activationMode",
+      COALESCE(NULLIF(trim(section), ''), 'local') as section
     FROM personas
     WHERE COALESCE(NULLIF(trim(activation_mode), ''), 'both') IN ('scheduled', 'both')
     ORDER BY id ASC
@@ -119,7 +121,7 @@ module.exports = async (req, res) => {
 
     for (const persona of personas) {
       const personaId = String(persona.id || '').trim();
-      const section = getPersonaSection(personaId) || 'local';
+      const section = String(persona.section || 'local').trim().toLowerCase() || 'local';
       const feeds = (await getFeedsForPersona(sql, personaId, section)).slice(0, maxFeedsPerEngine);
       let engineSeen = 0;
       let engineInserted = 0;
@@ -189,4 +191,3 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'Failed to run scheduled topic discovery' });
   }
 };
-
