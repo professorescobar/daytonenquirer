@@ -871,6 +871,8 @@ function injectPersonaStyles() {
     html[data-theme="dark"] .persona-card .persona-pipeline-runs,
     html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-grid,
     html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-top,
+    html[data-theme="dark"] .section-prompt-layers,
+    html[data-theme="dark"] .section-prompt-layers .persona-advanced-body,
     html[data-theme="dark"] .section-prompt-layers .workflow-stage,
     html[data-theme="dark"] .section-prompt-layers .workflow-stage .workflow-stage-grid,
     html[data-theme="dark"] .section-prompt-layers .workflow-stage .workflow-stage-top,
@@ -1845,10 +1847,17 @@ async function loadPersonaFinalPromptBundle(card) {
       : '';
     return `
       <section class="workflow-stage">
-        <h4>${escapeHtml(STAGE_LABELS[row.stageName] || row.stageName)}</h4>
-        <p class="signal-meta">sourceVersion=${escapeHtml(cleanText(data.promptSourceVersion || '', 120) || 'n/a')}</p>
-        ${warnings}
-        <textarea class="field-final-prompt" rows="9" readonly>${escapeHtml(cleanText(data.compiledPrompt || '', 200000))}</textarea>
+        <button type="button" class="workflow-stage-header btn-reset btn-toggle-persona-final-stage" aria-expanded="false">
+          <div>
+            <h4>${escapeHtml(STAGE_LABELS[row.stageName] || row.stageName)}</h4>
+            <div class="workflow-stage-summary">sourceVersion=${escapeHtml(cleanText(data.promptSourceVersion || '', 120) || 'n/a')}</div>
+          </div>
+          <span class="draft-meta">Show</span>
+        </button>
+        <div class="workflow-stage-body" hidden>
+          ${warnings}
+          <textarea class="field-final-prompt" rows="9" readonly>${escapeHtml(cleanText(data.compiledPrompt || '', 200000))}</textarea>
+        </div>
       </section>
     `;
   }).join('');
@@ -2503,6 +2512,15 @@ function onPersonaListClick(event) {
         if (msg) msg.textContent = `Preview failed: ${err.message}`;
       })
       .finally(() => { button.disabled = false; });
+    return;
+  }
+
+  if (button.classList.contains('btn-toggle-persona-final-stage')) {
+    const stageEl = button.closest('.workflow-stage');
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    setStageExpanded(stageEl, !isExpanded);
+    const meta = button.querySelector('.draft-meta');
+    if (meta) meta.textContent = isExpanded ? 'Show' : 'Hide';
     return;
   }
 

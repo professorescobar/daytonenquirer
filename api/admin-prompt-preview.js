@@ -29,17 +29,25 @@ async function loadPersona(sql, personaId) {
 }
 
 async function loadPersonaStagePrompt(sql, personaId, stageName) {
-  const rows = await sql`
-    SELECT
-      prompt_template as "promptTemplate",
-      version,
-      updated_at as "updatedAt"
-    FROM topic_engine_stage_configs
-    WHERE persona_id = ${personaId}
-      AND stage_name = ${stageName}
-    LIMIT 1
-  `;
-  return rows[0] || null;
+  try {
+    const rows = await sql`
+      SELECT
+        prompt_template as "promptTemplate",
+        NULL::int as version,
+        updated_at as "updatedAt"
+      FROM topic_engine_stage_configs
+      WHERE persona_id = ${personaId}
+        AND stage_name = ${stageName}
+      LIMIT 1
+    `;
+    return rows[0] || null;
+  } catch (error) {
+    const message = String(error?.message || '').toLowerCase();
+    if (message.includes('topic_engine_stage_configs') || message.includes('does not exist')) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 async function loadLayerPrompt(sql, stageName, scopeType, section) {
