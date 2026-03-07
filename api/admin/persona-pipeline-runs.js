@@ -40,6 +40,7 @@ function toMetadataObject(value) {
 function summarizeStageStatus({ signal, queue, stageCounts }) {
   const researchCount = Number(stageCounts?.research_discovery || 0);
   const evidenceCount = Number(stageCounts?.evidence_extraction || 0);
+  const storyPlanningCount = Number(stageCounts?.story_planning || 0);
   const queueStatus = cleanText(queue?.status || '', 40).toLowerCase();
   const promoted = cleanText(signal?.action || '', 40).toLowerCase() === 'promote';
 
@@ -75,11 +76,19 @@ function summarizeStageStatus({ signal, queue, stageCounts }) {
     stages.evidence_extraction = 'in_progress';
   }
 
+  if (storyPlanningCount > 0) {
+    stages.story_planning = 'completed';
+  } else if (stages.evidence_extraction === 'completed') {
+    stages.story_planning = 'in_progress';
+  }
+
   let currentStage = 'topic_qualification';
-  if (stages.evidence_extraction === 'in_progress') currentStage = 'evidence_extraction';
+  if (stages.story_planning === 'in_progress') currentStage = 'story_planning';
+  else if (stages.evidence_extraction === 'in_progress') currentStage = 'evidence_extraction';
   else if (stages.research_discovery === 'in_progress') currentStage = 'research_discovery';
   else if (stages.quota_pacing === 'in_progress') currentStage = 'quota_pacing';
   else if (stages.quota_pacing === 'failed') currentStage = 'quota_pacing';
+  else if (stages.story_planning === 'completed') currentStage = 'draft_writing';
   else if (stages.evidence_extraction === 'completed') currentStage = 'story_planning';
   else if (stages.research_discovery === 'completed') currentStage = 'evidence_extraction';
 
@@ -90,8 +99,10 @@ function summarizeRunStatus({ queue, stageStatuses }) {
   const queueStatus = cleanText(queue?.status || '', 40).toLowerCase();
   if (queueStatus === 'queued' || queueStatus === 'deferred') return 'queued';
   if (queueStatus === 'rejected' || stageStatuses.quota_pacing === 'failed') return 'blocked';
+  if (stageStatuses.story_planning === 'completed') return 'phase_4_complete';
   if (stageStatuses.evidence_extraction === 'completed') return 'phase_3_complete';
   if (stageStatuses.research_discovery === 'completed') return 'phase_2_complete';
+  if (stageStatuses.story_planning === 'in_progress') return 'in_progress';
   if (stageStatuses.research_discovery === 'in_progress') return 'in_progress';
   return 'promoted';
 }
@@ -237,9 +248,13 @@ module.exports = async (req, res) => {
         content: cleanText(row.content, 900),
         createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
         query: cleanText(metadata.query || '', 200),
+        provider: cleanText(metadata.provider || '', 80),
+        model: cleanText(metadata.model || '', 120),
         score: Number.isFinite(Number(metadata.score)) ? Number(metadata.score) : null,
         confidence: Number.isFinite(Number(metadata.confidence)) ? Number(metadata.confidence) : null,
         rank: Number.isFinite(Number(metadata.rank)) ? Number(metadata.rank) : null,
+        sectionCount: Number.isFinite(Number(metadata.sectionCount)) ? Number(metadata.sectionCount) : null,
+        evidenceCount: Number.isFinite(Number(metadata.evidenceCount)) ? Number(metadata.evidenceCount) : null,
         evidenceQuote: cleanText(metadata.evidenceQuote || '', 320),
         whyItMatters: cleanText(metadata.whyItMatters || '', 320)
       });
@@ -260,7 +275,8 @@ module.exports = async (req, res) => {
         queue?.updatedAt,
         queue?.releasedAt,
         stageCounts.research_discoveryLatest,
-        stageCounts.evidence_extractionLatest
+        stageCounts.evidence_extractionLatest,
+        stageCounts.story_planningLatest
       ].filter(Boolean);
       const lastActivityAt = timestamps.length
         ? new Date(Math.max(...timestamps.map((t) => new Date(t).getTime()))).toISOString()

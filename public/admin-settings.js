@@ -1848,9 +1848,13 @@ function renderPipelineStageDetailItems(items) {
       <p class="signal-meta"><strong>${escapeHtml(item.title || item.artifactType || 'artifact')}</strong></p>
       ${item.sourceUrl ? `<p class="signal-meta">source=<a href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.sourceUrl)}</a></p>` : ''}
       ${item.query ? `<p class="signal-meta">query=${escapeHtml(item.query)}</p>` : ''}
+      ${item.provider ? `<p class="signal-meta">provider=${escapeHtml(item.provider)}</p>` : ''}
+      ${item.model ? `<p class="signal-meta">model=${escapeHtml(item.model)}</p>` : ''}
       ${Number.isFinite(item.rank) ? `<p class="signal-meta">rank=${Number(item.rank)}</p>` : ''}
       ${Number.isFinite(item.score) ? `<p class="signal-meta">score=${Number(item.score).toFixed(3)}</p>` : ''}
       ${Number.isFinite(item.confidence) ? `<p class="signal-meta">confidence=${Number(item.confidence).toFixed(3)}</p>` : ''}
+      ${Number.isFinite(item.sectionCount) ? `<p class="signal-meta">sections=${Number(item.sectionCount)}</p>` : ''}
+      ${Number.isFinite(item.evidenceCount) ? `<p class="signal-meta">evidence=${Number(item.evidenceCount)}</p>` : ''}
       ${item.evidenceQuote ? `<p class="signal-meta">quote=${escapeHtml(item.evidenceQuote)}</p>` : ''}
       ${item.whyItMatters ? `<p class="signal-meta">why=${escapeHtml(item.whyItMatters)}</p>` : ''}
       ${item.content ? `<p class="signal-meta">${escapeHtml(item.content)}</p>` : ''}
@@ -1861,7 +1865,11 @@ function renderPipelineStageDetailItems(items) {
 
 function renderPersonaPipelineRunCard(run) {
   const statusClass = getStageStatusClass(
-    run.runStatus === 'phase_3_complete' ? 'completed' : run.runStatus === 'queued' ? 'in_progress' : run.runStatus
+    run.runStatus === 'phase_4_complete' || run.runStatus === 'phase_3_complete'
+      ? 'completed'
+      : run.runStatus === 'queued'
+        ? 'in_progress'
+        : run.runStatus
   );
   const stageChips = (Array.isArray(run.stageProgress) ? run.stageProgress : []).map((stage) => `
     <article class="pipeline-stage-chip">

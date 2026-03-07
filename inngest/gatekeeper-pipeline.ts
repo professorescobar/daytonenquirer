@@ -101,6 +101,28 @@ type EvidenceClaim = {
   whyItMatters: string;
 };
 
+type StoryPlanningEvidence = {
+  claim: string;
+  sourceUrl: string;
+  evidenceQuote: string;
+  confidence: number;
+  whyItMatters: string;
+};
+
+type StoryPlanSection = {
+  heading: string;
+  summary: string;
+  evidenceSourceUrls: string[];
+};
+
+type StoryPlanArtifact = {
+  angle: string;
+  narrativeStrategy: string;
+  sections: StoryPlanSection[];
+  uncertaintyNotes: string[];
+  missingInformation: string[];
+};
+
 type PacingConfig = {
   enabled: boolean;
   postingDays: boolean[];
@@ -134,6 +156,8 @@ const TEST_MODE_ENABLED =
 const HARD_CODED_GATEKEEPER_MODEL = "gemini-1.5-flash";
 const HARD_CODED_RESEARCH_QUERY_MODEL = "gemini-1.5-flash";
 const HARD_CODED_EVIDENCE_MODEL_CANDIDATES = ["gemini-1.5-pro", "gemini-1.5-pro-002"];
+const HARD_CODED_STORY_PLANNING_OPENAI_MODEL = "gpt-4o-mini";
+const HARD_CODED_STORY_PLANNING_GEMINI_MODEL = "gemini-1.5-flash";
 const LOCAL_SCOPE_TERMS = [
   "dayton",
   "montgomery county",
@@ -1460,6 +1484,391 @@ async function runEvidenceExtraction(signalId: number): Promise<{
   };
 }
 
+async function loadStoryPlanningEvidence(signalId: number): Promise<StoryPlanningEvidence[]> {
+  if (isTestSignalId(signalId)) {
+    return [
+      {
+        claim: "Downtown lane closures begin Saturday morning and continue through Sunday night.",
+        sourceUrl: "https://example.com/mock-signal-12345",
+        evidenceQuote: "Dayton public works said lane closures start Saturday morning.",
+        confidence: 0.89,
+        whyItMatters: "Weekend drivers and businesses downtown will need detour plans."
+      },
+      {
+        claim: "RTA is shifting stops for two routes near utility work zones.",
+        sourceUrl: "https://example.com/mock-signal-12345-traffic",
+        evidenceQuote: "RTA said two routes will shift stops near utility work zones.",
+        confidence: 0.84,
+        whyItMatters: "Transit riders need updated stop locations and timing expectations."
+      }
+    ];
+  }
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const rows = await sql`
+    SELECT
+      content as "claim",
+      source_url as "sourceUrl",
+      COALESCE(metadata->>'evidenceQuote', '') as "evidenceQuote",
+      COALESCE(metadata->>'whyItMatters', '') as "whyItMatters",
+      CASE
+        WHEN COALESCE(metadata->>'confidence', '') ~ '^[0-9]+(\\.[0-9]+)?$'
+          THEN (metadata->>'confidence')::numeric
+        ELSE 0.5
+      END as "confidence"
+    FROM research_artifacts
+    WHERE signal_id = ${signalId}
+      AND stage = 'evidence_extraction'
+      AND artifact_type = 'evidence_extract'
+      AND source_url IS NOT NULL
+    ORDER BY "confidence" DESC, created_at DESC
+    LIMIT 8
+  `;
+
+  return rows
+    .map((row: any) => ({
+      claim: cleanText(row.claim || "", 1200),
+      sourceUrl: cleanText(row.sourceUrl || "", 2000),
+      evidenceQuote: cleanText(row.evidenceQuote || "", 400),
+      confidence: clampConfidence(row.confidence),
+      whyItMatters: cleanText(row.whyItMatters || "", 700)
+    }))
+    .filter((item: StoryPlanningEvidence) => item.claim && item.sourceUrl && item.evidenceQuote);
+}
+
+function normalizeUrlList(value: unknown, allowedUrls: Set<string>): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    const cleaned = cleanText(raw, 2000);
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase();
+    if (!allowedUrls.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned);
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
+function normalizeStoryPlan(
+  raw: any,
+  evidence: StoryPlanningEvidence[]
+): StoryPlanArtifact {
+  const allowedUrls = new Set(evidence.map((item) => item.sourceUrl.toLowerCase()));
+  const sectionsRaw = Array.isArray(raw?.sections) ? raw.sections : [];
+  const sections: StoryPlanSection[] = [];
+
+  for (const item of sectionsRaw) {
+    const heading = cleanText(item?.heading || "", 180);
+    const summary = cleanText(item?.summary || "", 700);
+    if (!heading || !summary) continue;
+    const evidenceSourceUrls = normalizeUrlList(item?.evidenceSourceUrls, allowedUrls);
+    sections.push({ heading, summary, evidenceSourceUrls });
+    if (sections.length >= 8) break;
+  }
+
+  const uncertaintyNotes = Array.isArray(raw?.uncertaintyNotes)
+    ? raw.uncertaintyNotes.map((item: unknown) => cleanText(item, 240)).filter(Boolean).slice(0, 8)
+    : [];
+  const missingInformation = Array.isArray(raw?.missingInformation)
+    ? raw.missingInformation.map((item: unknown) => cleanText(item, 240)).filter(Boolean).slice(0, 8)
+    : [];
+
+  const fallbackAngle = cleanText(raw?.angle || "", 280) || "What changed, who is affected, and why it matters now.";
+  const fallbackNarrativeStrategy =
+    cleanText(raw?.narrativeStrategy || "", 360) ||
+    "Lead with the most immediate verified impact, then provide context, timeline, and practical implications.";
+
+  const normalizedSections = sections.length
+    ? sections
+    : evidence.slice(0, 3).map((item, index) => ({
+        heading: `Section ${index + 1}`,
+        summary: cleanText(item.claim, 700),
+        evidenceSourceUrls: [item.sourceUrl]
+      }));
+
+  return {
+    angle: fallbackAngle,
+    narrativeStrategy: fallbackNarrativeStrategy,
+    sections: normalizedSections,
+    uncertaintyNotes,
+    missingInformation
+  };
+}
+
+async function buildStoryPlanWithOpenAi(
+  signal: ResearchSignalContext,
+  evidence: StoryPlanningEvidence[]
+): Promise<StoryPlanArtifact> {
+  const apiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
+  if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
+
+  const evidenceContext = evidence
+    .slice(0, 8)
+    .map((item, index) =>
+      [
+        `Evidence ${index + 1}:`,
+        `Claim: ${item.claim}`,
+        `Source URL: ${item.sourceUrl}`,
+        `Quote: ${item.evidenceQuote}`,
+        `Confidence: ${item.confidence}`,
+        `Why it matters: ${item.whyItMatters}`
+      ].join("\n")
+    )
+    .join("\n\n");
+  const prompt = [
+    "You are creating a structured newsroom story plan from verified evidence only.",
+    "Return strict JSON only in this schema:",
+    "{\"angle\":\"...\",\"narrativeStrategy\":\"...\",\"sections\":[{\"heading\":\"...\",\"summary\":\"...\",\"evidenceSourceUrls\":[\"...\"]}],\"uncertaintyNotes\":[\"...\"],\"missingInformation\":[\"...\"]}",
+    "Rules:",
+    "- Use only evidence provided below.",
+    "- Include 3 to 6 sections.",
+    "- Keep each section summary concrete and publication-oriented.",
+    "- Every section must include at least one evidenceSourceUrls item that exactly matches provided source URLs.",
+    "- uncertaintyNotes and missingInformation may be empty arrays.",
+    "- No markdown. No additional keys.",
+    "",
+    `Signal Title: ${signal.title}`,
+    `Signal Snippet: ${signal.snippet || ""}`,
+    "",
+    evidenceContext
+  ].join("\n");
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: HARD_CODED_STORY_PLANNING_OPENAI_MODEL,
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`OpenAI story planning failed ${response.status}: ${body.slice(0, 240)}`);
+  }
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content || "";
+  const parsed = safeJsonParse(text) || {};
+  return normalizeStoryPlan(parsed, evidence);
+}
+
+async function buildStoryPlanWithGemini(
+  signal: ResearchSignalContext,
+  evidence: StoryPlanningEvidence[]
+): Promise<StoryPlanArtifact> {
+  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
+
+  const evidenceContext = evidence
+    .slice(0, 8)
+    .map((item, index) =>
+      [
+        `Evidence ${index + 1}:`,
+        `Claim: ${item.claim}`,
+        `Source URL: ${item.sourceUrl}`,
+        `Quote: ${item.evidenceQuote}`,
+        `Confidence: ${item.confidence}`,
+        `Why it matters: ${item.whyItMatters}`
+      ].join("\n")
+    )
+    .join("\n\n");
+  const prompt = [
+    "You are creating a structured newsroom story plan from verified evidence only.",
+    "Return strict JSON only in this schema:",
+    "{\"angle\":\"...\",\"narrativeStrategy\":\"...\",\"sections\":[{\"heading\":\"...\",\"summary\":\"...\",\"evidenceSourceUrls\":[\"...\"]}],\"uncertaintyNotes\":[\"...\"],\"missingInformation\":[\"...\"]}",
+    "Rules:",
+    "- Use only evidence provided below.",
+    "- Include 3 to 6 sections.",
+    "- Keep each section summary concrete and publication-oriented.",
+    "- Every section must include at least one evidenceSourceUrls item that exactly matches provided source URLs.",
+    "- uncertaintyNotes and missingInformation may be empty arrays.",
+    "- No markdown. No additional keys.",
+    "",
+    `Signal Title: ${signal.title}`,
+    `Signal Snippet: ${signal.snippet || ""}`,
+    "",
+    evidenceContext
+  ].join("\n");
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    HARD_CODED_STORY_PLANNING_GEMINI_MODEL
+  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 2200,
+        responseMimeType: "application/json"
+      }
+    })
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Gemini story planning failed ${response.status}: ${body.slice(0, 240)}`);
+  }
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+  const parsed = safeJsonParse(text) || {};
+  return normalizeStoryPlan(parsed, evidence);
+}
+
+async function buildStoryPlan(
+  signal: ResearchSignalContext,
+  evidence: StoryPlanningEvidence[]
+): Promise<{ plan: StoryPlanArtifact; provider: "openai" | "gemini"; model: string }> {
+  const hasOpenAi = Boolean(cleanText(process.env.OPENAI_API_KEY || "", 20));
+  const hasGemini = Boolean(cleanText(process.env.GEMINI_API_KEY || "", 20));
+  if (hasOpenAi) {
+    try {
+      const plan = await buildStoryPlanWithOpenAi(signal, evidence);
+      return {
+        plan,
+        provider: "openai",
+        model: HARD_CODED_STORY_PLANNING_OPENAI_MODEL
+      };
+    } catch (error) {
+      if (!hasGemini) throw error;
+    }
+  }
+  const plan = await buildStoryPlanWithGemini(signal, evidence);
+  return {
+    plan,
+    provider: "gemini",
+    model: HARD_CODED_STORY_PLANNING_GEMINI_MODEL
+  };
+}
+
+async function persistStoryPlanArtifact(
+  signal: ResearchSignalContext,
+  plan: StoryPlanArtifact,
+  provider: "openai" | "gemini",
+  model: string,
+  evidenceCount: number
+): Promise<number> {
+  if (isTestSignalId(signal.id)) {
+    console.log("test-mode persistStoryPlanArtifact skip", {
+      signalId: signal.id,
+      provider,
+      model,
+      evidenceCount,
+      plan
+    });
+    return 1;
+  }
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+
+  const runId = randomUUID();
+  const engineId = randomUUID();
+  const candidateId = randomUUID();
+  const sourceUrl = `signal://${signal.id}/story-plan`;
+  const metadata = {
+    signalId: signal.id,
+    personaId: signal.personaId,
+    provider,
+    model,
+    evidenceCount,
+    sectionCount: plan.sections.length,
+    uncertaintyCount: plan.uncertaintyNotes.length,
+    missingInformationCount: plan.missingInformation.length,
+    plan
+  };
+
+  const rows = await sql`
+    INSERT INTO research_artifacts (
+      id,
+      run_id,
+      engine_id,
+      candidate_id,
+      signal_id,
+      persona_id,
+      stage,
+      artifact_type,
+      source_url,
+      source_domain,
+      title,
+      published_at,
+      content,
+      metadata,
+      created_at
+    )
+    SELECT
+      ${randomUUID()},
+      ${runId},
+      ${engineId},
+      ${candidateId},
+      ${signal.id},
+      ${signal.personaId || null},
+      'story_planning',
+      'story_plan',
+      ${sourceUrl},
+      ${null},
+      ${`Story plan for signal ${signal.id}`},
+      ${null},
+      ${plan.angle},
+      ${toSafeJsonObject(metadata)}::jsonb,
+      NOW()
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM research_artifacts ra
+      WHERE ra.signal_id = ${signal.id}
+        AND ra.stage = 'story_planning'
+        AND ra.artifact_type = 'story_plan'
+        AND ra.source_url = ${sourceUrl}
+    )
+    RETURNING id
+  `;
+
+  return rows.length;
+}
+
+async function runStoryPlanning(signalId: number): Promise<{
+  evidenceCount: number;
+  sectionCount: number;
+  saved: number;
+  provider?: "openai" | "gemini";
+  model?: string;
+  skipped?: boolean;
+}> {
+  const signal = await loadResearchSignalContext(signalId);
+  const evidence = await loadStoryPlanningEvidence(signalId);
+  if (!evidence.length) {
+    return { evidenceCount: 0, sectionCount: 0, saved: 0, skipped: true };
+  }
+
+  const storyPlanResult = await buildStoryPlan(signal, evidence);
+  const saved = await persistStoryPlanArtifact(
+    signal,
+    storyPlanResult.plan,
+    storyPlanResult.provider,
+    storyPlanResult.model,
+    evidence.length
+  );
+
+  return {
+    evidenceCount: evidence.length,
+    sectionCount: storyPlanResult.plan.sections.length,
+    saved,
+    provider: storyPlanResult.provider,
+    model: storyPlanResult.model
+  };
+}
+
 // STEP 1: load_signal
 async function loadSignalById(signalId: number): Promise<SignalRecord> {
   if (isTestSignalId(signalId)) {
@@ -2004,6 +2413,30 @@ export function createEvidenceExtractionStartFunction(inngest: Inngest) {
       if (!signalId) throw new Error("Missing signalId");
 
       const result = await step.run("evidence-extraction", async () => runEvidenceExtraction(signalId));
+      await step.sendEvent("emit-story-planning-start", {
+        name: "story.planning.start",
+        data: {
+          signalId
+        }
+      });
+      return {
+        ok: true,
+        signalId,
+        ...result
+      };
+    }
+  );
+}
+
+export function createStoryPlanningStartFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "story-planning-start" },
+    { event: "story.planning.start" },
+    async ({ event, step }: any) => {
+      const signalId = Number(event?.data?.signalId || 0);
+      if (!signalId) throw new Error("Missing signalId");
+
+      const result = await step.run("story-planning", async () => runStoryPlanning(signalId));
       return {
         ok: true,
         signalId,
@@ -2067,6 +2500,8 @@ export function createManualGatekeeperRouteFunction(inngest: Inngest) {
       const targetStep =
         nextStep === "cluster_update"
           ? "cluster_update"
+          : nextStep === "story_planning"
+            ? "story_planning"
           : nextStep === "research_discovery"
             ? "research_discovery"
             : action === "promote"
@@ -2095,6 +2530,22 @@ export function createManualGatekeeperRouteFunction(inngest: Inngest) {
           signalId,
           routed: true,
           targetEvent: "cluster.update.start"
+        };
+      }
+
+      if (targetStep === "story_planning") {
+        await step.sendEvent("emit-story-planning-from-manual", {
+          name: "story.planning.start",
+          data: {
+            signalId,
+            trigger: "admin_manual"
+          }
+        });
+        return {
+          ok: true,
+          signalId,
+          routed: true,
+          targetEvent: "story.planning.start"
         };
       }
 
