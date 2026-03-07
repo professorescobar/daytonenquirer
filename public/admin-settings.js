@@ -871,6 +871,9 @@ function injectPersonaStyles() {
     html[data-theme="dark"] .persona-card .persona-pipeline-runs,
     html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-grid,
     html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-top,
+    html[data-theme="dark"] .section-prompt-layers .workflow-stage,
+    html[data-theme="dark"] .section-prompt-layers .workflow-stage .workflow-stage-grid,
+    html[data-theme="dark"] .section-prompt-layers .workflow-stage .workflow-stage-top,
     html[data-theme="dark"] #global-prompt-layers-list .workflow-stage {
       background: #1a1f2b !important;
       border-color: #3a455b !important;
@@ -889,7 +892,9 @@ function injectPersonaStyles() {
     }
     html[data-theme="dark"] .persona-card .workflow-stage-summary,
     html[data-theme="dark"] .persona-card .signal-meta,
-    html[data-theme="dark"] .persona-card .persona-summary {
+    html[data-theme="dark"] .persona-card .persona-summary,
+    html[data-theme="dark"] .section-prompt-layers .workflow-stage-summary,
+    html[data-theme="dark"] .section-prompt-layers .signal-meta {
       color: #c1cbe0 !important;
     }
     html[data-theme="dark"] .persona-card .stage-explainer ul {
@@ -934,11 +939,16 @@ function ensurePersonaUi() {
   const container = document.createElement('section');
   container.className = 'admin-section';
   container.innerHTML = `
-    <div class="section-header">
-      <h2>Global Prompts</h2>
-    </div>
-    <p class="hint">Global per-stage guidance applied before section and persona layers.</p>
-    <div class="workflow-stage-list" id="global-prompt-layers-list"></div>
+    <article class="draft-card section-card">
+      <button class="draft-header draft-toggle btn-reset" type="button">
+        <strong class="section-title">Global Prompts</strong>
+        <span class="draft-meta">Per-stage global guidance</span>
+      </button>
+      <div class="section-editor is-collapsed" hidden>
+        <p class="hint">Global per-stage guidance applied before section and persona layers.</p>
+        <div class="workflow-stage-list" id="global-prompt-layers-list"></div>
+      </div>
+    </article>
     <div class="section-header">
       <h2>Persona Management</h2>
       <div class="admin-actions">
@@ -1383,13 +1393,26 @@ function renderPersonas(personas) {
 
                       <section class="persona-advanced">
                         <button type="button" class="persona-advanced-header btn-reset btn-toggle-advanced" aria-expanded="false">
-                          <strong>Advanced Stage Settings</strong>
+                          <strong>Persona Prompt Layers</strong>
                           <span class="draft-meta">Show</span>
                         </button>
                         <div class="persona-advanced-body" hidden>
                           <div class="workflow-stage-list">
                             ${renderStageEditors(data.stageConfigs)}
                           </div>
+                        </div>
+                      </section>
+                      <section class="persona-advanced persona-final-prompts">
+                        <button type="button" class="persona-advanced-header btn-reset btn-toggle-persona-final-prompts" aria-expanded="false">
+                          <strong>All Final Prompt Drafts</strong>
+                          <span class="draft-meta">Show</span>
+                        </button>
+                        <div class="persona-advanced-body persona-final-prompts-body" hidden>
+                          <div class="admin-actions">
+                            <button type="button" class="btn btn-secondary btn-load-persona-final-prompts">Refresh All Drafts</button>
+                          </div>
+                          <div class="signal-meta persona-final-prompts-message">Load to view compiled final prompts for every stage.</div>
+                          <div class="workflow-stage-list persona-final-prompts-list"></div>
                         </div>
                       </section>
                       <div class="admin-actions">
@@ -1612,6 +1635,7 @@ function renderPromptLayerEditor(scopeType, stageName, section) {
   const layer = getPromptLayer(scopeType, stageName, section);
   const label = STAGE_LABELS[stageName] || stageName;
   const scopeLabel = scopeType === PROMPT_SCOPE_GLOBAL ? 'Global' : `${titleCaseSlug(section)} Section`;
+  const rows = scopeType === PROMPT_SCOPE_GLOBAL ? 8 : 4;
   return `
     <section class="workflow-stage prompt-layer-editor" data-scope-type="${escapeHtml(scopeType)}" data-stage="${escapeHtml(stageName)}" data-section="${escapeHtml(section || '')}">
       <button type="button" class="workflow-stage-header btn-reset btn-toggle-layer-editor" aria-expanded="false">
@@ -1626,7 +1650,7 @@ function renderPromptLayerEditor(scopeType, stageName, section) {
           Prompt Guidance
           <textarea
             class="field-layer-prompt"
-            rows="4"
+            rows="${rows}"
             readonly
             data-original="${escapeHtml(layer.promptTemplate || '')}"
           >${escapeHtml(layer.promptTemplate || '')}</textarea>
@@ -1735,6 +1759,17 @@ function setSectionPromptsExpanded(sectionCard, expanded) {
   else body.setAttribute('hidden', '');
 }
 
+function setPersonaFinalPromptsExpanded(card, expanded) {
+  const btn = card?.querySelector('.btn-toggle-persona-final-prompts');
+  const body = card?.querySelector('.persona-final-prompts-body');
+  if (!btn || !body) return;
+  btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  const meta = btn.querySelector('.draft-meta');
+  if (meta) meta.textContent = expanded ? 'Hide' : 'Show';
+  if (expanded) body.removeAttribute('hidden');
+  else body.setAttribute('hidden', '');
+}
+
 function setFinalPromptExpanded(stageEl, expanded) {
   const btn = stageEl?.querySelector('.btn-toggle-final-prompt');
   const body = stageEl?.querySelector('.final-prompt-body');
@@ -1774,6 +1809,51 @@ async function loadFinalPromptPreview(stageEl) {
       </details>
     `).join('')
     : '<p class="signal-meta">No layers returned.</p>';
+}
+
+async function loadPersonaFinalPromptBundle(card) {
+  if (!card) return;
+  const personaId = cleanText(card.dataset.id || '', 255);
+  const messageEl = card.querySelector('.persona-final-prompts-message');
+  const listEl = card.querySelector('.persona-final-prompts-list');
+  if (!personaId || !messageEl || !listEl) return;
+
+  messageEl.textContent = 'Loading all stage prompt drafts...';
+  const rows = [];
+  for (const stageName of TOPIC_ENGINE_STAGES) {
+    try {
+      const params = new URLSearchParams({ personaId, stageName });
+      const data = await apiRequest(`/api/admin-prompt-preview?${params.toString()}`);
+      rows.push({ ok: true, stageName, data });
+    } catch (error) {
+      rows.push({ ok: false, stageName, error });
+    }
+  }
+
+  listEl.innerHTML = rows.map((row) => {
+    if (!row.ok) {
+      return `
+        <section class="workflow-stage">
+          <h4>${escapeHtml(STAGE_LABELS[row.stageName] || row.stageName)}</h4>
+          <p class="signal-meta">Preview failed: ${escapeHtml(row.error?.message || 'Unknown error')}</p>
+        </section>
+      `;
+    }
+    const data = row.data || {};
+    const warnings = Array.isArray(data.warnings) && data.warnings.length
+      ? `<p class="signal-meta">warnings: ${escapeHtml(data.warnings.join(', '))}</p>`
+      : '';
+    return `
+      <section class="workflow-stage">
+        <h4>${escapeHtml(STAGE_LABELS[row.stageName] || row.stageName)}</h4>
+        <p class="signal-meta">sourceVersion=${escapeHtml(cleanText(data.promptSourceVersion || '', 120) || 'n/a')}</p>
+        ${warnings}
+        <textarea class="field-final-prompt" rows="9" readonly>${escapeHtml(cleanText(data.compiledPrompt || '', 200000))}</textarea>
+      </section>
+    `;
+  }).join('');
+
+  messageEl.textContent = `Loaded ${rows.length} stage prompt draft${rows.length === 1 ? '' : 's'}.`;
 }
 
 function setPersonaCardExpanded(card, expanded) {
@@ -2400,6 +2480,29 @@ function onPersonaListClick(event) {
         if (messageEl) messageEl.textContent = `Preview failed: ${err.message}`;
       });
     }
+    return;
+  }
+
+  if (button.classList.contains('btn-toggle-persona-final-prompts')) {
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    setPersonaFinalPromptsExpanded(card, !isExpanded);
+    if (!isExpanded) {
+      loadPersonaFinalPromptBundle(card).catch((err) => {
+        const msg = card.querySelector('.persona-final-prompts-message');
+        if (msg) msg.textContent = `Preview failed: ${err.message}`;
+      });
+    }
+    return;
+  }
+
+  if (button.classList.contains('btn-load-persona-final-prompts')) {
+    button.disabled = true;
+    loadPersonaFinalPromptBundle(card)
+      .catch((err) => {
+        const msg = card.querySelector('.persona-final-prompts-message');
+        if (msg) msg.textContent = `Preview failed: ${err.message}`;
+      })
+      .finally(() => { button.disabled = false; });
     return;
   }
 
