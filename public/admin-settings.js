@@ -869,6 +869,8 @@ function injectPersonaStyles() {
     html[data-theme="dark"] .persona-card .workflow-stage,
     html[data-theme="dark"] .persona-card .persona-advanced,
     html[data-theme="dark"] .persona-card .persona-pipeline-runs,
+    html[data-theme="dark"] .section-card,
+    html[data-theme="dark"] .section-card > .section-editor,
     html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-grid,
     html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-top,
     html[data-theme="dark"] .section-prompt-layers,
@@ -895,6 +897,8 @@ function injectPersonaStyles() {
     html[data-theme="dark"] .persona-card .workflow-stage-summary,
     html[data-theme="dark"] .persona-card .signal-meta,
     html[data-theme="dark"] .persona-card .persona-summary,
+    html[data-theme="dark"] .section-card .draft-meta,
+    html[data-theme="dark"] .section-card .signal-meta,
     html[data-theme="dark"] .section-prompt-layers .workflow-stage-summary,
     html[data-theme="dark"] .section-prompt-layers .signal-meta {
       color: #c1cbe0 !important;
@@ -1699,7 +1703,7 @@ function parseFeedsFromText(value) {
 }
 
 function setStageExpanded(stageEl, expanded) {
-  const headerBtn = stageEl?.querySelector('.btn-toggle-stage, .btn-toggle-layer-editor');
+  const headerBtn = stageEl?.querySelector('.btn-toggle-stage, .btn-toggle-layer-editor, .btn-toggle-persona-final-stage');
   const body = stageEl?.querySelector('.workflow-stage-body');
   if (!headerBtn || !body) return;
   headerBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
