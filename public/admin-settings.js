@@ -20,7 +20,10 @@ let latestPipelineRuns = [];
 let loadedPersonaDisplayNames = new Map();
 let loadedPersonas = [];
 let customBeatsBySection = {};
+let promptLayersByKey = new Map();
 const ADD_NEW_BEAT_VALUE = '__add_new__';
+const PROMPT_SCOPE_GLOBAL = 'global';
+const PROMPT_SCOPE_SECTION = 'section';
 
 function setMessage(text) {
   if (!messageEl) return;
@@ -281,6 +284,48 @@ function escapeHtml(text) {
 
 function cleanText(value, max = 5000) {
   return String(value || '').trim().slice(0, max);
+}
+
+function promptLayerKey(scopeType, stageName, section) {
+  const scope = cleanText(scopeType, 40).toLowerCase();
+  const stage = cleanText(stageName, 120).toLowerCase();
+  const sectionKey = scope === PROMPT_SCOPE_SECTION
+    ? (cleanText(section, 120).toLowerCase() || 'local')
+    : '';
+  return `${scope}::${stage}::${sectionKey}`;
+}
+
+function getPromptLayer(scopeType, stageName, section) {
+  const key = promptLayerKey(scopeType, stageName, section);
+  return promptLayersByKey.get(key) || {
+    stageName,
+    scopeType,
+    section: scopeType === PROMPT_SCOPE_SECTION ? section : null,
+    promptTemplate: '',
+    version: null
+  };
+}
+
+function setPromptLayers(rows) {
+  promptLayersByKey = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const scopeType = cleanText(row?.scopeType, 40).toLowerCase();
+    const stageName = cleanText(row?.stageName, 120).toLowerCase();
+    if (!scopeType || !stageName) continue;
+    const section = scopeType === PROMPT_SCOPE_SECTION
+      ? (cleanText(row?.section, 120).toLowerCase() || null)
+      : null;
+    const key = promptLayerKey(scopeType, stageName, section);
+    promptLayersByKey.set(key, {
+      id: Number(row?.id || 0) || null,
+      stageName,
+      scopeType,
+      section,
+      promptTemplate: cleanText(row?.promptTemplate || '', 50000),
+      version: Number(row?.version || 0) || null,
+      updatedAt: row?.updatedAt || null
+    });
+  }
 }
 
 function titleCaseSlug(value) {
@@ -564,6 +609,29 @@ function injectPersonaStyles() {
     .workflow-stage-grid .workflow-wide {
       grid-column: 1 / -1;
     }
+    .field-layer-prompt[readonly],
+    .field-final-prompt[readonly] {
+      background: #f7f8fb;
+    }
+    .prompt-layer-editor textarea,
+    .final-prompt-body textarea {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.83rem;
+      line-height: 1.35;
+    }
+    .final-prompt-breakdown details {
+      margin-bottom: 0.45rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #fff;
+      padding: 0.35rem 0.5rem;
+    }
+    .final-prompt-breakdown pre {
+      white-space: pre-wrap;
+      margin: 0.45rem 0 0 0;
+      font-size: 0.8rem;
+      line-height: 1.35;
+    }
     .time-input-row {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -802,7 +870,19 @@ function injectPersonaStyles() {
     html[data-theme="dark"] .persona-card .persona-advanced,
     html[data-theme="dark"] .persona-card .persona-pipeline-runs,
     html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-grid,
-    html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-top {
+    html[data-theme="dark"] .persona-card .workflow-stage .workflow-stage-top,
+    html[data-theme="dark"] #global-prompt-layers-list .workflow-stage {
+      background: #1a1f2b !important;
+      border-color: #3a455b !important;
+      color: #e6edf9 !important;
+    }
+    html[data-theme="dark"] .field-layer-prompt[readonly],
+    html[data-theme="dark"] .field-final-prompt[readonly] {
+      background: #20283a !important;
+      color: #dbe6ff !important;
+      border-color: #3a455b !important;
+    }
+    html[data-theme="dark"] .final-prompt-breakdown details {
       background: #1a1f2b !important;
       border-color: #3a455b !important;
       color: #e6edf9 !important;
@@ -854,6 +934,11 @@ function ensurePersonaUi() {
   const container = document.createElement('section');
   container.className = 'admin-section';
   container.innerHTML = `
+    <div class="section-header">
+      <h2>Global Prompts</h2>
+    </div>
+    <p class="hint">Global per-stage guidance applied before section and persona layers.</p>
+    <div class="workflow-stage-list" id="global-prompt-layers-list"></div>
     <div class="section-header">
       <h2>Persona Management</h2>
       <div class="admin-actions">
@@ -1132,6 +1217,12 @@ function renderPersonaFilterOptions() {
   renderSignalsPersonaOptions();
 }
 
+function renderGlobalPromptLayerList() {
+  const el = document.getElementById('global-prompt-layers-list');
+  if (!el) return;
+  el.innerHTML = renderGlobalPromptEditors();
+}
+
 function renderPersonas(personas) {
   const personaListEl = document.getElementById('persona-settings-list');
   if (!personaListEl) return;
@@ -1166,6 +1257,17 @@ function renderPersonas(personas) {
             <span class="draft-meta">${items.length} persona${items.length === 1 ? '' : 's'}</span>
           </button>
           <div class="section-editor is-collapsed" hidden>
+            <section class="persona-advanced section-prompt-layers">
+              <button type="button" class="persona-advanced-header btn-reset btn-toggle-section-prompts" aria-expanded="false">
+                <strong>Section Prompt Layers</strong>
+                <span class="draft-meta">Show</span>
+              </button>
+              <div class="persona-advanced-body section-prompt-layers-body" hidden>
+                <div class="workflow-stage-list">
+                  ${renderSectionPromptEditors(section)}
+                </div>
+              </div>
+            </section>
             <div class="persona-nested-list">
               ${items.map((p) => {
                 const data = personaDataMap.get(p.id) || {};
@@ -1479,11 +1581,77 @@ function renderStageEditors(stageConfigs) {
               Workflow Config (JSON)
               <textarea class="field-stage-workflow-config" rows="4" placeholder='{"temperature":0.2}'>${escapeHtml(workflowConfigText)}</textarea>
             </label>
+            <section class="workflow-wide prompt-preview-panel" data-preview-stage="${stageName}">
+              <button type="button" class="workflow-stage-header btn-reset btn-toggle-final-prompt" aria-expanded="false">
+                <div>
+                  <h4>Final Prompt Draft</h4>
+                  <div class="workflow-stage-summary">Compiled global + section + persona prompt for this stage</div>
+                </div>
+                <span class="draft-meta">Show</span>
+              </button>
+              <div class="final-prompt-body" hidden>
+                <div class="admin-actions">
+                  <button type="button" class="btn btn-secondary btn-load-final-prompt">Refresh Draft</button>
+                </div>
+                <div class="signal-meta final-prompt-message">Prompt preview not loaded yet.</div>
+                <div class="final-prompt-breakdown"></div>
+                <label class="workflow-wide">
+                  Compiled Prompt
+                  <textarea class="field-final-prompt" rows="10" readonly></textarea>
+                </label>
+              </div>
+            </section>
           </div>
         </div>
       </section>
     `;
   }).join('');
+}
+
+function renderPromptLayerEditor(scopeType, stageName, section) {
+  const layer = getPromptLayer(scopeType, stageName, section);
+  const label = STAGE_LABELS[stageName] || stageName;
+  const scopeLabel = scopeType === PROMPT_SCOPE_GLOBAL ? 'Global' : `${titleCaseSlug(section)} Section`;
+  return `
+    <section class="workflow-stage prompt-layer-editor" data-scope-type="${escapeHtml(scopeType)}" data-stage="${escapeHtml(stageName)}" data-section="${escapeHtml(section || '')}">
+      <button type="button" class="workflow-stage-header btn-reset btn-toggle-layer-editor" aria-expanded="false">
+        <div>
+          <h4>${escapeHtml(label)}</h4>
+          <div class="workflow-stage-summary">${escapeHtml(scopeLabel)} prompt layer</div>
+        </div>
+        <span class="draft-meta">Edit</span>
+      </button>
+      <div class="workflow-stage-body" hidden>
+        <label class="workflow-wide">
+          Prompt Guidance
+          <textarea
+            class="field-layer-prompt"
+            rows="4"
+            readonly
+            data-original="${escapeHtml(layer.promptTemplate || '')}"
+          >${escapeHtml(layer.promptTemplate || '')}</textarea>
+        </label>
+        <p class="signal-meta">Version: <span class="field-layer-version">${layer.version == null ? 'new' : escapeHtml(String(layer.version))}</span></p>
+        <div class="admin-actions">
+          <button type="button" class="btn btn-secondary btn-edit-layer">Edit</button>
+          <button type="button" class="btn btn-secondary btn-cancel-layer" hidden>Cancel</button>
+          <button type="button" class="btn btn-primary btn-save-layer" hidden>Save</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderGlobalPromptEditors() {
+  return TOPIC_ENGINE_STAGES
+    .map((stageName) => renderPromptLayerEditor(PROMPT_SCOPE_GLOBAL, stageName, null))
+    .join('');
+}
+
+function renderSectionPromptEditors(section) {
+  return TOPIC_ENGINE_STAGES
+    .map((stageName) => renderPromptLayerEditor(PROMPT_SCOPE_SECTION, stageName, section))
+    .join('');
 }
 
 function parseFeedsFromText(value) {
@@ -1505,7 +1673,7 @@ function parseFeedsFromText(value) {
 }
 
 function setStageExpanded(stageEl, expanded) {
-  const headerBtn = stageEl?.querySelector('.btn-toggle-stage');
+  const headerBtn = stageEl?.querySelector('.btn-toggle-stage, .btn-toggle-layer-editor');
   const body = stageEl?.querySelector('.workflow-stage-body');
   if (!headerBtn || !body) return;
   headerBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
@@ -1556,6 +1724,58 @@ function setPersonaPipelineRunsExpanded(card, expanded) {
   else body.setAttribute('hidden', '');
 }
 
+function setSectionPromptsExpanded(sectionCard, expanded) {
+  const btn = sectionCard?.querySelector('.btn-toggle-section-prompts');
+  const body = sectionCard?.querySelector('.section-prompt-layers-body');
+  if (!btn || !body) return;
+  btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  const meta = btn.querySelector('.draft-meta');
+  if (meta) meta.textContent = expanded ? 'Hide' : 'Show';
+  if (expanded) body.removeAttribute('hidden');
+  else body.setAttribute('hidden', '');
+}
+
+function setFinalPromptExpanded(stageEl, expanded) {
+  const btn = stageEl?.querySelector('.btn-toggle-final-prompt');
+  const body = stageEl?.querySelector('.final-prompt-body');
+  if (!btn || !body) return;
+  btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  const meta = btn.querySelector('.draft-meta');
+  if (meta) meta.textContent = expanded ? 'Hide' : 'Show';
+  if (expanded) body.removeAttribute('hidden');
+  else body.setAttribute('hidden', '');
+}
+
+async function loadFinalPromptPreview(stageEl) {
+  if (!stageEl) return;
+  const card = stageEl.closest('.persona-card');
+  const stageName = cleanText(stageEl.dataset.stage || '', 120).toLowerCase();
+  const personaId = cleanText(card?.dataset?.id || '', 255);
+  const messageEl = stageEl.querySelector('.final-prompt-message');
+  const output = stageEl.querySelector('.field-final-prompt');
+  const breakdownEl = stageEl.querySelector('.final-prompt-breakdown');
+  if (!personaId || !stageName || !output || !messageEl || !breakdownEl) return;
+
+  messageEl.textContent = 'Loading prompt preview...';
+  const params = new URLSearchParams({ personaId, stageName });
+  const data = await apiRequest(`/api/admin-prompt-preview?${params.toString()}`);
+  output.value = String(data?.compiledPrompt || '');
+  const warnings = Array.isArray(data?.warnings) && data.warnings.length
+    ? ` | warnings: ${data.warnings.join(', ')}`
+    : '';
+  messageEl.textContent = `sourceVersion=${cleanText(data?.promptSourceVersion || '', 120) || 'n/a'}${warnings}`;
+
+  const layers = Array.isArray(data?.layerBreakdown) ? data.layerBreakdown : [];
+  breakdownEl.innerHTML = layers.length
+    ? layers.map((item) => `
+      <details>
+        <summary>${escapeHtml(cleanText(item?.layer || 'layer', 40))}</summary>
+        <pre>${escapeHtml(cleanText(item?.text || '', 120000))}</pre>
+      </details>
+    `).join('')
+    : '<p class="signal-meta">No layers returned.</p>';
+}
+
 function setPersonaCardExpanded(card, expanded) {
   const editor = card?.querySelector(':scope > .article-editor');
   if (!editor) return;
@@ -1598,7 +1818,12 @@ async function savePersonaDisplayName(card) {
 async function loadPersonas() {
   try {
     setMessage('Loading personas...');
-    const data = await apiRequest('/api/admin-personas');
+    const [data, promptData] = await Promise.all([
+      apiRequest('/api/admin-personas'),
+      apiRequest('/api/admin-prompt-layers')
+    ]);
+    setPromptLayers(promptData.layers || []);
+    renderGlobalPromptLayerList();
     renderPersonas(data.personas || []);
     renderPersonaFilterOptions();
     document.querySelectorAll('.persona-card').forEach((card) => updatePacingControlState(card));
@@ -1607,6 +1832,57 @@ async function loadPersonas() {
   } catch (err) {
     setMessage(`Failed to load personas: ${err.message}`);
   }
+}
+
+async function savePromptLayerFromEditor(editorEl) {
+  if (!editorEl) return;
+  const scopeType = cleanText(editorEl.dataset.scopeType || '', 40).toLowerCase();
+  const stageName = cleanText(editorEl.dataset.stage || '', 120).toLowerCase();
+  const section = cleanText(editorEl.dataset.section || '', 120).toLowerCase();
+  const textarea = editorEl.querySelector('.field-layer-prompt');
+  const versionEl = editorEl.querySelector('.field-layer-version');
+  const saveBtn = editorEl.querySelector('.btn-save-layer');
+  const cancelBtn = editorEl.querySelector('.btn-cancel-layer');
+  const editBtn = editorEl.querySelector('.btn-edit-layer');
+  if (!textarea || !versionEl || !saveBtn || !cancelBtn || !editBtn) return;
+
+  const expectedVersion = Number.parseInt(String(versionEl.textContent || '').trim(), 10);
+  const payload = {
+    scopeType,
+    stageName,
+    section: scopeType === PROMPT_SCOPE_SECTION ? section : '',
+    promptTemplate: textarea.value || ''
+  };
+  if (Number.isFinite(expectedVersion) && expectedVersion >= 1) payload.expectedVersion = expectedVersion;
+
+  const data = await apiRequest('/api/admin-prompt-layers', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const row = data?.layer || null;
+  if (!row) throw new Error('Prompt layer save did not return a row');
+
+  const normalized = {
+    ...row,
+    scopeType: cleanText(row.scopeType, 40).toLowerCase(),
+    stageName: cleanText(row.stageName, 120).toLowerCase(),
+    section: cleanText(row.section || '', 120).toLowerCase() || null,
+    promptTemplate: String(row.promptTemplate || ''),
+    version: Number(row.version || 1)
+  };
+  promptLayersByKey.set(
+    promptLayerKey(normalized.scopeType, normalized.stageName, normalized.section),
+    normalized
+  );
+
+  textarea.value = normalized.promptTemplate;
+  textarea.dataset.original = normalized.promptTemplate;
+  textarea.readOnly = true;
+  versionEl.textContent = String(normalized.version);
+  saveBtn.setAttribute('hidden', '');
+  cancelBtn.setAttribute('hidden', '');
+  editBtn.removeAttribute('hidden');
 }
 
 async function savePersona(card) {
@@ -1986,7 +2262,10 @@ async function apiRequest(url, options = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const message = data.error || `Request failed (${res.status})`;
-    throw new Error(data.details ? `${message}: ${data.details}` : message);
+    const error = new Error(data.details ? `${message}: ${data.details}` : message);
+    error.status = res.status;
+    error.payload = data;
+    throw error;
   }
   return data;
 }
@@ -2005,7 +2284,79 @@ function onAppSectionClick(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
   const button = target.closest('button');
-  if (!button || !button.classList.contains('draft-toggle')) return;
+  if (!button) return;
+
+  if (button.classList.contains('btn-toggle-layer-editor')) {
+    const editor = button.closest('.prompt-layer-editor');
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    setStageExpanded(editor, !isExpanded);
+    return;
+  }
+
+  if (button.classList.contains('btn-edit-layer')) {
+    const editor = button.closest('.prompt-layer-editor');
+    const textarea = editor?.querySelector('.field-layer-prompt');
+    const saveBtn = editor?.querySelector('.btn-save-layer');
+    const cancelBtn = editor?.querySelector('.btn-cancel-layer');
+    if (!editor || !textarea || !saveBtn || !cancelBtn) return;
+    textarea.readOnly = false;
+    textarea.focus();
+    saveBtn.removeAttribute('hidden');
+    cancelBtn.removeAttribute('hidden');
+    button.setAttribute('hidden', '');
+    return;
+  }
+
+  if (button.classList.contains('btn-cancel-layer')) {
+    const editor = button.closest('.prompt-layer-editor');
+    const textarea = editor?.querySelector('.field-layer-prompt');
+    const saveBtn = editor?.querySelector('.btn-save-layer');
+    const editBtn = editor?.querySelector('.btn-edit-layer');
+    if (!editor || !textarea || !saveBtn || !editBtn) return;
+    textarea.value = textarea.dataset.original || '';
+    textarea.readOnly = true;
+    button.setAttribute('hidden', '');
+    saveBtn.setAttribute('hidden', '');
+    editBtn.removeAttribute('hidden');
+    return;
+  }
+
+  if (button.classList.contains('btn-save-layer')) {
+    const editor = button.closest('.prompt-layer-editor');
+    button.disabled = true;
+    savePromptLayerFromEditor(editor)
+      .then(() => {
+        setMessage('Prompt layer saved.');
+      })
+      .catch((err) => {
+        if (Number(err?.status) === 409 && err?.payload?.current) {
+          const current = err.payload.current;
+          const textarea = editor?.querySelector('.field-layer-prompt');
+          const versionEl = editor?.querySelector('.field-layer-version');
+          const editBtn = editor?.querySelector('.btn-edit-layer');
+          const cancelBtn = editor?.querySelector('.btn-cancel-layer');
+          if (textarea) {
+            const text = String(current.promptTemplate || '');
+            textarea.value = text;
+            textarea.dataset.original = text;
+            textarea.readOnly = true;
+          }
+          if (versionEl) versionEl.textContent = String(current.version || 'new');
+          if (editBtn) editBtn.removeAttribute('hidden');
+          if (cancelBtn) cancelBtn.setAttribute('hidden', '');
+          button.setAttribute('hidden', '');
+          setMessage('Prompt layer changed by another editor. Refreshed to latest.');
+        } else {
+          setMessage(`Prompt layer save failed: ${err.message}`);
+        }
+      })
+      .finally(() => {
+        button.disabled = false;
+      });
+    return;
+  }
+
+  if (!button.classList.contains('draft-toggle')) return;
   const card = button.closest('.draft-card');
   if (!card) return;
   if (card.classList.contains('persona-card')) {
@@ -2031,6 +2382,39 @@ function onPersonaListClick(event) {
   if (!(button instanceof HTMLElement)) return;
 
   const card = button.closest('.persona-card');
+  const sectionCard = button.closest('.section-card');
+
+  if (button.classList.contains('btn-toggle-section-prompts')) {
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    setSectionPromptsExpanded(sectionCard, !isExpanded);
+    return;
+  }
+
+  if (button.classList.contains('btn-toggle-final-prompt')) {
+    const stageEl = button.closest('.workflow-stage');
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    setFinalPromptExpanded(stageEl, !isExpanded);
+    if (!isExpanded) {
+      loadFinalPromptPreview(stageEl).catch((err) => {
+        const messageEl = stageEl?.querySelector('.final-prompt-message');
+        if (messageEl) messageEl.textContent = `Preview failed: ${err.message}`;
+      });
+    }
+    return;
+  }
+
+  if (button.classList.contains('btn-load-final-prompt')) {
+    const stageEl = button.closest('.workflow-stage');
+    button.disabled = true;
+    loadFinalPromptPreview(stageEl)
+      .catch((err) => {
+        const messageEl = stageEl?.querySelector('.final-prompt-message');
+        if (messageEl) messageEl.textContent = `Preview failed: ${err.message}`;
+      })
+      .finally(() => { button.disabled = false; });
+    return;
+  }
+
   if (!card) return;
 
   if (button.classList.contains('btn-rename-persona')) {
