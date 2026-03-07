@@ -2,6 +2,7 @@ const { neon } = require('@neondatabase/serverless');
 const { requireAdmin } = require('../../_admin-auth');
 
 const VALID_ACTIONS = new Set(['promote', 'reject', 'watch']);
+const VALID_NEXT_STEPS = new Set(['none', 'research_discovery', 'cluster_update', 'story_planning']);
 
 function cleanText(value, max = 2000) {
   return String(value || '').trim().slice(0, max);
@@ -69,9 +70,13 @@ module.exports = async (req, res) => {
   }
 
   const action = cleanText(req.body?.action || '', 30).toLowerCase();
+  const requestedNextStep = cleanText(req.body?.nextStep || req.body?.next_step || '', 40).toLowerCase();
   const reviewNotes = cleanText(req.body?.reviewNotes || req.body?.review_notes || '', 4000);
   if (!VALID_ACTIONS.has(action)) {
     return res.status(400).json({ error: 'action must be one of: promote, reject, watch' });
+  }
+  if (requestedNextStep && !VALID_NEXT_STEPS.has(requestedNextStep)) {
+    return res.status(400).json({ error: 'nextStep must be one of: none, research_discovery, cluster_update, story_planning' });
   }
 
   try {
@@ -97,8 +102,11 @@ module.exports = async (req, res) => {
     const enforceAutonomyBrake = req.body?.enforceAutonomyBrake === true;
     const forcedWatchByBrake = enforceAutonomyBrake && action === 'promote' && current.isAutoPromoteEnabled !== true;
     const finalAction = forcedWatchByBrake ? 'watch' : action;
-    const finalNextStep = finalAction === 'promote'
+    const defaultNextStep = finalAction === 'promote'
       ? (current.relationToArchive === 'update' ? 'cluster_update' : 'research_discovery')
+      : 'none';
+    const finalNextStep = finalAction === 'promote'
+      ? (requestedNextStep === 'story_planning' ? 'story_planning' : defaultNextStep)
       : 'none';
     const finalReviewDecision = finalAction === 'promote'
       ? 'promoted'

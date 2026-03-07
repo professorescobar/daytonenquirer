@@ -8,7 +8,7 @@ import type { Inngest } from "inngest";
 type SourceType = "rss" | "webhook" | "chat_yes" | "chat_specify";
 type RelationToArchive = "none" | "duplicate" | "update" | "follow_up";
 type Action = "reject" | "watch" | "promote";
-type NextStep = "none" | "research_discovery" | "cluster_update";
+type NextStep = "none" | "research_discovery" | "cluster_update" | "story_planning";
 
 type SignalRecord = {
   id: number;
@@ -2065,7 +2065,7 @@ async function classifyWithGatekeeper(
     "You are a local newsroom gatekeeper classifier.",
     "Return strict JSON only.",
     "Schema:",
-    "{\"is_newsworthy\":0-1,\"is_local\":true|false,\"confidence\":0-1,\"category\":\"...\",\"relation_to_archive\":\"none|duplicate|update|follow_up\",\"event_key\":\"...\",\"action\":\"reject|watch|promote\",\"next_step\":\"none|research_discovery|cluster_update\",\"policy_flags\":[\"...\"],\"reasoning\":\"...\"}",
+    "{\"is_newsworthy\":0-1,\"is_local\":true|false,\"confidence\":0-1,\"category\":\"...\",\"relation_to_archive\":\"none|duplicate|update|follow_up\",\"event_key\":\"...\",\"action\":\"reject|watch|promote\",\"next_step\":\"none|research_discovery|cluster_update|story_planning\",\"policy_flags\":[\"...\"],\"reasoning\":\"...\"}",
     "Rules:",
     "- Prefer watch over promote when evidence is thin.",
     "- Keep next_step consistent with action.",
@@ -2102,7 +2102,9 @@ async function classifyWithGatekeeper(
   const action = ["reject", "watch", "promote"].includes(String(parsed.action || ""))
     ? (parsed.action as Action)
     : "watch";
-  const nextStep = ["none", "research_discovery", "cluster_update"].includes(String(parsed.next_step || ""))
+  const nextStep = ["none", "research_discovery", "cluster_update", "story_planning"].includes(
+    String(parsed.next_step || "")
+  )
     ? (parsed.next_step as NextStep)
     : "none";
   const flags = Array.isArray(parsed.policy_flags) ? parsed.policy_flags : [];
@@ -2255,6 +2257,15 @@ async function routeNextStep(
   if (decision.next_step === "cluster_update") {
     await step.sendEvent("emit-cluster-update-start", {
       name: "cluster.update.start",
+      data: {
+        signalId
+      }
+    });
+    return;
+  }
+  if (decision.next_step === "story_planning") {
+    await step.sendEvent("emit-story-planning-start-direct", {
+      name: "story.planning.start",
       data: {
         signalId
       }
