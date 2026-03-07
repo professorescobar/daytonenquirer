@@ -1642,16 +1642,32 @@ function renderPromptLayerEditor(scopeType, stageName, section) {
   const label = STAGE_LABELS[stageName] || stageName;
   const scopeLabel = scopeType === PROMPT_SCOPE_GLOBAL ? 'Global' : `${titleCaseSlug(section)} Section`;
   const rows = scopeType === PROMPT_SCOPE_GLOBAL ? 8 : 4;
+  const explainer = STAGE_EXPLANATIONS[stageName] || { summary: '', details: [] };
+  const hardcoded = HARD_CODED_STAGE_STACK[stageName] || {};
+  const summaryText = [
+    String(hardcoded.runnerType || '').toUpperCase(),
+    cleanText(hardcoded.provider || '', 120),
+    cleanText(hardcoded.modelOrEndpoint || '', 300)
+  ].filter(Boolean).join(' • ');
   return `
     <section class="workflow-stage prompt-layer-editor" data-scope-type="${escapeHtml(scopeType)}" data-stage="${escapeHtml(stageName)}" data-section="${escapeHtml(section || '')}">
       <button type="button" class="workflow-stage-header btn-reset btn-toggle-layer-editor" aria-expanded="false">
         <div>
           <h4>${escapeHtml(label)}</h4>
-          <div class="workflow-stage-summary">${escapeHtml(scopeLabel)} prompt layer</div>
+          <div class="workflow-stage-summary">${escapeHtml(summaryText || `${scopeLabel} prompt layer`)}</div>
         </div>
         <span class="draft-meta">Edit</span>
       </button>
       <div class="workflow-stage-body" hidden>
+        <div class="workflow-stage-grid">
+          <div class="workflow-wide stage-explainer">
+            <p><strong>${escapeHtml(explainer.summary || '')}</strong></p>
+            <ul>
+              ${(Array.isArray(explainer.details) ? explainer.details : []).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
+            </ul>
+          </div>
+          <p class="signal-meta workflow-wide">Model stack is globally hardcoded for v1. Stage-level model selection is disabled.</p>
+        </div>
         <label class="workflow-wide">
           Prompt Guidance
           <textarea
@@ -1849,16 +1865,32 @@ async function loadPersonaFinalPromptBundle(card) {
     const warnings = Array.isArray(data.warnings) && data.warnings.length
       ? `<p class="signal-meta">warnings: ${escapeHtml(data.warnings.join(', '))}</p>`
       : '';
+    const hardcoded = HARD_CODED_STAGE_STACK[row.stageName] || {};
+    const summaryText = [
+      String(hardcoded.runnerType || '').toUpperCase(),
+      cleanText(hardcoded.provider || '', 120),
+      cleanText(hardcoded.modelOrEndpoint || '', 300)
+    ].filter(Boolean).join(' • ');
+    const explainer = STAGE_EXPLANATIONS[row.stageName] || { summary: '', details: [] };
     return `
       <section class="workflow-stage">
         <button type="button" class="workflow-stage-header btn-reset btn-toggle-persona-final-stage" aria-expanded="false">
           <div>
             <h4>${escapeHtml(STAGE_LABELS[row.stageName] || row.stageName)}</h4>
-            <div class="workflow-stage-summary">sourceVersion=${escapeHtml(cleanText(data.promptSourceVersion || '', 120) || 'n/a')}</div>
+            <div class="workflow-stage-summary">${escapeHtml(summaryText || `sourceVersion=${cleanText(data.promptSourceVersion || '', 120) || 'n/a'}`)}</div>
           </div>
           <span class="draft-meta">Show</span>
         </button>
         <div class="workflow-stage-body" hidden>
+          <div class="workflow-stage-grid">
+            <div class="workflow-wide stage-explainer">
+              <p><strong>${escapeHtml(explainer.summary || '')}</strong></p>
+              <ul>
+                ${(Array.isArray(explainer.details) ? explainer.details : []).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
+              </ul>
+            </div>
+            <p class="signal-meta workflow-wide">sourceVersion=${escapeHtml(cleanText(data.promptSourceVersion || '', 120) || 'n/a')}</p>
+          </div>
           ${warnings}
           <textarea class="field-final-prompt" rows="9" readonly>${escapeHtml(cleanText(data.compiledPrompt || '', 200000))}</textarea>
         </div>
