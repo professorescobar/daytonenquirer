@@ -68,6 +68,7 @@ type PersistedDecision = GatekeeperOutput & {
 type ResearchSignalContext = {
   id: number;
   personaId: string;
+  personaSection: string;
   title: string;
   snippet: string | null;
   sourceName: string | null;
@@ -123,6 +124,15 @@ type StoryPlanArtifact = {
   missingInformation: string[];
 };
 
+type DraftWritingArtifact = {
+  headline: string;
+  dek: string;
+  body: string;
+  sourceUrls: string[];
+  uncertaintyNotes: string[];
+  coverageGaps: string[];
+};
+
 type PacingConfig = {
   enabled: boolean;
   postingDays: boolean[];
@@ -148,6 +158,31 @@ type QueueDecision = {
   scheduledForUtc: string | null;
   scheduledDayLocal: string | null;
 };
+
+type StagePromptBundle = {
+  compiledPrompt: string;
+  promptHash: string;
+  promptSourceVersion: string;
+  warnings: string[];
+};
+
+type SharedCompiledPrompt = {
+  ok: boolean;
+  compiledPrompt: string;
+  warnings?: string[];
+  promptHash: string;
+  promptSourceVersion: string;
+};
+
+const {
+  compileStagePrompt,
+  normalizeStageName,
+  normalizeSection
+}: {
+  compileStagePrompt: (options?: Record<string, unknown>) => SharedCompiledPrompt;
+  normalizeStageName: (value: unknown) => string;
+  normalizeSection: (value: unknown) => string;
+} = require("../lib/topic-engine-prompts");
 
 const TEST_SIGNAL_ID = 12345;
 const TEST_MODE_ENABLED =
@@ -180,6 +215,128 @@ function isTestSignalId(signalId: number): boolean {
 
 function cleanText(value: unknown, max = 8000): string {
   return String(value || "").trim().slice(0, max);
+}
+
+async function loadPromptLayerGuidance(
+  sql: any,
+  stageName: string,
+  personaId: string,
+  section: string
+): Promise<{
+  globalPrompt: string;
+  sectionPrompt: string;
+  personaPrompt: string;
+  sourceVersions: { global: number | null; section: number | null; persona: number | null };
+}> {
+  const stage = cleanText(normalizeStageName(stageName), 120);
+  if (!stage || !personaId) {
+    return {
+      globalPrompt: "",
+      sectionPrompt: "",
+      personaPrompt: "",
+      sourceVersions: { global: null, section: null, persona: null }
+    };
+  }
+  const normalizedSection = cleanText(normalizeSection(section || "local"), 120);
+
+  const tableRows = await sql`
+    SELECT
+      to_regclass('public.topic_engine_prompt_layers') as "layersTable",
+      to_regclass('public.topic_engine_stage_configs') as "stageConfigsTable"
+  `;
+  const hasLayersTable = Boolean(tableRows?.[0]?.layersTable);
+  const hasStageConfigsTable = Boolean(tableRows?.[0]?.stageConfigsTable);
+  if (!hasLayersTable) {
+    return {
+      globalPrompt: "",
+      sectionPrompt: "",
+      personaPrompt: "",
+      sourceVersions: { global: null, section: null, persona: null }
+    };
+  }
+
+  const globalRows = await sql`
+    SELECT
+      prompt_template as "promptTemplate",
+      version
+    FROM topic_engine_prompt_layers
+    WHERE stage_name = ${stage}
+      AND scope_type = 'global'
+    LIMIT 1
+  `;
+  const sectionRows = normalizedSection
+    ? await sql`
+        SELECT
+          prompt_template as "promptTemplate",
+          version
+        FROM topic_engine_prompt_layers
+        WHERE stage_name = ${stage}
+          AND scope_type = 'section'
+          AND section = ${normalizedSection}
+        LIMIT 1
+      `
+    : [];
+  const personaRows = hasStageConfigsTable
+    ? await sql`
+        SELECT
+          prompt_template as "promptTemplate"
+        FROM topic_engine_stage_configs
+        WHERE persona_id = ${personaId}
+          AND stage_name = ${stage}
+        LIMIT 1
+      `
+    : [];
+
+  return {
+    globalPrompt: cleanText(globalRows?.[0]?.promptTemplate || "", 50000),
+    sectionPrompt: cleanText(sectionRows?.[0]?.promptTemplate || "", 50000),
+    personaPrompt: cleanText(personaRows?.[0]?.promptTemplate || "", 50000),
+    sourceVersions: {
+      global: Number.isFinite(Number(globalRows?.[0]?.version)) ? Number(globalRows[0].version) : null,
+      section: Number.isFinite(Number(sectionRows?.[0]?.version)) ? Number(sectionRows[0].version) : null,
+      persona: null
+    }
+  };
+}
+
+async function buildStageGuidanceBundle(
+  sql: any,
+  stageName: string,
+  personaId: string,
+  section: string
+): Promise<StagePromptBundle> {
+  try {
+    const guidance = await loadPromptLayerGuidance(sql, stageName, personaId, section);
+    const compiled = compileStagePrompt({
+      stageName,
+      section,
+      globalPrompt: guidance.globalPrompt,
+      sectionPrompt: guidance.sectionPrompt,
+      personaPrompt: guidance.personaPrompt,
+      sourceVersions: guidance.sourceVersions
+    });
+    if (!compiled?.ok) {
+      return {
+        compiledPrompt: "",
+        promptHash: "",
+        promptSourceVersion: "",
+        warnings: Array.isArray(compiled?.warnings) ? compiled.warnings : ["invalid_stage_name"]
+      };
+    }
+    return {
+      compiledPrompt: cleanText(compiled.compiledPrompt || "", 200000),
+      promptHash: cleanText(compiled.promptHash || "", 120),
+      promptSourceVersion: cleanText(compiled.promptSourceVersion || "", 120),
+      warnings: Array.isArray(compiled.warnings) ? compiled.warnings : []
+    };
+  } catch (_) {
+    return {
+      compiledPrompt: "",
+      promptHash: "",
+      promptSourceVersion: "",
+      warnings: ["guidance_load_failed"]
+    };
+  }
 }
 
 function toSafeJsonObject(value: unknown): Record<string, unknown> {
@@ -666,7 +823,8 @@ async function loadExistingSlotsForDay(
   sql: any,
   personaId: string,
   dayLocal: string,
-  timezone: string
+  timezone: string,
+  excludeQueueId: string | null = null
 ): Promise<number[]> {
   const rows = await sql`
     SELECT
@@ -676,10 +834,69 @@ async function loadExistingSlotsForDay(
       AND q.status IN ('queued', 'released')
       AND q.scheduled_day_local = ${dayLocal}::date
       AND q.scheduled_for_utc IS NOT NULL
+      AND (${excludeQueueId}::uuid IS NULL OR q.id <> ${excludeQueueId}::uuid)
   `;
   return rows
     .map((row: any) => parseTimeToMinutes(cleanText(row.scheduledTime, 20), -1))
     .filter((value: number) => value >= 0);
+}
+
+async function loadReleasedSlotsForDay(
+  sql: any,
+  personaId: string,
+  dayLocal: string,
+  timezone: string,
+  excludeQueueId: string | null = null
+): Promise<number[]> {
+  const rows = await sql`
+    SELECT
+      to_char((q.released_at AT TIME ZONE ${timezone})::time, 'HH24:MI:SS') as "releasedTime"
+    FROM topic_engine_release_queue q
+    WHERE q.persona_id = ${personaId}
+      AND q.status = 'released'
+      AND q.released_day_local = ${dayLocal}::date
+      AND q.released_at IS NOT NULL
+      AND (${excludeQueueId}::uuid IS NULL OR q.id <> ${excludeQueueId}::uuid)
+  `;
+  return rows
+    .map((row: any) => parseTimeToMinutes(cleanText(row.releasedTime, 20), -1))
+    .filter((value: number) => value >= 0);
+}
+
+async function buildDeferredSchedule(
+  sql: any,
+  personaId: string,
+  config: PacingConfig,
+  nowLocalDate: string,
+  nowLocalTime: string,
+  excludeQueueId: string | null
+): Promise<{ scheduledForUtc: string; scheduledDayLocal: string } | null> {
+  let targetLocalDate = nextActiveLocalDate(nowLocalDate, config.postingDays);
+  for (let attempts = 0; attempts < 5; attempts += 1) {
+    const existingSlots = await loadExistingSlotsForDay(
+      sql,
+      personaId,
+      targetLocalDate,
+      config.adminTimezone,
+      excludeQueueId
+    );
+    const slotMinute = pickScheduledMinute(config, nowLocalTime, targetLocalDate === nowLocalDate, existingSlots);
+    if (slotMinute === null) {
+      targetLocalDate = nextActiveLocalDate(addDays(targetLocalDate, 1), config.postingDays);
+      continue;
+    }
+    const localTime = minutesToTimeString(slotMinute);
+    const scheduledForUtc = await convertLocalToUtc(sql, targetLocalDate, localTime, config.adminTimezone);
+    if (new Date(scheduledForUtc).getTime() <= Date.now()) {
+      targetLocalDate = nextActiveLocalDate(addDays(targetLocalDate, 1), config.postingDays);
+      continue;
+    }
+    return {
+      scheduledForUtc,
+      scheduledDayLocal: targetLocalDate
+    };
+  }
+  return null;
 }
 
 function pickScheduledMinute(
@@ -687,7 +904,7 @@ function pickScheduledMinute(
   nowLocalTime: string,
   isToday: boolean,
   existingSlots: number[]
-): number {
+): number | null {
   const nowMinutes = parseTimeToMinutes(nowLocalTime, 0);
   const startMinutes = parseTimeToMinutes(config.windowStartLocal, 6 * 60);
   const endMinutes = parseTimeToMinutes(config.windowEndLocal, 22 * 60);
@@ -696,7 +913,7 @@ function pickScheduledMinute(
 
   let candidateSlots: number[] = [];
   if (posts <= 0) {
-    candidateSlots = [];
+    return null;
   } else if (posts === 1) {
     const slot = config.cadenceEnabled
       ? chooseSinglePostSlot(window.start, window.end, config.singlePostDaypart, null)
@@ -718,6 +935,7 @@ function pickScheduledMinute(
     if (hasSpacingConflict) continue;
     return normalized;
   }
+  if (!candidateSlots.length) return null;
   const fallback = candidateSlots[0] ?? window.start + window.duration * 0.5;
   return fallback >= 24 * 60 ? fallback - 24 * 60 : fallback;
 }
@@ -807,6 +1025,19 @@ async function applyQuotaPacingGate(signalId: number, personaId: string): Promis
     };
   }
 
+  if (config.postsPerActiveDay <= 0) {
+    const decision: QueueDecision = {
+      signalId,
+      personaId,
+      decision: "rejected",
+      reasonCode: "posts_per_active_day_zero",
+      scheduledForUtc: null,
+      scheduledDayLocal: null
+    };
+    await upsertQueueDecision(sql, decision);
+    return decision;
+  }
+
   if (config.killSwitchEnabled) {
     const decision: QueueDecision = {
       signalId,
@@ -844,6 +1075,18 @@ async function applyQuotaPacingGate(signalId: number, personaId: string): Promis
 
   const existingSlots = await loadExistingSlotsForDay(sql, personaId, targetLocalDate, config.adminTimezone);
   const slotMinute = pickScheduledMinute(config, clock.nowLocalTime, targetLocalDate === todayLocal, existingSlots);
+  if (slotMinute === null) {
+    const decision: QueueDecision = {
+      signalId,
+      personaId,
+      decision: "rejected",
+      reasonCode: "no_available_schedule_slot",
+      scheduledForUtc: null,
+      scheduledDayLocal: targetLocalDate
+    };
+    await upsertQueueDecision(sql, decision);
+    return decision;
+  }
   const localTime = minutesToTimeString(slotMinute);
   const scheduledForUtc = await convertLocalToUtc(sql, targetLocalDate, localTime, config.adminTimezone);
   const scheduledDateUtcMs = new Date(scheduledForUtc).getTime();
@@ -923,8 +1166,134 @@ async function releaseDueQueuedSignals(limit = 30): Promise<Array<{ signalId: nu
     LIMIT ${limit}
   `;
 
+  const clock = await loadLocalClock(sql, adminTimezone);
+  let globalReleasedToday = 0;
+  const personaReleasedToday = new Map<string, number>();
+  const releasedCountRows = await sql`
+    SELECT
+      persona_id as "personaId",
+      COUNT(*)::int as "releasedCount"
+    FROM topic_engine_release_queue
+    WHERE status = 'released'
+      AND released_day_local = ${clock.nowLocalDate}::date
+    GROUP BY persona_id
+  `;
+  for (const row of releasedCountRows) {
+    const personaId = cleanText(row.personaId, 255);
+    const count = Number(row.releasedCount || 0);
+    globalReleasedToday += count;
+    personaReleasedToday.set(personaId, count);
+  }
+
   const released: Array<{ signalId: number; personaId: string }> = [];
   for (const row of dueRows) {
+    const personaId = cleanText(row.personaId, 255);
+    const signalId = Number(row.signalId);
+    const queueId = cleanText(row.id, 80) || null;
+    const config = await loadPacingConfig(sql, personaId);
+    const personaReleasedCount = Number(personaReleasedToday.get(personaId) || 0);
+
+    if (config.postsPerActiveDay <= 0) {
+      await sql`
+        UPDATE topic_engine_release_queue
+        SET
+          status = 'rejected',
+          reason_code = 'posts_per_active_day_zero',
+          updated_at = NOW()
+        WHERE id = ${queueId}
+          AND status IN ('queued', 'deferred')
+      `;
+      continue;
+    }
+
+    if (
+      globalReleasedToday >= config.globalDailyCap ||
+      personaReleasedCount >= config.postsPerActiveDay
+    ) {
+      const deferredSchedule = await buildDeferredSchedule(
+        sql,
+        personaId,
+        config,
+        clock.nowLocalDate,
+        clock.nowLocalTime,
+        queueId
+      );
+      if (!deferredSchedule) {
+        await sql`
+          UPDATE topic_engine_release_queue
+          SET
+            status = 'rejected',
+            reason_code = 'no_available_schedule_slot',
+            updated_at = NOW()
+          WHERE id = ${queueId}
+            AND status IN ('queued', 'deferred')
+        `;
+        continue;
+      }
+      await sql`
+        UPDATE topic_engine_release_queue
+        SET
+          status = 'deferred',
+          reason_code = ${
+            globalReleasedToday >= config.globalDailyCap
+              ? "global_daily_cap_recheck"
+              : "persona_daily_cap_recheck"
+          },
+          scheduled_for_utc = ${deferredSchedule.scheduledForUtc},
+          scheduled_day_local = ${deferredSchedule.scheduledDayLocal}::date,
+          updated_at = NOW()
+        WHERE id = ${queueId}
+          AND status IN ('queued', 'deferred')
+      `;
+      continue;
+    }
+
+    const releasedSlots = await loadReleasedSlotsForDay(
+      sql,
+      personaId,
+      clock.nowLocalDate,
+      config.adminTimezone,
+      queueId
+    );
+    const nowMinutes = parseTimeToMinutes(clock.nowLocalTime, 0);
+    const hasSpacingConflict = releasedSlots.some(
+      (existing) => Math.abs(existing - nowMinutes) < config.minSpacingMinutes
+    );
+    if (hasSpacingConflict) {
+      const deferredSchedule = await buildDeferredSchedule(
+        sql,
+        personaId,
+        config,
+        clock.nowLocalDate,
+        clock.nowLocalTime,
+        queueId
+      );
+      if (!deferredSchedule) {
+        await sql`
+          UPDATE topic_engine_release_queue
+          SET
+            status = 'rejected',
+            reason_code = 'no_available_schedule_slot',
+            updated_at = NOW()
+          WHERE id = ${queueId}
+            AND status IN ('queued', 'deferred')
+        `;
+        continue;
+      }
+      await sql`
+        UPDATE topic_engine_release_queue
+        SET
+          status = 'deferred',
+          reason_code = 'min_spacing_recheck',
+          scheduled_for_utc = ${deferredSchedule.scheduledForUtc},
+          scheduled_day_local = ${deferredSchedule.scheduledDayLocal}::date,
+          updated_at = NOW()
+        WHERE id = ${queueId}
+          AND status IN ('queued', 'deferred')
+      `;
+      continue;
+    }
+
     const updated = await sql`
       UPDATE topic_engine_release_queue
       SET
@@ -941,6 +1310,8 @@ async function releaseDueQueuedSignals(limit = 30): Promise<Array<{ signalId: nu
         signalId: Number(updated[0].signalId),
         personaId: cleanText(updated[0].personaId, 255)
       });
+      globalReleasedToday += 1;
+      personaReleasedToday.set(personaId, personaReleasedCount + 1);
     }
   }
   return released;
@@ -964,6 +1335,7 @@ async function loadResearchSignalContext(signalId: number): Promise<ResearchSign
     return {
       id: TEST_SIGNAL_ID,
       personaId: "dayton-local",
+      personaSection: "local",
       title: "Mock Signal 12345: Downtown Dayton road closures planned this weekend",
       snippet: "City crews announced temporary closures downtown for utility work and detours affecting weekend traffic.",
       sourceName: "Mock Feed",
@@ -978,16 +1350,19 @@ async function loadResearchSignalContext(signalId: number): Promise<ResearchSign
   const sql = neon(databaseUrl);
   const rows = await sql`
     SELECT
-      id,
-      persona_id as "personaId",
-      title,
-      snippet,
-      source_name as "sourceName",
-      source_url as "sourceUrl",
-      event_key as "eventKey",
-      dedupe_key as "dedupeKey"
-    FROM topic_signals
-    WHERE id = ${signalId}
+      s.id,
+      s.persona_id as "personaId",
+      COALESCE(NULLIF(trim(to_jsonb(p)->>'section'), ''), 'local') as "personaSection",
+      s.title,
+      s.snippet,
+      s.source_name as "sourceName",
+      s.source_url as "sourceUrl",
+      s.event_key as "eventKey",
+      s.dedupe_key as "dedupeKey"
+    FROM topic_signals s
+    LEFT JOIN personas p
+      ON p.id = s.persona_id
+    WHERE s.id = ${signalId}
     LIMIT 1
   `;
   const row = rows[0];
@@ -995,6 +1370,7 @@ async function loadResearchSignalContext(signalId: number): Promise<ResearchSign
   return {
     id: Number(row.id),
     personaId: cleanText(row.personaId, 255),
+    personaSection: cleanText(row.personaSection, 120).toLowerCase() || "local",
     title: cleanText(row.title, 500),
     snippet: cleanText(row.snippet || "", 4000) || null,
     sourceName: cleanText(row.sourceName || "", 500) || null,
@@ -1004,7 +1380,10 @@ async function loadResearchSignalContext(signalId: number): Promise<ResearchSign
   };
 }
 
-async function generateResearchQueries(signal: ResearchSignalContext): Promise<string[]> {
+async function generateResearchQueries(
+  signal: ResearchSignalContext,
+  guidanceBundle: StagePromptBundle
+): Promise<string[]> {
   const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
@@ -1013,6 +1392,10 @@ async function generateResearchQueries(signal: ResearchSignalContext): Promise<s
     model
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const prompt = [
+    guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
+    guidanceBundle.promptSourceVersion
+      ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}`
+      : "",
     "You generate search queries for local journalism research.",
     "Return strict JSON only: {\"queries\":[\"...\"]}",
     "Rules:",
@@ -1205,7 +1588,16 @@ async function persistResearchArtifacts(
 
 async function runResearchDiscovery(signalId: number): Promise<{ queries: string[]; saved: number; fetched: number }> {
   const signal = await loadResearchSignalContext(signalId);
-  const queries = await generateResearchQueries(signal);
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const guidanceBundle = await buildStageGuidanceBundle(
+    sql,
+    "research_discovery",
+    signal.personaId,
+    signal.personaSection
+  );
+  const queries = await generateResearchQueries(signal, guidanceBundle);
   const allResults: TavilyResult[] = [];
   for (const query of queries) {
     const results = await searchTavily(query);
@@ -1278,7 +1670,8 @@ function clampConfidence(value: unknown): number {
 
 async function extractEvidenceClaimsWithGemini(
   signal: ResearchSignalContext,
-  sources: EvidenceSource[]
+  sources: EvidenceSource[],
+  guidanceBundle: StagePromptBundle
 ): Promise<EvidenceClaim[]> {
   const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
@@ -1297,6 +1690,10 @@ async function extractEvidenceClaimsWithGemini(
     )
     .join("\n\n");
   const prompt = [
+    guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
+    guidanceBundle.promptSourceVersion
+      ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}`
+      : "",
     "You extract evidence claims for newsroom writing from provided sources only.",
     "Return strict JSON only in this shape:",
     "{\"claims\":[{\"claim\":\"...\",\"sourceUrl\":\"...\",\"evidenceQuote\":\"...\",\"confidence\":0.0,\"whyItMatters\":\"...\"}]}",
@@ -1472,7 +1869,16 @@ async function runEvidenceExtraction(signalId: number): Promise<{
     return { sourceCount: 0, claimCount: 0, saved: 0, skipped: true };
   }
 
-  const rawClaims = await extractEvidenceClaimsWithGemini(signal, sources);
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const guidanceBundle = await buildStageGuidanceBundle(
+    sql,
+    "evidence_extraction",
+    signal.personaId,
+    signal.personaSection
+  );
+  const rawClaims = await extractEvidenceClaimsWithGemini(signal, sources, guidanceBundle);
   const allowedUrls = new Set(sources.map((source) => source.sourceUrl.toLowerCase()));
   const claims = normalizeEvidenceClaims(rawClaims, allowedUrls);
   const saved = await persistEvidenceArtifacts(signal, claims);
@@ -1602,7 +2008,8 @@ function normalizeStoryPlan(
 
 async function buildStoryPlanWithOpenAi(
   signal: ResearchSignalContext,
-  evidence: StoryPlanningEvidence[]
+  evidence: StoryPlanningEvidence[],
+  guidanceBundle: StagePromptBundle
 ): Promise<StoryPlanArtifact> {
   const apiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
   if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
@@ -1621,6 +2028,10 @@ async function buildStoryPlanWithOpenAi(
     )
     .join("\n\n");
   const prompt = [
+    guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
+    guidanceBundle.promptSourceVersion
+      ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}`
+      : "",
     "You are creating a structured newsroom story plan from verified evidence only.",
     "Return strict JSON only in this schema:",
     "{\"angle\":\"...\",\"narrativeStrategy\":\"...\",\"sections\":[{\"heading\":\"...\",\"summary\":\"...\",\"evidenceSourceUrls\":[\"...\"]}],\"uncertaintyNotes\":[\"...\"],\"missingInformation\":[\"...\"]}",
@@ -1664,7 +2075,8 @@ async function buildStoryPlanWithOpenAi(
 
 async function buildStoryPlanWithGemini(
   signal: ResearchSignalContext,
-  evidence: StoryPlanningEvidence[]
+  evidence: StoryPlanningEvidence[],
+  guidanceBundle: StagePromptBundle
 ): Promise<StoryPlanArtifact> {
   const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
@@ -1683,6 +2095,10 @@ async function buildStoryPlanWithGemini(
     )
     .join("\n\n");
   const prompt = [
+    guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
+    guidanceBundle.promptSourceVersion
+      ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}`
+      : "",
     "You are creating a structured newsroom story plan from verified evidence only.",
     "Return strict JSON only in this schema:",
     "{\"angle\":\"...\",\"narrativeStrategy\":\"...\",\"sections\":[{\"heading\":\"...\",\"summary\":\"...\",\"evidenceSourceUrls\":[\"...\"]}],\"uncertaintyNotes\":[\"...\"],\"missingInformation\":[\"...\"]}",
@@ -1727,13 +2143,14 @@ async function buildStoryPlanWithGemini(
 
 async function buildStoryPlan(
   signal: ResearchSignalContext,
-  evidence: StoryPlanningEvidence[]
+  evidence: StoryPlanningEvidence[],
+  guidanceBundle: StagePromptBundle
 ): Promise<{ plan: StoryPlanArtifact; provider: "openai" | "gemini"; model: string }> {
   const hasOpenAi = Boolean(cleanText(process.env.OPENAI_API_KEY || "", 20));
   const hasGemini = Boolean(cleanText(process.env.GEMINI_API_KEY || "", 20));
   if (hasOpenAi) {
     try {
-      const plan = await buildStoryPlanWithOpenAi(signal, evidence);
+      const plan = await buildStoryPlanWithOpenAi(signal, evidence, guidanceBundle);
       return {
         plan,
         provider: "openai",
@@ -1743,7 +2160,7 @@ async function buildStoryPlan(
       if (!hasGemini) throw error;
     }
   }
-  const plan = await buildStoryPlanWithGemini(signal, evidence);
+  const plan = await buildStoryPlanWithGemini(signal, evidence, guidanceBundle);
   return {
     plan,
     provider: "gemini",
@@ -1851,7 +2268,16 @@ async function runStoryPlanning(signalId: number): Promise<{
     return { evidenceCount: 0, sectionCount: 0, saved: 0, skipped: true };
   }
 
-  const storyPlanResult = await buildStoryPlan(signal, evidence);
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const guidanceBundle = await buildStageGuidanceBundle(
+    sql,
+    "story_planning",
+    signal.personaId,
+    signal.personaSection
+  );
+  const storyPlanResult = await buildStoryPlan(signal, evidence, guidanceBundle);
   const saved = await persistStoryPlanArtifact(
     signal,
     storyPlanResult.plan,
@@ -1866,6 +2292,265 @@ async function runStoryPlanning(signalId: number): Promise<{
     saved,
     provider: storyPlanResult.provider,
     model: storyPlanResult.model
+  };
+}
+
+async function loadLatestStoryPlanArtifact(
+  signalId: number,
+  evidence: StoryPlanningEvidence[]
+): Promise<StoryPlanArtifact | null> {
+  if (isTestSignalId(signalId)) {
+    return normalizeStoryPlan(
+      {
+        angle: "Downtown Dayton weekend closures impact drivers and transit riders",
+        narrativeStrategy:
+          "Lead with closure timing and direct impacts, then transit adjustments and remaining uncertainty.",
+        sections: [
+          {
+            heading: "What is changing this weekend",
+            summary: "City crews will close select downtown lanes starting Saturday morning through Sunday night.",
+            evidenceSourceUrls: ["https://example.com/mock-signal-12345"]
+          },
+          {
+            heading: "Transit and commute impact",
+            summary: "RTA says two routes will temporarily shift stops near utility work zones.",
+            evidenceSourceUrls: ["https://example.com/mock-signal-12345-traffic"]
+          },
+          {
+            heading: "What residents should do now",
+            summary: "Drivers and riders should check detours and service notices before heading downtown.",
+            evidenceSourceUrls: [
+              "https://example.com/mock-signal-12345",
+              "https://example.com/mock-signal-12345-traffic"
+            ]
+          }
+        ],
+        uncertaintyNotes: ["Exact reopening timing may shift based on field progress."],
+        missingInformation: ["Intersection-level closure windows were not fully published."]
+      },
+      evidence
+    );
+  }
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const sourceUrl = `signal://${signalId}/story-plan`;
+  const rows = await sql`
+    SELECT metadata
+    FROM research_artifacts
+    WHERE signal_id = ${signalId}
+      AND stage = 'story_planning'
+      AND artifact_type = 'story_plan'
+      AND source_url = ${sourceUrl}
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+
+  const metadata = toSafeJsonObject(rows?.[0]?.metadata);
+  const rawPlan = toSafeJsonObject(metadata.plan);
+  if (!Object.keys(rawPlan).length) return null;
+  return normalizeStoryPlan(rawPlan, evidence);
+}
+
+function dedupeUrls(urls: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of urls) {
+    const url = cleanText(raw, 2000);
+    const key = url.toLowerCase();
+    if (!url || seen.has(key)) continue;
+    seen.add(key);
+    out.push(url);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+function buildDeterministicDraftFromPlan(
+  signal: ResearchSignalContext,
+  plan: StoryPlanArtifact,
+  evidence: StoryPlanningEvidence[]
+): DraftWritingArtifact {
+  const sectionParagraphs = plan.sections
+    .slice(0, 8)
+    .map((section) => `${section.heading}: ${cleanText(section.summary, 1200)}`)
+    .filter(Boolean);
+
+  const body = sectionParagraphs.join("\n\n");
+  const urlsFromPlan = dedupeUrls(plan.sections.flatMap((section) => section.evidenceSourceUrls || []));
+  const fallbackUrls = dedupeUrls(evidence.map((item) => item.sourceUrl));
+
+  return {
+    headline: cleanText(plan.angle || signal.title, 220) || "Local update",
+    dek:
+      cleanText(plan.narrativeStrategy, 320) ||
+      "Verified local developments and what they mean for Dayton-area readers.",
+    body: cleanText(body, 22000),
+    sourceUrls: urlsFromPlan.length ? urlsFromPlan : fallbackUrls,
+    uncertaintyNotes: plan.uncertaintyNotes.map((note) => cleanText(note, 300)).filter(Boolean).slice(0, 8),
+    coverageGaps: plan.missingInformation.map((item) => cleanText(item, 300)).filter(Boolean).slice(0, 8)
+  };
+}
+
+async function persistDraftWritingArtifact(
+  signal: ResearchSignalContext,
+  draft: DraftWritingArtifact,
+  context: {
+    evidenceCount: number;
+    sectionCount: number;
+    promptHash: string;
+    promptSourceVersion: string;
+    warnings: string[];
+  }
+): Promise<number> {
+  if (isTestSignalId(signal.id)) {
+    console.log("test-mode persistDraftWritingArtifact skip", {
+      signalId: signal.id,
+      evidenceCount: context.evidenceCount,
+      sectionCount: context.sectionCount,
+      draft
+    });
+    return 1;
+  }
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+
+  const runId = randomUUID();
+  const engineId = randomUUID();
+  const candidateId = randomUUID();
+  const sourceUrl = `signal://${signal.id}/draft`;
+
+  const metadata = {
+    signalId: signal.id,
+    personaId: signal.personaId,
+    provider: "deterministic",
+    model: "draft-writing-deterministic-v1",
+    evidenceCount: context.evidenceCount,
+    sectionCount: context.sectionCount,
+    sourceCount: draft.sourceUrls.length,
+    promptHash: cleanText(context.promptHash, 120),
+    promptSourceVersion: cleanText(context.promptSourceVersion, 120),
+    warnings: Array.isArray(context.warnings) ? context.warnings.slice(0, 20) : [],
+    draft
+  };
+
+  const rows = await sql`
+    INSERT INTO research_artifacts (
+      id,
+      run_id,
+      engine_id,
+      candidate_id,
+      signal_id,
+      persona_id,
+      stage,
+      artifact_type,
+      source_url,
+      source_domain,
+      title,
+      published_at,
+      content,
+      metadata,
+      created_at
+    )
+    SELECT
+      ${randomUUID()},
+      ${runId},
+      ${engineId},
+      ${candidateId},
+      ${signal.id},
+      ${signal.personaId || null},
+      'draft_writing',
+      'draft_package',
+      ${sourceUrl},
+      ${null},
+      ${draft.headline || `Draft package for signal ${signal.id}`},
+      ${null},
+      ${draft.body},
+      ${toSafeJsonObject(metadata)}::jsonb,
+      NOW()
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM research_artifacts ra
+      WHERE ra.signal_id = ${signal.id}
+        AND ra.stage = 'draft_writing'
+        AND ra.artifact_type = 'draft_package'
+        AND ra.source_url = ${sourceUrl}
+    )
+    RETURNING id
+  `;
+
+  return rows.length;
+}
+
+async function runDraftWriting(signalId: number): Promise<{
+  evidenceCount: number;
+  sectionCount: number;
+  sourceCount: number;
+  bodyChars: number;
+  saved: number;
+  provider: string;
+  model: string;
+  skipped?: boolean;
+}> {
+  const signal = await loadResearchSignalContext(signalId);
+  const evidence = await loadStoryPlanningEvidence(signalId);
+  if (!evidence.length) {
+    return {
+      evidenceCount: 0,
+      sectionCount: 0,
+      sourceCount: 0,
+      bodyChars: 0,
+      saved: 0,
+      provider: "deterministic",
+      model: "draft-writing-deterministic-v1",
+      skipped: true
+    };
+  }
+
+  const plan = await loadLatestStoryPlanArtifact(signalId, evidence);
+  if (!plan || !plan.sections.length) {
+    return {
+      evidenceCount: evidence.length,
+      sectionCount: 0,
+      sourceCount: 0,
+      bodyChars: 0,
+      saved: 0,
+      provider: "deterministic",
+      model: "draft-writing-deterministic-v1",
+      skipped: true
+    };
+  }
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const guidanceBundle = await buildStageGuidanceBundle(
+    sql,
+    "draft_writing",
+    signal.personaId,
+    signal.personaSection
+  );
+
+  const draft = buildDeterministicDraftFromPlan(signal, plan, evidence);
+  const saved = await persistDraftWritingArtifact(signal, draft, {
+    evidenceCount: evidence.length,
+    sectionCount: plan.sections.length,
+    promptHash: guidanceBundle.promptHash,
+    promptSourceVersion: guidanceBundle.promptSourceVersion,
+    warnings: guidanceBundle.warnings
+  });
+
+  return {
+    evidenceCount: evidence.length,
+    sectionCount: plan.sections.length,
+    sourceCount: draft.sourceUrls.length,
+    bodyChars: draft.body.length,
+    saved,
+    provider: "deterministic",
+    model: "draft-writing-deterministic-v1"
   };
 }
 
@@ -2054,6 +2739,16 @@ async function classifyWithGatekeeper(
   priorArt: PriorArtMatch[],
   corroboration: CorroborationSummary
 ): Promise<GatekeeperOutput> {
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const guidanceBundle = await buildStageGuidanceBundle(
+    sql,
+    "topic_qualification",
+    signal.personaId,
+    signal.personaSection
+  );
+
   const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
@@ -2062,6 +2757,10 @@ async function classifyWithGatekeeper(
     model
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const prompt = [
+    guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
+    guidanceBundle.promptSourceVersion
+      ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}`
+      : "",
     "You are a local newsroom gatekeeper classifier.",
     "Return strict JSON only.",
     "Schema:",
@@ -2448,6 +3147,30 @@ export function createStoryPlanningStartFunction(inngest: Inngest) {
       if (!signalId) throw new Error("Missing signalId");
 
       const result = await step.run("story-planning", async () => runStoryPlanning(signalId));
+      await step.sendEvent("emit-draft-writing-start", {
+        name: "draft.writing.start",
+        data: {
+          signalId
+        }
+      });
+      return {
+        ok: true,
+        signalId,
+        ...result
+      };
+    }
+  );
+}
+
+export function createDraftWritingStartFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "draft-writing-start" },
+    { event: "draft.writing.start" },
+    async ({ event, step }: any) => {
+      const signalId = Number(event?.data?.signalId || 0);
+      if (!signalId) throw new Error("Missing signalId");
+
+      const result = await step.run("draft-writing", async () => runDraftWriting(signalId));
       return {
         ok: true,
         signalId,

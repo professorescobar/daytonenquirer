@@ -41,6 +41,7 @@ function summarizeStageStatus({ signal, queue, stageCounts }) {
   const researchCount = Number(stageCounts?.research_discovery || 0);
   const evidenceCount = Number(stageCounts?.evidence_extraction || 0);
   const storyPlanningCount = Number(stageCounts?.story_planning || 0);
+  const draftWritingCount = Number(stageCounts?.draft_writing || 0);
   const queueStatus = cleanText(queue?.status || '', 40).toLowerCase();
   const promoted = cleanText(signal?.action || '', 40).toLowerCase() === 'promote';
 
@@ -82,12 +83,20 @@ function summarizeStageStatus({ signal, queue, stageCounts }) {
     stages.story_planning = 'in_progress';
   }
 
+  if (draftWritingCount > 0) {
+    stages.draft_writing = 'completed';
+  } else if (stages.story_planning === 'completed') {
+    stages.draft_writing = 'in_progress';
+  }
+
   let currentStage = 'topic_qualification';
-  if (stages.story_planning === 'in_progress') currentStage = 'story_planning';
+  if (stages.draft_writing === 'in_progress') currentStage = 'draft_writing';
+  else if (stages.story_planning === 'in_progress') currentStage = 'story_planning';
   else if (stages.evidence_extraction === 'in_progress') currentStage = 'evidence_extraction';
   else if (stages.research_discovery === 'in_progress') currentStage = 'research_discovery';
   else if (stages.quota_pacing === 'in_progress') currentStage = 'quota_pacing';
   else if (stages.quota_pacing === 'failed') currentStage = 'quota_pacing';
+  else if (stages.draft_writing === 'completed') currentStage = 'final_review';
   else if (stages.story_planning === 'completed') currentStage = 'draft_writing';
   else if (stages.evidence_extraction === 'completed') currentStage = 'story_planning';
   else if (stages.research_discovery === 'completed') currentStage = 'evidence_extraction';
@@ -99,9 +108,11 @@ function summarizeRunStatus({ queue, stageStatuses }) {
   const queueStatus = cleanText(queue?.status || '', 40).toLowerCase();
   if (queueStatus === 'queued' || queueStatus === 'deferred') return 'queued';
   if (queueStatus === 'rejected' || stageStatuses.quota_pacing === 'failed') return 'blocked';
+  if (stageStatuses.draft_writing === 'completed') return 'phase_5_complete';
   if (stageStatuses.story_planning === 'completed') return 'phase_4_complete';
   if (stageStatuses.evidence_extraction === 'completed') return 'phase_3_complete';
   if (stageStatuses.research_discovery === 'completed') return 'phase_2_complete';
+  if (stageStatuses.draft_writing === 'in_progress') return 'in_progress';
   if (stageStatuses.story_planning === 'in_progress') return 'in_progress';
   if (stageStatuses.research_discovery === 'in_progress') return 'in_progress';
   return 'promoted';
@@ -276,7 +287,8 @@ module.exports = async (req, res) => {
         queue?.releasedAt,
         stageCounts.research_discoveryLatest,
         stageCounts.evidence_extractionLatest,
-        stageCounts.story_planningLatest
+        stageCounts.story_planningLatest,
+        stageCounts.draft_writingLatest
       ].filter(Boolean);
       const lastActivityAt = timestamps.length
         ? new Date(Math.max(...timestamps.map((t) => new Date(t).getTime()))).toISOString()

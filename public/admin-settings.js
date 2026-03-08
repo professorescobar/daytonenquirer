@@ -2266,7 +2266,7 @@ function renderPipelineStageDetailItems(items) {
 
 function renderPersonaPipelineRunCard(run) {
   const statusClass = getStageStatusClass(
-    run.runStatus === 'phase_4_complete' || run.runStatus === 'phase_3_complete'
+    run.runStatus === 'phase_5_complete' || run.runStatus === 'phase_4_complete' || run.runStatus === 'phase_3_complete'
       ? 'completed'
       : run.runStatus === 'queued'
         ? 'in_progress'
