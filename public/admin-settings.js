@@ -1458,16 +1458,13 @@ function renderPersonas(personas) {
                         <label class="workflow-wide">
                           Persona Fallback Image URL
                           <input type="text" class="field-image-fallback-asset-url" value="${escapeHtml(imageConfig.imageFallbackAssetUrl)}" placeholder="https://...">
+                          <input type="hidden" class="field-image-fallback-cloudinary-public-id" value="${escapeHtml(imageConfig.imageFallbackCloudinaryPublicId)}">
                           <div class="persona-fallback-upload-row">
                             <input type="file" class="file-fallback-image" accept="image/*" hidden>
                             <button type="button" class="btn btn-secondary btn-upload-fallback-image">Upload or Drop Image</button>
                             <span class="draft-meta">Tip: drag an image file onto the URL field.</span>
                           </div>
                           <p class="fallback-upload-status"></p>
-                        </label>
-                        <label class="workflow-wide">
-                          Persona Fallback Cloudinary Public ID
-                          <input type="text" class="field-image-fallback-cloudinary-public-id" value="${escapeHtml(imageConfig.imageFallbackCloudinaryPublicId)}" placeholder="folder/public_id">
                         </label>
                         <label>
                           Posts / Active Day

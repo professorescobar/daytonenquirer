@@ -140,46 +140,61 @@ module.exports = async (req, res) => {
     `;
     const personaFallback = personaRows[0] || {};
 
-    let nextImage = cleanText(personaFallback.fallbackUrl || '', 5000)
-      || buildCloudinaryDeliveryUrl(personaFallback.fallbackCloudinaryPublicId);
+    const previousImage = cleanText(article.image || '', 5000);
+    let nextImage = '';
     let nextCredit = '';
     let nextCaption = '';
-    let method = 'persona_fallback';
+    let method = 'postgres_candidate';
+
+    try {
+      if (previousImage) {
+        await sql`
+          DELETE FROM media_library
+          WHERE image_url = ${previousImage}
+        `;
+      }
+    } catch (error) {
+      if (!isMissingRelationError(error, 'media_library')) throw error;
+    }
+
+    try {
+      const mediaRows = await sql`
+        SELECT
+          image_url as "imageUrl",
+          credit,
+          COALESCE(title, description, '') as "caption"
+        FROM media_library
+        WHERE image_url IS NOT NULL
+          AND trim(image_url) <> ''
+          AND approved = TRUE
+          AND (${previousImage} = '' OR image_url <> ${previousImage})
+          AND (${cleanText(article.section || '', 80)} = '' OR section = ${cleanText(article.section || '', 80)})
+          AND (
+            ${cleanText(article.persona || '', 255)} = ''
+            OR persona = ${cleanText(article.persona || '', 255)}
+            OR persona IS NULL
+          )
+          AND (
+            ${cleanText(article.beat || '', 120)} = ''
+            OR beat = ${cleanText(article.beat || '', 120)}
+            OR beat IS NULL
+          )
+        ORDER BY approved DESC, created_at DESC
+        LIMIT 1
+      `;
+      if (mediaRows[0]?.imageUrl) {
+        nextImage = cleanText(mediaRows[0].imageUrl, 5000);
+        nextCredit = cleanText(mediaRows[0].credit || '', 300) || nextCredit;
+        nextCaption = cleanText(mediaRows[0].caption || '', 800) || nextCaption;
+      }
+    } catch (error) {
+      if (!isMissingRelationError(error, 'media_library')) throw error;
+    }
 
     if (!nextImage) {
-      try {
-        const mediaRows = await sql`
-          SELECT
-            image_url as "imageUrl",
-            credit,
-            COALESCE(title, description, '') as "caption"
-          FROM media_library
-          WHERE image_url IS NOT NULL
-            AND trim(image_url) <> ''
-            AND approved = TRUE
-            AND (${cleanText(article.section || '', 80)} = '' OR section = ${cleanText(article.section || '', 80)})
-            AND (
-              ${cleanText(article.persona || '', 255)} = ''
-              OR persona = ${cleanText(article.persona || '', 255)}
-              OR persona IS NULL
-            )
-            AND (
-              ${cleanText(article.beat || '', 120)} = ''
-              OR beat = ${cleanText(article.beat || '', 120)}
-              OR beat IS NULL
-            )
-          ORDER BY approved DESC, created_at DESC
-          LIMIT 1
-        `;
-        if (mediaRows[0]?.imageUrl) {
-          nextImage = cleanText(mediaRows[0].imageUrl, 5000);
-          nextCredit = cleanText(mediaRows[0].credit || '', 300) || nextCredit;
-          nextCaption = cleanText(mediaRows[0].caption || '', 800) || nextCaption;
-          method = 'postgres_candidate';
-        }
-      } catch (error) {
-        if (!isMissingRelationError(error, 'media_library')) throw error;
-      }
+      nextImage = cleanText(personaFallback.fallbackUrl || '', 5000)
+        || buildCloudinaryDeliveryUrl(personaFallback.fallbackCloudinaryPublicId);
+      method = 'persona_fallback';
     }
 
     if (!nextImage) {
@@ -220,7 +235,7 @@ module.exports = async (req, res) => {
         ${actorTokenFingerprint(getRequestAdminToken(req))},
         updated.id,
         ${reasonCode},
-        ${cleanText(article.image || '', 5000) || null},
+        ${previousImage || null},
         ${nextImage || null},
         ${method},
         NOW()

@@ -69,6 +69,7 @@ type ResearchSignalContext = {
   id: number;
   personaId: string;
   personaSection: string;
+  personaBeat: string;
   title: string;
   snippet: string | null;
   sourceName: string | null;
@@ -1337,6 +1338,7 @@ async function loadResearchSignalContext(signalId: number): Promise<ResearchSign
       id: TEST_SIGNAL_ID,
       personaId: "dayton-local",
       personaSection: "local",
+      personaBeat: "general-local",
       title: "Mock Signal 12345: Downtown Dayton road closures planned this weekend",
       snippet: "City crews announced temporary closures downtown for utility work and detours affecting weekend traffic.",
       sourceName: "Mock Feed",
@@ -1354,6 +1356,7 @@ async function loadResearchSignalContext(signalId: number): Promise<ResearchSign
       s.id,
       s.persona_id as "personaId",
       COALESCE(NULLIF(trim(to_jsonb(p)->>'section'), ''), 'local') as "personaSection",
+      COALESCE(NULLIF(trim(to_jsonb(p)->>'beat'), ''), '') as "personaBeat",
       s.title,
       s.snippet,
       s.source_name as "sourceName",
@@ -1372,6 +1375,7 @@ async function loadResearchSignalContext(signalId: number): Promise<ResearchSign
     id: Number(row.id),
     personaId: cleanText(row.personaId, 255),
     personaSection: cleanText(row.personaSection, 120).toLowerCase() || "local",
+    personaBeat: cleanText(row.personaBeat, 120).toLowerCase() || "general-local",
     title: cleanText(row.title, 500),
     snippet: cleanText(row.snippet || "", 4000) || null,
     sourceName: cleanText(row.sourceName || "", 500) || null,
@@ -1385,13 +1389,8 @@ async function generateResearchQueries(
   signal: ResearchSignalContext,
   guidanceBundle: StagePromptBundle
 ): Promise<string[]> {
-  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-
-  const model = HARD_CODED_RESEARCH_QUERY_MODEL;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    model
-  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const geminiApiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  const openAiApiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
   const prompt = [
     guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
     guidanceBundle.promptSourceVersion
@@ -1411,28 +1410,69 @@ async function generateResearchQueries(
     `Source URL: ${signal.sourceUrl || ""}`
   ].join("\n");
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
+  const tryGemini = async (): Promise<string[]> => {
+    if (!geminiApiKey) return [];
+    const model = HARD_CODED_RESEARCH_QUERY_MODEL;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      model
+    )}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 700,
+          responseMimeType: "application/json"
+        }
+      })
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+    const parsed = safeJsonParse(text);
+    const candidateQueries = Array.isArray(parsed?.queries) ? parsed.queries : [];
+    return uniqueQueries(candidateQueries.map((value: unknown) => cleanText(value, 220)));
+  };
+
+  const tryOpenAi = async (): Promise<string[]> => {
+    if (!openAiApiKey) return [];
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openAiApiKey}`
+      },
+      body: JSON.stringify({
+        model: HARD_CODED_GATEKEEPER_OPENAI_MODEL,
         temperature: 0.2,
-        maxOutputTokens: 700,
-        responseMimeType: "application/json"
-      }
-    })
-  });
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Gemini query generation failed ${response.status}: ${body.slice(0, 200)}`);
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse(text);
+    const candidateQueries = Array.isArray(parsed?.queries) ? parsed.queries : [];
+    return uniqueQueries(candidateQueries.map((value: unknown) => cleanText(value, 220)));
+  };
+
+  try {
+    const geminiQueries = await tryGemini();
+    if (geminiQueries.length >= 3) return geminiQueries.slice(0, 5);
+  } catch (_) {
+    // Fall through to OpenAI fallback.
   }
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
-  const parsed = safeJsonParse(text);
-  const candidateQueries = Array.isArray(parsed?.queries) ? parsed.queries : [];
-  const queries = uniqueQueries(candidateQueries.map((value: unknown) => cleanText(value, 220)));
-  if (queries.length >= 3) return queries.slice(0, 5);
+
+  try {
+    const openAiQueries = await tryOpenAi();
+    if (openAiQueries.length >= 3) return openAiQueries.slice(0, 5);
+  } catch (_) {
+    // Fall through to deterministic fallback queries.
+  }
+
   return fallbackQueries(signal).slice(0, 5);
 }
 
@@ -2149,6 +2189,7 @@ async function buildStoryPlan(
 ): Promise<{ plan: StoryPlanArtifact; provider: "openai" | "gemini"; model: string }> {
   const hasOpenAi = Boolean(cleanText(process.env.OPENAI_API_KEY || "", 20));
   const hasGemini = Boolean(cleanText(process.env.GEMINI_API_KEY || "", 20));
+  let lastOpenAiError: unknown = null;
   if (hasOpenAi) {
     try {
       const plan = await buildStoryPlanWithOpenAi(signal, evidence, guidanceBundle);
@@ -2158,15 +2199,33 @@ async function buildStoryPlan(
         model: HARD_CODED_STORY_PLANNING_OPENAI_MODEL
       };
     } catch (error) {
+      lastOpenAiError = error;
       if (!hasGemini) throw error;
     }
   }
-  const plan = await buildStoryPlanWithGemini(signal, evidence, guidanceBundle);
-  return {
-    plan,
-    provider: "gemini",
-    model: HARD_CODED_STORY_PLANNING_GEMINI_MODEL
-  };
+  if (hasGemini) {
+    try {
+      const plan = await buildStoryPlanWithGemini(signal, evidence, guidanceBundle);
+      return {
+        plan,
+        provider: "gemini",
+        model: HARD_CODED_STORY_PLANNING_GEMINI_MODEL
+      };
+    } catch (geminiError) {
+      // Global rule: if Gemini 1.5 Flash fails and OpenAI is available, try gpt-4o-mini fallback.
+      if (hasOpenAi) {
+        const plan = await buildStoryPlanWithOpenAi(signal, evidence, guidanceBundle);
+        return {
+          plan,
+          provider: "openai",
+          model: HARD_CODED_STORY_PLANNING_OPENAI_MODEL
+        };
+      }
+      throw geminiError;
+    }
+  }
+  if (lastOpenAiError) throw lastOpenAiError;
+  throw new Error("No story planning provider available");
 }
 
 async function persistStoryPlanArtifact(
@@ -2870,11 +2929,8 @@ async function scoreContextWithGeminiForImage(
   candidate: Layer6Candidate,
   timeoutMs: number
 ): Promise<number | null> {
-  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
-  if (!apiKey) return null;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(
-    apiKey
-  )}`;
+  const geminiApiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  const openAiApiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
   const prompt = [
     "Rate image relevance for this local news draft context from 0-10.",
     "Return strict JSON only: {\"context_score\": number}",
@@ -2885,7 +2941,18 @@ async function scoreContextWithGeminiForImage(
     `Image title: ${candidate.imageTitle}`,
     `Image credit: ${candidate.imageCredit}`
   ].join("\n");
-  try {
+
+  const parseContextScore = (text: string): number | null => {
+    const parsed = safeJsonParse(text);
+    const value = Number(parsed?.context_score);
+    if (!Number.isFinite(value)) return null;
+    return Math.min(Math.max(value, 0), 10);
+  };
+
+  if (geminiApiKey) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(
+      geminiApiKey
+    )}`;
     const response = await fetchWithTimeout(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2898,13 +2965,33 @@ async function scoreContextWithGeminiForImage(
         }
       })
     }, timeoutMs);
+    if (response.ok) {
+      const data = await response.json();
+      const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || "").join("") || "";
+      const score = parseContextScore(text);
+      if (score !== null) return score;
+    }
+  }
+
+  if (!openAiApiKey) return null;
+  try {
+    const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openAiApiKey}`
+      },
+      body: JSON.stringify({
+        model: HARD_CODED_GATEKEEPER_OPENAI_MODEL,
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: prompt }]
+      })
+    }, timeoutMs);
     if (!response.ok) return null;
     const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || "").join("") || "";
-    const parsed = safeJsonParse(text);
-    const value = Number(parsed?.context_score);
-    if (!Number.isFinite(value)) return null;
-    return Math.min(Math.max(value, 0), 10);
+    const text = data?.choices?.[0]?.message?.content || "";
+    return parseContextScore(text);
   } catch (_) {
     return null;
   }
@@ -2969,6 +3056,320 @@ async function uploadImageUrlToCloudinary(imageUrl: string, timeoutMs: number): 
     };
   } catch (_) {
     return { publicId: null, secureUrl: null, metadata: {} };
+  }
+}
+
+type Layer6MediaLibraryMetadata = {
+  title: string;
+  description: string;
+  tags: string[];
+  entities: string[];
+  tone: string;
+  credit: string;
+  licenseType: string;
+  licenseSourceUrl: string | null;
+};
+
+function normalizeMetadataList(value: unknown, maxItems = 20, maxLen = 80): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of value) {
+    const item = cleanText(raw, maxLen);
+    if (!item) continue;
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function buildFallbackMediaLibraryMetadata(
+  signal: ResearchSignalContext,
+  candidate: Layer6Candidate
+): Layer6MediaLibraryMetadata {
+  const isGenerated = candidate.tier === "generated";
+  return {
+    title: cleanText(candidate.imageTitle || signal.title || "News image", 240),
+    description: cleanText(
+      candidate.imageTitle
+        || signal.snippet
+        || `Image selected for ${signal.personaSection} coverage.`,
+      2000
+    ),
+    tags: normalizeMetadataList(
+      [
+        signal.personaSection,
+        signal.personaBeat,
+        isGenerated ? "ai-generated" : "sourced",
+        "newsroom"
+      ],
+      12,
+      60
+    ),
+    entities: normalizeMetadataList([signal.personaId, signal.personaSection, signal.personaBeat], 10, 80),
+    tone: "neutral",
+    credit: cleanText(
+      candidate.imageCredit || (isGenerated ? "AI generated (Flux)" : "Sourced image"),
+      240
+    ),
+    licenseType: isGenerated ? "ai_generated" : "editorial_sourced_web",
+    licenseSourceUrl: cleanText(candidate.sourceUrl || "", 2000) || null
+  };
+}
+
+function shouldGenerateMediaLibraryMetadata(candidate: Layer6Candidate): boolean {
+  if (candidate.tier === "generated") return true;
+  if (candidate.tier === "exa") {
+    const hasTitle = Boolean(cleanText(candidate.imageTitle || "", 60));
+    const hasCredit = Boolean(cleanText(candidate.imageCredit || "", 60));
+    return !(hasTitle && hasCredit);
+  }
+  return false;
+}
+
+async function generateMediaLibraryMetadataWithGemini(
+  signal: ResearchSignalContext,
+  candidate: Layer6Candidate,
+  timeoutMs: number
+): Promise<Layer6MediaLibraryMetadata | null> {
+  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  if (!apiKey) return null;
+  const model =
+    cleanText(process.env.TOPIC_ENGINE_IMAGE_METADATA_GEMINI_MODEL || "", 120)
+    || "gemini-1.5-flash";
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(
+    apiKey
+  )}`;
+  const prompt = [
+    "Generate newsroom image metadata as strict JSON only.",
+    "Schema: {\"title\":\"...\",\"description\":\"...\",\"tags\":[\"...\"],\"entities\":[\"...\"],\"tone\":\"neutral|urgent|informative|analytical\",\"credit\":\"...\",\"licenseType\":\"...\",\"licenseSourceUrl\":\"...|null\"}",
+    `Signal title: ${signal.title}`,
+    `Signal snippet: ${signal.snippet || ""}`,
+    `Section: ${signal.personaSection}`,
+    `Beat: ${signal.personaBeat}`,
+    `Candidate tier: ${candidate.tier}`,
+    `Image URL: ${candidate.imageUrl}`,
+    `Candidate title: ${candidate.imageTitle || ""}`,
+    `Candidate credit: ${candidate.imageCredit || ""}`,
+    `Candidate source URL: ${candidate.sourceUrl || ""}`
+  ].join("\n");
+
+  try {
+    const response = await fetchWithTimeout(
+      endpoint,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 300,
+            responseMimeType: "application/json"
+          }
+        })
+      },
+      timeoutMs
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || "").join("") || "";
+    const parsed = safeJsonParse(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return {
+      title: cleanText((parsed as any).title, 240),
+      description: cleanText((parsed as any).description, 2000),
+      tags: normalizeMetadataList((parsed as any).tags, 20, 80),
+      entities: normalizeMetadataList((parsed as any).entities, 20, 80),
+      tone: cleanText((parsed as any).tone, 80),
+      credit: cleanText((parsed as any).credit, 240),
+      licenseType: cleanText((parsed as any).licenseType, 120),
+      licenseSourceUrl: cleanText((parsed as any).licenseSourceUrl, 2000) || null
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function generateMediaLibraryMetadataWithOpenAI(
+  signal: ResearchSignalContext,
+  candidate: Layer6Candidate,
+  timeoutMs: number
+): Promise<Layer6MediaLibraryMetadata | null> {
+  const apiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
+  if (!apiKey) return null;
+  const endpoint = "https://api.openai.com/v1/chat/completions";
+  const prompt = [
+    "Return strict JSON only for newsroom image metadata.",
+    "Schema: {\"title\":\"...\",\"description\":\"...\",\"tags\":[\"...\"],\"entities\":[\"...\"],\"tone\":\"neutral|urgent|informative|analytical\",\"credit\":\"...\",\"licenseType\":\"...\",\"licenseSourceUrl\":\"...|null\"}",
+    `Signal title: ${signal.title}`,
+    `Signal snippet: ${signal.snippet || ""}`,
+    `Section: ${signal.personaSection}`,
+    `Beat: ${signal.personaBeat}`,
+    `Candidate tier: ${candidate.tier}`,
+    `Image URL: ${candidate.imageUrl}`,
+    `Candidate title: ${candidate.imageTitle || ""}`,
+    `Candidate credit: ${candidate.imageCredit || ""}`,
+    `Candidate source URL: ${candidate.sourceUrl || ""}`
+  ].join("\n");
+
+  try {
+    const response = await fetchWithTimeout(
+      endpoint,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          temperature: 0.2,
+          messages: [{ role: "user", content: prompt }]
+        })
+      },
+      timeoutMs
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return {
+      title: cleanText((parsed as any).title, 240),
+      description: cleanText((parsed as any).description, 2000),
+      tags: normalizeMetadataList((parsed as any).tags, 20, 80),
+      entities: normalizeMetadataList((parsed as any).entities, 20, 80),
+      tone: cleanText((parsed as any).tone, 80),
+      credit: cleanText((parsed as any).credit, 240),
+      licenseType: cleanText((parsed as any).licenseType, 120),
+      licenseSourceUrl: cleanText((parsed as any).licenseSourceUrl, 2000) || null
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function generateMediaLibraryMetadata(
+  signal: ResearchSignalContext,
+  candidate: Layer6Candidate,
+  timeoutMs: number
+): Promise<Layer6MediaLibraryMetadata> {
+  const fallback = buildFallbackMediaLibraryMetadata(signal, candidate);
+  const gemini = await generateMediaLibraryMetadataWithGemini(signal, candidate, timeoutMs);
+  if (gemini) {
+    return {
+      ...fallback,
+      ...gemini,
+      tags: gemini.tags?.length ? gemini.tags : fallback.tags,
+      entities: gemini.entities?.length ? gemini.entities : fallback.entities
+    };
+  }
+  const openai = await generateMediaLibraryMetadataWithOpenAI(signal, candidate, timeoutMs);
+  if (openai) {
+    return {
+      ...fallback,
+      ...openai,
+      tags: openai.tags?.length ? openai.tags : fallback.tags,
+      entities: openai.entities?.length ? openai.entities : fallback.entities
+    };
+  }
+  return fallback;
+}
+
+async function upsertSelectedLayer6ImageToMediaLibrary(
+  sql: any,
+  signal: ResearchSignalContext,
+  selected: Layer6Candidate,
+  timeoutMs: number
+): Promise<void> {
+  if (!(selected.tier === "exa" || selected.tier === "generated")) return;
+  const imageUrl = cleanText(selected.cloudinary?.secureUrl || selected.imageUrl || "", 5000);
+  if (!imageUrl) return;
+  const metadata = shouldGenerateMediaLibraryMetadata(selected)
+    ? await generateMediaLibraryMetadata(signal, selected, timeoutMs)
+    : buildFallbackMediaLibraryMetadata(signal, selected);
+
+  try {
+    const existing = await sql`
+      SELECT id
+      FROM media_library
+      WHERE image_url = ${imageUrl}
+      ORDER BY id DESC
+      LIMIT 1
+    `;
+    if (existing[0]?.id) {
+      await sql`
+        UPDATE media_library
+        SET
+          section = COALESCE(${signal.personaSection}, section),
+          beat = COALESCE(${signal.personaBeat}, beat),
+          persona = COALESCE(${signal.personaId}, persona),
+          title = COALESCE(${metadata.title || null}, title),
+          description = COALESCE(${metadata.description || null}, description),
+          tags = CASE
+            WHEN jsonb_array_length(${JSON.stringify(metadata.tags)}::jsonb) > 0 THEN ${JSON.stringify(metadata.tags)}::jsonb
+            ELSE tags
+          END,
+          entities = CASE
+            WHEN jsonb_array_length(${JSON.stringify(metadata.entities)}::jsonb) > 0 THEN ${JSON.stringify(metadata.entities)}::jsonb
+            ELSE entities
+          END,
+          tone = COALESCE(${metadata.tone || null}, tone),
+          image_public_id = COALESCE(${selected.cloudinary?.publicId || null}, image_public_id),
+          credit = COALESCE(${metadata.credit || null}, credit),
+          license_type = COALESCE(${metadata.licenseType || null}, license_type),
+          license_source_url = COALESCE(${metadata.licenseSourceUrl || null}, license_source_url),
+          updated_at = NOW()
+        WHERE id = ${existing[0].id}
+      `;
+      return;
+    }
+
+    await sql`
+      INSERT INTO media_library (
+        section,
+        beat,
+        persona,
+        title,
+        description,
+        tags,
+        entities,
+        tone,
+        image_url,
+        image_public_id,
+        credit,
+        license_type,
+        license_source_url,
+        approved,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${signal.personaSection || "local"},
+        ${signal.personaBeat || null},
+        ${signal.personaId || null},
+        ${metadata.title || null},
+        ${metadata.description || null},
+        ${JSON.stringify(metadata.tags)}::jsonb,
+        ${JSON.stringify(metadata.entities)}::jsonb,
+        ${metadata.tone || null},
+        ${imageUrl},
+        ${selected.cloudinary?.publicId || null},
+        ${metadata.credit || null},
+        ${metadata.licenseType || null},
+        ${metadata.licenseSourceUrl || null},
+        ${false},
+        NOW(),
+        NOW()
+      )
+    `;
+  } catch (error) {
+    if (isMissingRelationError(error, "media_library")) return;
+    throw error;
   }
 }
 
@@ -3885,6 +4286,19 @@ async function runLayer6ImageSourcing(
   } else if (isTimedOut()) {
     forcedTimeout = true;
     rejectionReasons.push("layer6_timeout_before_cloudinary");
+  }
+
+  if (selected?.imageUrl && !isTimedOut()) {
+    try {
+      await upsertSelectedLayer6ImageToMediaLibrary(
+        sql,
+        signal,
+        selected,
+        layer6RemainingTimeoutMs(deadlineMs, 6500)
+      );
+    } catch (error) {
+      rejectionReasons.push("media_library_upsert_failed");
+    }
   }
 
   const imageStatus = normalizeLayer6Outcome(selected?.imageUrl ? "with_image" : "text_only");

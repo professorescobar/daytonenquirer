@@ -732,7 +732,27 @@ async function handleCardImageUpload(card, file) {
     imageInput.value = result.optimizedUrl;
     if (previewImg) previewImg.src = result.optimizedUrl;
     if (previewWrap) previewWrap.hidden = false;
-    setUploadStatus(status, 'Upload complete. Optimized URL applied.');
+    setUploadStatus(status, 'Upload complete. Saving to media library...');
+    try {
+      await apiRequest('/api/admin-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: result.optimizedUrl,
+          imagePublicId: result.publicId || null,
+          section: card.querySelector('.field-section')?.value || 'local',
+          beat: card.querySelector('.field-beat')?.value || null,
+          persona: card.querySelector('.field-persona')?.value || null,
+          title: card.querySelector('.field-title')?.value || null,
+          description: card.querySelector('.field-description')?.value || null,
+          credit: card.querySelector('.field-image-credit')?.value || null,
+          approved: true
+        })
+      });
+      setUploadStatus(status, 'Upload complete. Saved to media library.');
+    } catch (err) {
+      setUploadStatus(status, `Upload complete, but media library save failed: ${err.message}`);
+    }
   } catch (err) {
     setUploadStatus(status, `Upload failed: ${err.message}`);
   }
@@ -912,7 +932,28 @@ function renderArticles(articles) {
           </div>
         </div>
         <div class="full">
-          <div class="field-label-row"><span>Image URL</span> <button type="button" class="btn rte-btn btn-source-image">Auto-Source from Library</button></div>
+          <div class="field-label-row image-source-actions-row">
+            <span>Image URL</span>
+            <div class="image-source-actions" style="position:relative;display:flex;gap:8px;align-items:center;">
+              <button type="button" class="btn rte-btn btn-source-image">Auto-Source/Generate</button>
+              <button type="button" class="btn btn-secondary btn-emergency-replace-image">Emergency Replace Image</button>
+              <div class="image-source-dropdown" hidden style="position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:230px;background:var(--card-bg, #101626);border:1px solid var(--border, #2a3346);border-radius:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,0.35);">
+                <label style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+                  <input type="checkbox" class="field-image-source-mode" value="database" checked>
+                  <span>Database (Postgres)</span>
+                </label>
+                <label style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+                  <input type="checkbox" class="field-image-source-mode" value="source" checked>
+                  <span>Source (Exa)</span>
+                </label>
+                <label style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                  <input type="checkbox" class="field-image-source-mode" value="generate" checked>
+                  <span>Generate (Flux)</span>
+                </label>
+                <button type="button" class="btn btn-primary btn-run-source-image" style="width:100%;">Run Selected Modes</button>
+              </div>
+            </div>
+          </div>
           <input class="field-image" type="text" value="${escapeHtml(article.image || '')}" />
         </div>
         <div class="full image-uploader">
@@ -961,7 +1002,6 @@ function renderArticles(articles) {
       </div>
       <div class="draft-actions article-editor is-collapsed" hidden>
         <button type="button" class="btn btn-primary btn-save-article">Save Article</button>
-        <button type="button" class="btn btn-secondary btn-emergency-replace-image">Emergency Replace Now</button>
         <button type="button" class="btn btn-danger btn-remove-article">Permanently Delete Article</button>
       </div>
     </article>
@@ -1230,25 +1270,47 @@ async function generateHeadlinesForCard(card) {
   setHeadlineOptions(card, [best, ...alternates]);
 }
 
-async function sourceImageForCard(card) {
+function getSelectedSourceModes(card) {
+  const checks = Array.from(card.querySelectorAll('.field-image-source-mode'));
+  const selected = checks
+    .filter((el) => el && el.checked)
+    .map((el) => String(el.value || '').trim().toLowerCase())
+    .filter((value) => value === 'database' || value === 'source' || value === 'generate');
+  if (!selected.length) throw new Error('Select at least one image mode');
+  return selected;
+}
+
+function closeImageSourceDropdown(card) {
+  const menu = card?.querySelector('.image-source-dropdown');
+  if (menu) menu.hidden = true;
+}
+
+async function sourceImageForCard(card, modes = ['database']) {
   const title = String(card.querySelector('.field-title')?.value || '').trim();
   const section = String(card.querySelector('.field-section')?.value || 'local').trim();
+  const beat = String(card.querySelector('.field-beat')?.value || '').trim();
+  const persona = String(card.querySelector('.field-persona')?.value || '').trim();
   if (!title) throw new Error('Title is required to source an image');
 
   const data = await apiRequest('/api/admin-source-image', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, section })
+    body: JSON.stringify({ title, section, beat, persona, modes })
   });
 
   if (!data.imageUrl) throw new Error('No matching image found in library');
 
   const imageInput = card.querySelector('.field-image');
+  const imageCaption = card.querySelector('.field-image-caption');
+  const imageCredit = card.querySelector('.field-image-credit');
   const previewWrap = card.querySelector('.upload-preview');
   const previewImg = card.querySelector('.upload-preview img');
   if (imageInput) imageInput.value = data.imageUrl;
+  if (imageCaption && data.imageCaption) imageCaption.value = data.imageCaption;
+  if (imageCredit && data.imageCredit) imageCredit.value = data.imageCredit;
   if (previewImg) previewImg.src = data.imageUrl;
   if (previewWrap) previewWrap.hidden = false;
+  return cleanText(data.modeUsed || '', 40) || null;
 }
 
 async function rewriteCardContent(card, target) {
@@ -1485,12 +1547,34 @@ function onListClick(event) {
   }
 
   if (button.classList.contains('btn-source-image')) {
-    setMessage('Searching image library...');
+    const menu = card.querySelector('.image-source-dropdown');
+    if (menu) menu.hidden = !menu.hidden;
+    return;
+  }
+
+  if (button.classList.contains('btn-run-source-image')) {
+    const triggerBtn = card.querySelector('.btn-source-image');
+    let modes = [];
+    try {
+      modes = getSelectedSourceModes(card);
+    } catch (err) {
+      setMessage(err.message);
+      return;
+    }
+    setMessage(`Running image modes: ${modes.join(' -> ')}`);
     button.disabled = true;
-    sourceImageForCard(card)
-      .then(() => setMessage('Image sourced from library.'))
+    if (triggerBtn) triggerBtn.disabled = true;
+    sourceImageForCard(card, modes)
+      .then((modeUsed) => {
+        closeImageSourceDropdown(card);
+        setMessage(`Image updated via ${modeUsed || 'selected mode'}.`);
+      })
       .catch((err) => setMessage(`Source image failed: ${err.message}`))
-      .finally(() => { button.disabled = false; });
+      .finally(() => {
+        button.disabled = false;
+        if (triggerBtn) triggerBtn.disabled = false;
+      });
+    return;
   }
 }
 
@@ -1633,6 +1717,11 @@ if (imageStatusFilterInput) {
 document.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
+  if (!target.closest('.image-source-actions')) {
+    listEl.querySelectorAll('.image-source-dropdown').forEach((menu) => {
+      menu.hidden = true;
+    });
+  }
   if (target.closest('.ai-panel') || target.closest('.ai-action-toggle')) return;
   closeAllAiPanels();
 });

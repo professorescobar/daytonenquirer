@@ -117,6 +117,62 @@ async function createImage(req, res, sql) {
   const licenseSourceUrl = toNullableText(req.body?.licenseSourceUrl, 2000);
   const approved = parseBool(req.body?.approved, false);
 
+  const existingRows = await sql`
+    SELECT id, approved
+    FROM media_library
+    WHERE image_url = ${imageUrl}
+    ORDER BY id DESC
+    LIMIT 1
+  `;
+  if (existingRows[0]?.id) {
+    const existingId = Number(existingRows[0].id);
+    const mergedApproved = approved === true ? true : Boolean(existingRows[0].approved);
+    await sql`
+      UPDATE media_library
+      SET
+        section = COALESCE(${section}, section),
+        beat = COALESCE(${beat}, beat),
+        persona = COALESCE(${persona}, persona),
+        title = COALESCE(${title}, title),
+        description = COALESCE(${description}, description),
+        tags = CASE WHEN jsonb_array_length(${JSON.stringify(tags)}::jsonb) > 0 THEN ${JSON.stringify(tags)}::jsonb ELSE tags END,
+        entities = CASE WHEN jsonb_array_length(${JSON.stringify(entities)}::jsonb) > 0 THEN ${JSON.stringify(entities)}::jsonb ELSE entities END,
+        tone = COALESCE(${tone}, tone),
+        image_public_id = COALESCE(${imagePublicId}, image_public_id),
+        credit = COALESCE(${credit}, credit),
+        license_type = COALESCE(${licenseType}, license_type),
+        license_source_url = COALESCE(${licenseSourceUrl}, license_source_url),
+        approved = ${mergedApproved},
+        updated_at = NOW()
+      WHERE id = ${existingId}
+    `;
+
+    const updatedRows = await sql`
+      SELECT
+        id,
+        section,
+        beat,
+        persona,
+        title,
+        description,
+        tags,
+        entities,
+        tone,
+        image_url as "imageUrl",
+        image_public_id as "imagePublicId",
+        credit,
+        license_type as "licenseType",
+        license_source_url as "licenseSourceUrl",
+        approved,
+        created_at as "createdAt",
+        updated_at as "updatedAt"
+      FROM media_library
+      WHERE id = ${existingId}
+      LIMIT 1
+    `;
+    return res.status(200).json({ ok: true, image: updatedRows[0], upserted: true });
+  }
+
   const inserted = await sql`
     INSERT INTO media_library (
       section,
