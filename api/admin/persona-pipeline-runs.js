@@ -189,7 +189,20 @@ module.exports = async (req, res) => {
         s.created_at as "createdAt",
         s.updated_at as "updatedAt"
       FROM topic_signals s
-      WHERE s.action = 'promote'
+      WHERE (
+          s.action = 'promote'
+          OR EXISTS (
+            SELECT 1
+            FROM image_pipeline_runs ipr
+            WHERE ipr.signal_id = s.id
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM research_artifacts ra
+            WHERE ra.signal_id = s.id
+              AND ra.stage IN ('research_discovery', 'evidence_extraction', 'story_planning', 'draft_writing')
+          )
+        )
         AND (${personaId || null}::text IS NULL OR s.persona_id = ${personaId || null})
       ORDER BY COALESCE(s.processed_at, s.updated_at, s.created_at) DESC, s.id DESC
       LIMIT ${limit}
