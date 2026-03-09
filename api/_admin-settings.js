@@ -5,13 +5,12 @@ function createSql() {
 }
 
 async function ensureSettingsTable(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS system_settings (
-      key TEXT PRIMARY KEY,
-      value JSONB,
-      updated_at TIMESTAMP DEFAULT NOW()
-    )
-  `;
+  const rows = await sql`SELECT to_regclass('public.system_settings') AS name`;
+  if (!rows[0]?.name) {
+    const error = new Error('Schema not ready: missing system_settings. Apply migration 20260309_26.');
+    error.statusCode = 503;
+    throw error;
+  }
 }
 
 async function getDailyTokenBudgets(sql) {

@@ -9,13 +9,12 @@ function cleanText(value, max = 120) {
 }
 
 async function ensureSettingsTable(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS system_settings (
-      key TEXT PRIMARY KEY,
-      value JSONB,
-      updated_at TIMESTAMP DEFAULT NOW()
-    )
-  `;
+  const rows = await sql`SELECT to_regclass('public.system_settings') AS name`;
+  if (!rows[0]?.name) {
+    const error = new Error('Schema not ready: missing system_settings. Apply migration 20260309_26.');
+    error.statusCode = 503;
+    throw error;
+  }
 }
 
 async function loadTimezone(sql) {
@@ -70,6 +69,9 @@ module.exports = async (req, res) => {
     return res.status(200).json({ ok: true, timezone });
   } catch (error) {
     console.error('Admin timezone API error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Failed to update admin timezone' });
   }
 };

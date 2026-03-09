@@ -1,5 +1,6 @@
 -- Phase 1: Prompt Layers (global + section guidance)
 -- Idempotent for repeated runs and resilient when table exists in partially-manual form.
+-- Non-destructive: this migration no longer deletes unknown stage/section values.
 -- Seed behavior is first-install only (existing rows are not overwritten by migration).
 
 CREATE TABLE IF NOT EXISTS topic_engine_prompt_layers (
@@ -56,37 +57,12 @@ DELETE FROM topic_engine_prompt_layers
 WHERE stage_name IS NULL
    OR scope_type IS NULL;
 
--- Remove invalid legacy/manual rows prior to CHECK validation.
-DELETE FROM topic_engine_prompt_layers
-WHERE stage_name NOT IN (
-    'topic_qualification',
-    'research_discovery',
-    'evidence_extraction',
-    'story_planning',
-    'draft_writing',
-    'final_review'
-  )
-  OR scope_type NOT IN ('global', 'section')
-  OR (
-    scope_type = 'global'
-    AND section IS NOT NULL
-  )
-  OR (
-    scope_type = 'section'
-    AND (
-      section IS NULL
-      OR section NOT IN (
-        'local',
-        'national',
-        'world',
-        'business',
-        'sports',
-        'health',
-        'entertainment',
-        'technology'
-      )
-    )
-  );
+-- Normalize empty sections to NULL for global rows before shape validation.
+UPDATE topic_engine_prompt_layers
+SET section = NULL
+WHERE scope_type = 'global'
+  AND section IS NOT NULL
+  AND trim(section) = '';
 
 ALTER TABLE topic_engine_prompt_layers
   ALTER COLUMN stage_name SET NOT NULL;
@@ -148,16 +124,7 @@ BEGIN
   ) THEN
     ALTER TABLE topic_engine_prompt_layers
       ADD CONSTRAINT topic_engine_prompt_layers_stage_name_chk
-      CHECK (
-        stage_name IN (
-          'topic_qualification',
-          'research_discovery',
-          'evidence_extraction',
-          'story_planning',
-          'draft_writing',
-          'final_review'
-        )
-      ) NOT VALID;
+      CHECK (length(trim(stage_name)) > 0) NOT VALID;
     ALTER TABLE topic_engine_prompt_layers
       VALIDATE CONSTRAINT topic_engine_prompt_layers_stage_name_chk;
   END IF;
@@ -191,19 +158,7 @@ BEGIN
   ) THEN
     ALTER TABLE topic_engine_prompt_layers
       ADD CONSTRAINT topic_engine_prompt_layers_section_value_chk
-      CHECK (
-        section IS NULL
-        OR section IN (
-          'local',
-          'national',
-          'world',
-          'business',
-          'sports',
-          'health',
-          'entertainment',
-          'technology'
-        )
-      ) NOT VALID;
+      CHECK (section IS NULL OR length(trim(section)) > 0) NOT VALID;
     ALTER TABLE topic_engine_prompt_layers
       VALIDATE CONSTRAINT topic_engine_prompt_layers_section_value_chk;
   END IF;

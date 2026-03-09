@@ -33,6 +33,26 @@ function sortArticlesNewestFirst(articles) {
   return [...articles].sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
 }
 
+function normalizeRelatedImageStatus(article) {
+  const raw = String(article?.imageStatus || article?.renderClass || '').trim().toLowerCase();
+  return raw === 'with_image' ? 'with_image' : 'text_only';
+}
+
+function relatedPlacementEligibleIncludes(article, slot) {
+  const placements = Array.isArray(article?.placementEligible) ? article.placementEligible : [];
+  return placements.includes(slot);
+}
+
+function isEligibleRelatedImageCard(article) {
+  return String(article?.image || '').trim().length > 0
+    && normalizeRelatedImageStatus(article) === 'with_image'
+    && (
+      relatedPlacementEligibleIncludes(article, 'grid')
+      || relatedPlacementEligibleIncludes(article, 'main')
+      || relatedPlacementEligibleIncludes(article, 'top')
+    );
+}
+
 function syncCopyButtonLabels() {
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
   const copyButtons = Array.from(document.querySelectorAll('[data-share-action="copy"]'));
@@ -755,9 +775,9 @@ async function loadRelatedArticles(section) {
     if (!res.ok) return;
     const data = await res.json();
     
-    // Filter articles with images, exclude current article
+    // Filter related image cards using placement/image contract, exclude current article.
     let articles = data.articles
-      .filter(a => a.image && getArticleSlug(a) !== slug)
+      .filter((a) => isEligibleRelatedImageCard(a) && getArticleSlug(a) !== slug)
       .slice(0, 6);
 
     const grid = document.getElementById('related-grid');

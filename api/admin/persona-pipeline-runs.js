@@ -8,6 +8,7 @@ const STAGE_ORDER = [
   'evidence_extraction',
   'story_planning',
   'draft_writing',
+  'image_sourcing',
   'final_review'
 ];
 
@@ -37,7 +38,16 @@ function toMetadataObject(value) {
   return value;
 }
 
-function summarizeStageStatus({ signal, queue, stageCounts }) {
+function mapLayer6StageStatus(layer6Run) {
+  const status = cleanText(layer6Run?.status || '', 40).toLowerCase();
+  if (status === 'completed') return 'completed';
+  if (status === 'timed_out') return 'timed_out';
+  if (status === 'failed') return 'failed';
+  if (status === 'running') return 'in_progress';
+  return 'pending';
+}
+
+function summarizeStageStatus({ signal, queue, stageCounts, layer6Run }) {
   const researchCount = Number(stageCounts?.research_discovery || 0);
   const evidenceCount = Number(stageCounts?.evidence_extraction || 0);
   const storyPlanningCount = Number(stageCounts?.story_planning || 0);
@@ -52,6 +62,7 @@ function summarizeStageStatus({ signal, queue, stageCounts }) {
     evidence_extraction: 'pending',
     story_planning: 'pending',
     draft_writing: 'pending',
+    image_sourcing: 'pending',
     final_review: 'pending'
   };
 
@@ -89,14 +100,31 @@ function summarizeStageStatus({ signal, queue, stageCounts }) {
     stages.draft_writing = 'in_progress';
   }
 
+  if (stages.draft_writing === 'completed') {
+    stages.image_sourcing = mapLayer6StageStatus(layer6Run);
+    if (stages.image_sourcing === 'pending') stages.image_sourcing = 'in_progress';
+  }
+
+  if (stages.image_sourcing === 'completed') {
+    stages.final_review = 'completed';
+  } else if (stages.image_sourcing === 'timed_out') {
+    stages.final_review = 'failed';
+  } else if (stages.image_sourcing === 'failed') {
+    stages.final_review = 'failed';
+  } else if (stages.image_sourcing === 'in_progress') {
+    stages.final_review = 'in_progress';
+  }
+
   let currentStage = 'topic_qualification';
-  if (stages.draft_writing === 'in_progress') currentStage = 'draft_writing';
+  if (stages.image_sourcing === 'in_progress') currentStage = 'image_sourcing';
+  else if (stages.image_sourcing === 'failed') currentStage = 'image_sourcing';
+  else if (stages.draft_writing === 'in_progress') currentStage = 'draft_writing';
   else if (stages.story_planning === 'in_progress') currentStage = 'story_planning';
   else if (stages.evidence_extraction === 'in_progress') currentStage = 'evidence_extraction';
   else if (stages.research_discovery === 'in_progress') currentStage = 'research_discovery';
   else if (stages.quota_pacing === 'in_progress') currentStage = 'quota_pacing';
   else if (stages.quota_pacing === 'failed') currentStage = 'quota_pacing';
-  else if (stages.draft_writing === 'completed') currentStage = 'final_review';
+  else if (stages.draft_writing === 'completed') currentStage = 'image_sourcing';
   else if (stages.story_planning === 'completed') currentStage = 'draft_writing';
   else if (stages.evidence_extraction === 'completed') currentStage = 'story_planning';
   else if (stages.research_discovery === 'completed') currentStage = 'evidence_extraction';
@@ -108,13 +136,17 @@ function summarizeRunStatus({ queue, stageStatuses }) {
   const queueStatus = cleanText(queue?.status || '', 40).toLowerCase();
   if (queueStatus === 'queued' || queueStatus === 'deferred') return 'queued';
   if (queueStatus === 'rejected' || stageStatuses.quota_pacing === 'failed') return 'blocked';
+  if (stageStatuses.image_sourcing === 'in_progress') return 'in_progress';
+  if (stageStatuses.draft_writing === 'in_progress') return 'in_progress';
+  if (stageStatuses.story_planning === 'in_progress') return 'in_progress';
+  if (stageStatuses.research_discovery === 'in_progress') return 'in_progress';
+  if (stageStatuses.image_sourcing === 'completed') return 'phase_6_complete';
+  if (stageStatuses.image_sourcing === 'timed_out') return 'phase_6_timed_out';
+  if (stageStatuses.image_sourcing === 'failed') return 'phase_6_failed';
   if (stageStatuses.draft_writing === 'completed') return 'phase_5_complete';
   if (stageStatuses.story_planning === 'completed') return 'phase_4_complete';
   if (stageStatuses.evidence_extraction === 'completed') return 'phase_3_complete';
   if (stageStatuses.research_discovery === 'completed') return 'phase_2_complete';
-  if (stageStatuses.draft_writing === 'in_progress') return 'in_progress';
-  if (stageStatuses.story_planning === 'in_progress') return 'in_progress';
-  if (stageStatuses.research_discovery === 'in_progress') return 'in_progress';
   return 'promoted';
 }
 
@@ -132,6 +164,7 @@ module.exports = async (req, res) => {
     const sql = neon(process.env.DATABASE_URL);
     const hasReleaseQueue = await tableExists(sql, 'topic_engine_release_queue');
     const hasResearchArtifacts = await tableExists(sql, 'research_artifacts');
+    const hasImagePipelineRuns = await tableExists(sql, 'image_pipeline_runs');
 
     const promotedSignals = await sql`
       SELECT
@@ -184,6 +217,34 @@ module.exports = async (req, res) => {
       `;
     }
     const queueBySignal = new Map(queueRows.map((row) => [Number(row.signalId), row]));
+
+    let imageRunRows = [];
+    if (hasImagePipelineRuns && signalIds.length) {
+      imageRunRows = await sql`
+        SELECT DISTINCT ON (signal_id)
+          signal_id as "signalId",
+          id,
+          status,
+          final_outcome as "finalOutcome",
+          selected_tier as "selectedTier",
+          (
+            SELECT COUNT(*)::int
+            FROM image_candidates c
+            WHERE c.run_id = image_pipeline_runs.id
+          ) as "candidateCount",
+          started_at as "startedAt",
+          completed_at as "completedAt",
+          updated_at as "updatedAt"
+        FROM image_pipeline_runs
+        WHERE signal_id = ANY(${signalIds}::bigint[])
+        ORDER BY
+          signal_id,
+          CASE WHEN COALESCE(diagnostics->>'idempotencyCanonical', 'false') = 'true' THEN 0 ELSE 1 END,
+          COALESCE(updated_at, created_at, started_at) DESC,
+          id DESC
+      `;
+    }
+    const imageRunBySignal = new Map(imageRunRows.map((row) => [Number(row.signalId), row]));
 
     let artifactStatsRows = [];
     let artifactDetailRows = [];
@@ -274,9 +335,10 @@ module.exports = async (req, res) => {
     const runs = promotedSignals.map((signal) => {
       const signalIdNum = Number(signal.id);
       const queue = queueBySignal.get(signalIdNum) || null;
+      const layer6Run = imageRunBySignal.get(signalIdNum) || null;
       const stageCounts = stageCountBySignal.get(signalIdNum) || {};
       const artifactsByStage = stageArtifactsBySignal.get(signalIdNum) || {};
-      const stageInfo = summarizeStageStatus({ signal, queue, stageCounts });
+      const stageInfo = summarizeStageStatus({ signal, queue, stageCounts, layer6Run });
       const runStatus = summarizeRunStatus({ queue, stageStatuses: stageInfo.stages });
 
       const timestamps = [
@@ -288,7 +350,10 @@ module.exports = async (req, res) => {
         stageCounts.research_discoveryLatest,
         stageCounts.evidence_extractionLatest,
         stageCounts.story_planningLatest,
-        stageCounts.draft_writingLatest
+        stageCounts.draft_writingLatest,
+        layer6Run?.startedAt,
+        layer6Run?.completedAt,
+        layer6Run?.updatedAt
       ].filter(Boolean);
       const lastActivityAt = timestamps.length
         ? new Date(Math.max(...timestamps.map((t) => new Date(t).getTime()))).toISOString()
@@ -328,10 +393,37 @@ module.exports = async (req, res) => {
         stageProgress: STAGE_ORDER.map((stageName) => ({
           stage: stageName,
           status: stageInfo.stages[stageName] || 'pending',
-          artifactCount: Number(stageCounts[stageName] || 0),
-          latestAt: stageCounts[`${stageName}Latest`] || null,
-          details: artifactsByStage[stageName] || []
+          artifactCount: stageName === 'image_sourcing'
+            ? Number(layer6Run?.candidateCount || 0)
+            : Number(stageCounts[stageName] || 0),
+          latestAt: stageName === 'image_sourcing'
+            ? layer6Run?.updatedAt || layer6Run?.completedAt || layer6Run?.startedAt || null
+            : stageCounts[`${stageName}Latest`] || null,
+          details: stageName === 'image_sourcing'
+            ? (layer6Run
+              ? [{
+                  runId: cleanText(layer6Run.id, 120),
+                  status: cleanText(layer6Run.status, 60),
+                  finalOutcome: cleanText(layer6Run.finalOutcome, 80),
+                  selectedTier: cleanText(layer6Run.selectedTier, 80),
+                  candidateCount: Number(layer6Run.candidateCount || 0),
+                  updatedAt: layer6Run.updatedAt ? new Date(layer6Run.updatedAt).toISOString() : null
+                }]
+              : [])
+            : (artifactsByStage[stageName] || [])
         })),
+        imageSourcing: layer6Run
+          ? {
+              runId: cleanText(layer6Run.id, 120),
+              status: cleanText(layer6Run.status, 60),
+              finalOutcome: cleanText(layer6Run.finalOutcome, 80),
+              selectedTier: cleanText(layer6Run.selectedTier, 80),
+              candidateCount: Number(layer6Run.candidateCount || 0),
+              startedAt: layer6Run.startedAt ? new Date(layer6Run.startedAt).toISOString() : null,
+              completedAt: layer6Run.completedAt ? new Date(layer6Run.completedAt).toISOString() : null,
+              updatedAt: layer6Run.updatedAt ? new Date(layer6Run.updatedAt).toISOString() : null
+            }
+          : null,
         decisionDetails: {
           reasoning: cleanText(signal.reasoning, 4000),
           reviewNotes: cleanText(signal.reviewNotes, 4000),

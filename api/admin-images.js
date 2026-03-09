@@ -44,42 +44,12 @@ function parseBool(input, fallback = null) {
 }
 
 async function ensureMediaLibraryTable(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS media_library (
-      id SERIAL PRIMARY KEY,
-      section TEXT NOT NULL DEFAULT 'entertainment',
-      beat TEXT,
-      persona TEXT,
-      title TEXT,
-      description TEXT,
-      tags JSONB NOT NULL DEFAULT '[]'::jsonb,
-      entities JSONB NOT NULL DEFAULT '[]'::jsonb,
-      tone TEXT,
-      image_url TEXT NOT NULL,
-      image_public_id TEXT,
-      credit TEXT,
-      license_type TEXT,
-      license_source_url TEXT,
-      approved BOOLEAN NOT NULL DEFAULT false,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_media_library_section_approved
-    ON media_library(section, approved, created_at DESC)
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_media_library_persona
-    ON media_library(persona)
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_media_library_beat
-    ON media_library(beat)
-  `;
+  const tableRows = await sql`SELECT to_regclass('public.media_library') AS name`;
+  if (!tableRows[0]?.name) {
+    const error = new Error('Schema not ready: missing media_library. Apply migration 20260309_26.');
+    error.statusCode = 503;
+    throw error;
+  }
 }
 
 async function listImages(req, res, sql) {
@@ -298,6 +268,9 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
     console.error('Admin images error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Failed to manage media library', details: error.message });
   }
 };

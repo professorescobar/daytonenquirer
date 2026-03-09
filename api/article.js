@@ -33,7 +33,8 @@ module.exports = async (req, res) => {
             image_credit as "imageCredit",
             pub_date as "pubDate"
           FROM articles
-          WHERE slug = ${slug} AND COALESCE(status, 'published') = 'published'
+          WHERE lower(trim(slug)) = lower(trim(${slug}))
+            AND COALESCE(status, 'published') = 'published'
           LIMIT 1
         `;
       }
@@ -52,7 +53,7 @@ module.exports = async (req, res) => {
             image_credit as "imageCredit",
             pub_date as "pubDate"
           FROM articles
-          WHERE slug = ${slug}
+          WHERE lower(trim(slug)) = lower(trim(${slug}))
           LIMIT 1
         `;
       }
@@ -71,7 +72,8 @@ module.exports = async (req, res) => {
             image_credit as "imageCredit",
             pub_date as "pubDate"
           FROM articles
-          WHERE slug = ${slug} AND COALESCE(status, 'published') = 'published'
+          WHERE lower(trim(slug)) = lower(trim(${slug}))
+            AND COALESCE(status, 'published') = 'published'
           LIMIT 1
         `;
       }
@@ -89,7 +91,7 @@ module.exports = async (req, res) => {
           image_credit as "imageCredit",
           pub_date as "pubDate"
         FROM articles
-        WHERE slug = ${slug}
+        WHERE lower(trim(slug)) = lower(trim(${slug}))
         LIMIT 1
       `;
     }
@@ -337,15 +339,28 @@ module.exports = async (req, res) => {
 
     // If og=true, return HTML with Open Graph tags for social sharing
     if (og === 'true') {
-      const safeDescription = (article.description || '').slice(0, 160).replace(/"/g, '&quot;');
-      const safeTitle = (article.title || '').replace(/"/g, '&quot;');
+      const escapeHtml = (value) => String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+      const safeDescription = escapeHtml((article.description || '').slice(0, 160));
+      const safeTitle = escapeHtml(article.title || '');
+      const safeImage = escapeHtml(article.image || '');
+      const encodedSlug = encodeURIComponent(String(slug || ''));
+      const safeOgUrl = escapeHtml(`https://thedaytonenquirer.com/article.html?slug=${encodedSlug}`);
+      const safeRedirectJs = JSON.stringify(`/article.html?slug=${encodedSlug}`)
+        .replace(/</g, '\\u003c')
+        .replace(/>/g, '\\u003e')
+        .replace(/&/g, '\\u0026');
       const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${article.title} | The Dayton Enquirer</title>
+  <title>${safeTitle} | The Dayton Enquirer</title>
   <meta name="description" content="${safeDescription}">
   
   <!-- Open Graph for Facebook/LinkedIn -->
@@ -353,20 +368,20 @@ module.exports = async (req, res) => {
   <meta property="og:site_name" content="The Dayton Enquirer">
   <meta property="og:title" content="${safeTitle}">
   <meta property="og:description" content="${safeDescription}">
-  <meta property="og:image" content="${article.image || ''}">
-  <meta property="og:url" content="https://thedaytonenquirer.com/article.html?slug=${slug}">
+  <meta property="og:image" content="${safeImage}">
+  <meta property="og:url" content="${safeOgUrl}">
   
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${safeTitle}">
   <meta name="twitter:description" content="${safeDescription}">
-  <meta name="twitter:image" content="${article.image || ''}">
+  <meta name="twitter:image" content="${safeImage}">
   
   <link rel="stylesheet" href="/styles.css" />
   
 <!-- Immediate redirect -->
   <script>
-    window.location.href = '/article.html?slug=${slug}';
+    window.location.href = ${safeRedirectJs};
   </script>
 </head>
 <body>

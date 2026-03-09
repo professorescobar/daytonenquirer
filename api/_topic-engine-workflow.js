@@ -60,138 +60,51 @@ function normalizeSignal(signal = {}) {
   return { title, url, snippet, sourceName, sourceUrl, publishedAt, metadata };
 }
 
-async function ensureTopicEngineTables(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS personas (
-      id VARCHAR(255) PRIMARY KEY,
-      avatar_url TEXT,
-      disclosure TEXT,
-      activation_mode TEXT DEFAULT 'both',
-      updated_at TIMESTAMPTZ DEFAULT now()
-    )
-  `;
-  await sql`
-    ALTER TABLE personas
-    ADD COLUMN IF NOT EXISTS activation_mode TEXT DEFAULT 'both'
-  `;
-  await sql`
-    ALTER TABLE personas
-    ADD COLUMN IF NOT EXISTS display_name TEXT
-  `;
-  await sql`
-    ALTER TABLE personas
-    ADD COLUMN IF NOT EXISTS section TEXT DEFAULT 'local'
-  `;
-  await sql`
-    ALTER TABLE personas
-    ADD COLUMN IF NOT EXISTS beat TEXT DEFAULT 'general-local'
-  `;
-  await sql`
-    UPDATE personas
-    SET activation_mode = 'both'
-    WHERE activation_mode IS NULL OR trim(activation_mode) = ''
-  `;
-  await sql`
-    UPDATE personas
-    SET section = 'local'
-    WHERE section IS NULL OR trim(section) = ''
-  `;
-  await sql`
-    UPDATE personas
-    SET beat = 'general-local'
-    WHERE beat IS NULL OR trim(beat) = ''
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS topic_engines (
-      persona_id VARCHAR(255) PRIMARY KEY,
-      is_auto_promote_enabled BOOLEAN NOT NULL DEFAULT false,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    ALTER TABLE topic_engines
-    ADD COLUMN IF NOT EXISTS is_auto_promote_enabled BOOLEAN NOT NULL DEFAULT false
-  `;
-  await sql`
-    ALTER TABLE topic_engines
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  `;
-  await sql`
-    ALTER TABLE topic_engines
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  `;
-  await sql`
-    INSERT INTO topic_engines (persona_id, is_auto_promote_enabled, created_at, updated_at)
-    SELECT p.id, false, NOW(), NOW()
-    FROM personas p
-    LEFT JOIN topic_engines te ON te.persona_id = p.id
-    WHERE te.persona_id IS NULL
-    ON CONFLICT (persona_id) DO NOTHING
-  `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_topic_engines_auto_promote
-    ON topic_engines (is_auto_promote_enabled, updated_at DESC)
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS topic_engine_feeds (
-      id SERIAL PRIMARY KEY,
-      persona_id VARCHAR(255) NOT NULL,
-      feed_url TEXT NOT NULL,
-      source_name TEXT,
-      priority INTEGER DEFAULT 100,
-      enabled BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(persona_id, feed_url)
-    )
-  `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_topic_engine_feeds_persona_enabled
-    ON topic_engine_feeds(persona_id, enabled, priority)
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS topic_engine_candidates (
-      id SERIAL PRIMARY KEY,
-      persona_id VARCHAR(255) NOT NULL,
-      trigger_mode TEXT NOT NULL,
-      dedupe_key TEXT NOT NULL,
-      title TEXT NOT NULL,
-      url TEXT,
-      snippet TEXT,
-      source_name TEXT,
-      source_url TEXT,
-      published_at TIMESTAMPTZ,
-      status TEXT NOT NULL DEFAULT 'discovered',
-      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(persona_id, dedupe_key)
-    )
-  `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_topic_engine_candidates_persona_status_created
-    ON topic_engine_candidates(persona_id, status, created_at DESC)
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS topic_engine_stage_configs (
-      id SERIAL PRIMARY KEY,
-      persona_id VARCHAR(255) NOT NULL,
-      stage_name TEXT NOT NULL,
-      runner_type TEXT NOT NULL DEFAULT 'llm',
-      provider TEXT NOT NULL DEFAULT '',
-      model_or_endpoint TEXT NOT NULL DEFAULT '',
-      enabled BOOLEAN NOT NULL DEFAULT true,
-      prompt_template TEXT NOT NULL DEFAULT '',
-      workflow_config JSONB NOT NULL DEFAULT '{}'::jsonb,
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(persona_id, stage_name)
-    )
-  `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_topic_engine_stage_configs_persona
-    ON topic_engine_stage_configs(persona_id, stage_name)
-  `;
+async function ensureTopicEngineTables(sql, options = {}) {
+  const profile = String(options.profile || 'full').trim().toLowerCase();
+  const requirementsByName = {
+    personas: { table: 'personas', columns: ['id', 'activation_mode', 'section', 'beat'] },
+    topic_engines: { table: 'topic_engines', columns: ['persona_id', 'is_auto_promote_enabled', 'updated_at'] },
+    topic_engine_feeds: { table: 'topic_engine_feeds', columns: ['persona_id', 'feed_url', 'source_name', 'priority', 'enabled'] },
+    topic_engine_candidates: {
+      table: 'topic_engine_candidates',
+      columns: ['persona_id', 'trigger_mode', 'dedupe_key', 'title', 'url', 'snippet', 'source_name', 'source_url', 'published_at', 'status', 'metadata']
+    },
+    topic_engine_stage_configs: {
+      table: 'topic_engine_stage_configs',
+      columns: ['persona_id', 'stage_name', 'runner_type', 'provider', 'model_or_endpoint', 'enabled', 'prompt_template', 'workflow_config']
+    }
+  };
+  const profiles = {
+    full: ['personas', 'topic_engines', 'topic_engine_feeds', 'topic_engine_candidates', 'topic_engine_stage_configs'],
+    ingestion_event: ['personas', 'topic_engine_candidates'],
+    ingestion_scheduled: ['personas', 'topic_engine_feeds', 'topic_engine_candidates']
+  };
+  const requirementNames = profiles[profile] || profiles.full;
+  const requirements = requirementNames.map((name) => requirementsByName[name]).filter(Boolean);
+
+  for (const requirement of requirements) {
+    const tableRows = await sql`SELECT to_regclass(${`public.${requirement.table}`}) as name`;
+    if (!tableRows[0]?.name) {
+      const error = new Error(`Schema not ready: missing table ${requirement.table}`);
+      error.statusCode = 503;
+      throw error;
+    }
+
+    const columnRows = await sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = ${requirement.table}
+    `;
+    const existingColumns = new Set(columnRows.map((row) => String(row.column_name || '')));
+    const missingColumns = requirement.columns.filter((columnName) => !existingColumns.has(columnName));
+    if (missingColumns.length) {
+      const error = new Error(`Schema not ready: missing columns on ${requirement.table}: ${missingColumns.join(', ')}`);
+      error.statusCode = 503;
+      throw error;
+    }
+  }
 }
 
 async function getPersonaConfig(sql, personaId) {
@@ -231,7 +144,7 @@ async function runTopicEngineWorkflow(sql, payload) {
     return { ok: false, reason: 'missing_signal_title' };
   }
 
-  await ensureTopicEngineTables(sql);
+  await ensureTopicEngineTables(sql, { profile: 'ingestion_event' });
   const persona = await getPersonaConfig(sql, personaId);
   if (!persona) {
     return { ok: false, reason: 'persona_not_found', personaId };

@@ -1,6 +1,7 @@
 const { neon } = require('@neondatabase/serverless');
 const { callModelJson, getDefaultModel } = require('./_llm-admin');
 const { getPersonaLabel } = require('../lib/personas');
+const { getClientIp, applyRateLimit, setRateLimitHeaders } = require('./_rate-limit');
 
 const MAX_QUERY_CHARS = 1400;
 const MAX_HISTORY_ITEMS = 8;
@@ -9,6 +10,7 @@ const MAX_ARTICLE_CONTEXT_CHARS = 14000;
 const DEFAULT_CHAT_PROVIDER = 'gemini';
 const DEFAULT_CHAT_MODEL = 'gemini-2.0-flash';
 const RELATED_INTENTS = new Set(['out_of_bounds', 'off_topic']);
+const CHAT_RATE_LIMIT_PER_MINUTE = 12;
 
 function cleanText(value, max = 4000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -106,25 +108,10 @@ async function fetchRelatedArticles(sql, slug, userQuery, limitCount = 3) {
 }
 
 async function ensureChatFeedbackTable(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS topic_engine_chat_feedback (
-      id BIGSERIAL PRIMARY KEY,
-      article_id BIGINT,
-      article_slug TEXT NOT NULL,
-      section TEXT,
-      persona_id TEXT,
-      user_query TEXT NOT NULL,
-      assistant_answer TEXT NOT NULL,
-      out_of_scope BOOLEAN NOT NULL DEFAULT false,
-      suggested_topic TEXT,
-      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+  const rows = await sql`
+    SELECT to_regclass('public.topic_engine_chat_feedback') as name
   `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_topic_engine_chat_feedback_slug_created
-    ON topic_engine_chat_feedback(article_slug, created_at DESC)
-  `;
+  return Boolean(rows[0]?.name);
 }
 
 async function getArticleForChat(sql, slug) {
@@ -136,7 +123,7 @@ async function getArticleForChat(sql, slug) {
       return sql`
         SELECT id, slug, title, description, content, section, persona
         FROM articles
-        WHERE slug = ${slug}
+        WHERE lower(trim(slug)) = lower(trim(${slug}))
           AND COALESCE(status, 'published') = 'published'
         LIMIT 1
       `;
@@ -145,7 +132,7 @@ async function getArticleForChat(sql, slug) {
       return sql`
         SELECT id, slug, title, description, content, section, NULL::text as persona
         FROM articles
-        WHERE slug = ${slug}
+        WHERE lower(trim(slug)) = lower(trim(${slug}))
           AND COALESCE(status, 'published') = 'published'
         LIMIT 1
       `;
@@ -154,14 +141,14 @@ async function getArticleForChat(sql, slug) {
       return sql`
         SELECT id, slug, title, description, content, section, persona
         FROM articles
-        WHERE slug = ${slug}
+        WHERE lower(trim(slug)) = lower(trim(${slug}))
         LIMIT 1
       `;
     }
     return sql`
       SELECT id, slug, title, description, content, section, NULL::text as persona
       FROM articles
-      WHERE slug = ${slug}
+      WHERE lower(trim(slug)) = lower(trim(${slug}))
       LIMIT 1
     `;
   }
@@ -276,6 +263,21 @@ module.exports = async (req, res) => {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const clientIp = getClientIp(req);
+    const rate = await applyRateLimit({
+      key: `article-chat:${clientIp}`,
+      limit: CHAT_RATE_LIMIT_PER_MINUTE,
+      windowMs: 60_000,
+      sql
+    });
+    setRateLimitHeaders(res, rate);
+    if (!rate.allowed) {
+      return res.status(429).json({
+        error: 'Rate limit exceeded',
+        details: 'Too many chat requests. Please wait and try again.'
+      });
+    }
+
     const article = await getArticleForChat(sql, slug);
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
@@ -325,38 +327,40 @@ module.exports = async (req, res) => {
       : null;
 
     try {
-      await ensureChatFeedbackTable(sql);
-      await sql`
-        INSERT INTO topic_engine_chat_feedback (
-          article_id,
-          article_slug,
-          section,
-          persona_id,
-          user_query,
-          assistant_answer,
-          out_of_scope,
-          suggested_topic,
-          metadata
-        )
-        VALUES (
-          ${article.id || null},
-          ${article.slug},
-          ${article.section || null},
-          ${personaId},
-          ${query},
-          ${answer},
-          ${outOfScope},
-          ${suggestedTopic || null},
-          ${{
-            provider,
-            model,
-            intent,
-            inBounds,
-            confidence,
-            historyCount: history.length
-          }}::jsonb
-        )
-      `;
+      const hasFeedbackTable = await ensureChatFeedbackTable(sql);
+      if (hasFeedbackTable) {
+        await sql`
+          INSERT INTO topic_engine_chat_feedback (
+            article_id,
+            article_slug,
+            section,
+            persona_id,
+            user_query,
+            assistant_answer,
+            out_of_scope,
+            suggested_topic,
+            metadata
+          )
+          VALUES (
+            ${article.id || null},
+            ${article.slug},
+            ${article.section || null},
+            ${personaId},
+            ${query},
+            ${answer},
+            ${outOfScope},
+            ${suggestedTopic || null},
+            ${{
+              provider,
+              model,
+              intent,
+              inBounds,
+              confidence,
+              historyCount: history.length
+            }}::jsonb
+          )
+        `;
+      }
     } catch (feedbackError) {
       console.error('Article chat feedback insert failed:', feedbackError.message);
     }
@@ -378,6 +382,9 @@ module.exports = async (req, res) => {
     });
   } catch (error) {
     console.error('Article chat error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Failed to process chat request' });
   }
 };

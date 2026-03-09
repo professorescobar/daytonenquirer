@@ -176,6 +176,39 @@ function getArticleUrl(article) {
   return new URL(`article.html?slug=${encodeURIComponent(slug)}`, window.location.origin).toString();
 }
 
+function normalizeImageStatus(article) {
+  const raw = String(article?.imageStatus || article?.renderClass || '').trim().toLowerCase();
+  if (raw === 'with_image' || raw === 'text_only') return raw;
+  return '';
+}
+
+function normalizePlacementEligible(article) {
+  if (!Array.isArray(article?.placementEligible)) return [];
+  return article.placementEligible
+    .map((slot) => String(slot || '').trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function hasAnyPlacement(article, slots) {
+  const eligible = normalizePlacementEligible(article);
+  if (!eligible.length) return false;
+  return slots.some((slot) => eligible.includes(slot));
+}
+
+function canUseForFeaturedImage(article) {
+  return normalizeImageStatus(article) === 'with_image'
+    && Boolean(String(article?.image || '').trim())
+    && hasAnyPlacement(article, ['main', 'top', 'grid']);
+}
+
+function canUseInNewsletter(article) {
+  const status = normalizeImageStatus(article);
+  if (!status) return false;
+  if (!hasAnyPlacement(article, ['main', 'top', 'grid', 'sidebar', 'extra_headlines'])) return false;
+  if (status === 'with_image') return Boolean(String(article?.image || '').trim());
+  return true;
+}
+
 function getArticleById(id) {
   return availableArticles.find((article) => Number(article.id) === Number(id)) || null;
 }
@@ -335,10 +368,10 @@ function buildNewsletterMarkup() {
   const sectionBlocks = orderedSectionKeys.map((sectionKey) => {
     const sectionStories = sections.get(sectionKey) || [];
     if (sectionStories.length === 0) return '';
-    const featured = sectionStories[0];
-    const sidebar = sectionStories.slice(1);
+    const featured = sectionStories.find((story) => canUseForFeaturedImage(story)) || sectionStories[0];
+    const sidebar = sectionStories.filter((story) => Number(story.id) !== Number(featured.id));
     const featuredUrl = getArticleUrl(featured);
-    const featuredImage = String(featured.image || '').trim();
+    const featuredImage = canUseForFeaturedImage(featured) ? String(featured.image || '').trim() : '';
     const featuredDate = getEmailDate(featured.pubDate || featured.updatedAt || featured.createdAt);
     const sectionTitle = getSectionDisplayName(sectionKey);
     const sectionUrl = getSectionPageUrl(sectionKey);
@@ -477,6 +510,7 @@ async function loadAvailableArticles() {
   const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
   availableArticles = Array.isArray(data.articles) ? data.articles
     .filter((article) => String(article.status || '').toLowerCase() === 'published')
+    .filter((article) => canUseInNewsletter(article))
     .filter((article) => {
       const ts = new Date(article.pubDate || article.updatedAt || article.createdAt).getTime();
       return Number.isFinite(ts) && ts >= weekAgo;

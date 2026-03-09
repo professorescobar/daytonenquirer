@@ -1,6 +1,14 @@
 -- Topic engine activation modes + shared dedupe storage for event and scheduled triggers.
 -- Safe to run multiple times.
 
+CREATE TABLE IF NOT EXISTS personas (
+  id VARCHAR(255) PRIMARY KEY,
+  avatar_url TEXT,
+  disclosure TEXT,
+  activation_mode TEXT DEFAULT 'both',
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 ALTER TABLE personas
   ADD COLUMN IF NOT EXISTS activation_mode TEXT DEFAULT 'both';
 
@@ -43,4 +51,3 @@ CREATE TABLE IF NOT EXISTS topic_engine_candidates (
 
 CREATE INDEX IF NOT EXISTS idx_topic_engine_candidates_persona_status_created
   ON topic_engine_candidates(persona_id, status, created_at DESC);
-

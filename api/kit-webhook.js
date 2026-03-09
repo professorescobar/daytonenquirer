@@ -95,6 +95,9 @@ module.exports = async (req, res) => {
     }
   } catch (error) {
     console.error('Kit webhook processing error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Webhook processing failed' });
   }
 

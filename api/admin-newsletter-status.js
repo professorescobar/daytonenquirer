@@ -98,6 +98,9 @@ module.exports = async (req, res) => {
     return res.status(200).json({ ok: true, campaign });
   } catch (error) {
     console.error('Newsletter status error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
     return res.status(500).json({ error: error.message || 'Failed to fetch campaign status' });
   }
 };

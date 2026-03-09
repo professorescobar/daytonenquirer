@@ -69,11 +69,16 @@ AS $$
     FROM articles a
     WHERE (
       target_slug IS NULL
-      OR target_slug = ''
-      OR a.slug = target_slug
+      OR trim(target_slug) = ''
+      OR lower(trim(a.slug)) = lower(trim(target_slug))
     )
       AND COALESCE(a.status, 'published') = 'published'
-    ORDER BY CASE WHEN a.slug = target_slug THEN 0 ELSE 1 END, a.pub_date DESC
+    ORDER BY
+      CASE
+        WHEN lower(trim(a.slug)) = lower(trim(target_slug)) THEN 0
+        ELSE 1
+      END,
+      a.pub_date DESC
     LIMIT 1
   ),
   ranked AS (
@@ -103,7 +108,7 @@ AS $$
     FROM articles c
     CROSS JOIN target t
     CROSS JOIN params p
-    WHERE c.slug <> t.slug
+    WHERE lower(trim(c.slug)) <> lower(trim(t.slug))
       AND COALESCE(c.status, 'published') = 'published'
       AND (
         -- If user query exists, prioritize intent match, fallback to article context.

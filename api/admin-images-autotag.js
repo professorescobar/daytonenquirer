@@ -171,27 +171,12 @@ function normalizeTaggedFields(rawTitle, rawDescription) {
 }
 
 async function ensureMediaLibraryTable(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS media_library (
-      id SERIAL PRIMARY KEY,
-      section TEXT NOT NULL DEFAULT 'entertainment',
-      beat TEXT,
-      persona TEXT,
-      title TEXT,
-      description TEXT,
-      tags JSONB NOT NULL DEFAULT '[]'::jsonb,
-      entities JSONB NOT NULL DEFAULT '[]'::jsonb,
-      tone TEXT,
-      image_url TEXT NOT NULL,
-      image_public_id TEXT,
-      credit TEXT,
-      license_type TEXT,
-      license_source_url TEXT,
-      approved BOOLEAN NOT NULL DEFAULT false,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `;
+  const tableRows = await sql`SELECT to_regclass('public.media_library') AS name`;
+  if (!tableRows[0]?.name) {
+    const error = new Error('Schema not ready: missing media_library. Apply migration 20260309_26.');
+    error.statusCode = 503;
+    throw error;
+  }
 }
 
 async function runGeminiVisionTagging({ imageBytes, mimeType, section, beat, persona, existingTitle, existingDescription }) {
@@ -455,6 +440,9 @@ module.exports = async (req, res) => {
     });
   } catch (error) {
     console.error('Admin images autotag error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Failed to auto-tag image', details: error.message });
   }
 };

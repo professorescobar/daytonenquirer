@@ -89,6 +89,14 @@
           <span class="list-limit-label">List Limit (<span id="article-total-count">-</span> total)</span>
           <input id="article-list-limit" type="number" min="25" max="5000" step="25" value="50" />
         </label>
+        <label>
+          Image Status Filter
+          <select id="article-image-status-filter">
+            <option value="all" selected>all</option>
+            <option value="with_image">with_image</option>
+            <option value="text_only">text_only</option>
+          </select>
+        </label>
       </div>
         <div class="admin-actions">
           <button id="save-token-btn" class="btn">Save Token</button>

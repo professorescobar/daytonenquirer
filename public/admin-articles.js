@@ -5,6 +5,7 @@ const unlockAdminBtn = document.getElementById('unlock-admin-btn');
 
 const tokenInput = document.getElementById('admin-token');
 const sectionFilterInput = document.getElementById('article-section-filter');
+const imageStatusFilterInput = document.getElementById('article-image-status-filter');
 const limitInput = document.getElementById('article-list-limit');
 const saveTokenBtn = document.getElementById('save-token-btn');
 const loadArticlesBtn = document.getElementById('load-articles-btn');
@@ -518,6 +519,12 @@ function formatDate(dateString) {
   return d.toLocaleString();
 }
 
+function normalizeImageStatus(article) {
+  const raw = String(article?.imageStatus || article?.renderClass || '').trim().toLowerCase();
+  if (raw === 'with_image' || raw === 'text_only') return raw;
+  return 'text_only';
+}
+
 function getEtPartsFromDate(date) {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone: ET_TIME_ZONE,
@@ -743,6 +750,7 @@ function renderArticles(articles) {
         <strong>#${article.id} - ${escapeHtml(article.title || '')}</strong>
         <span class="draft-meta">
           section: ${escapeHtml(article.section || '')} |
+          image_status: ${escapeHtml(normalizeImageStatus(article))} |
           published: ${escapeHtml(formatDate(article.pubDate))} |
           slug: ${escapeHtml(article.slug || '')}
         </span>
@@ -953,6 +961,7 @@ function renderArticles(articles) {
       </div>
       <div class="draft-actions article-editor is-collapsed" hidden>
         <button type="button" class="btn btn-primary btn-save-article">Save Article</button>
+        <button type="button" class="btn btn-secondary btn-emergency-replace-image">Emergency Replace Now</button>
         <button type="button" class="btn btn-danger btn-remove-article">Permanently Delete Article</button>
       </div>
     </article>
@@ -992,9 +1001,10 @@ function articleSearchHaystack(article) {
   const title = String(article.title || '').toLowerCase();
   const section = String(article.section || '').toLowerCase();
   const slug = String(article.slug || '').toLowerCase();
+  const imageStatus = String(normalizeImageStatus(article) || '').toLowerCase();
   const iso = String(article.pubDate || '').toLowerCase();
   const pretty = String(formatDate(article.pubDate) || '').toLowerCase();
-  return `${title} ${section} ${slug} ${iso} ${pretty}`;
+  return `${title} ${section} ${slug} ${imageStatus} ${iso} ${pretty}`;
 }
 
 function applySearchFilter() {
@@ -1014,8 +1024,10 @@ async function loadArticles() {
     setMessage('Loading published articles...');
     await loadPersonaDirectory();
     const section = encodeURIComponent(sectionFilterInput.value || 'all');
+    const imageStatus = encodeURIComponent(imageStatusFilterInput?.value || 'all');
     const limit = encodeURIComponent(limitInput.value || '50');
-    const data = await apiRequest(`/api/admin-articles?section=${section}&limit=${limit}`);
+    const sort = imageStatus === 'text_only' ? 'text_only_follow_up' : '';
+    const data = await apiRequest(`/api/admin-articles?section=${section}&image_status=${imageStatus}&sort=${encodeURIComponent(sort)}&limit=${limit}`);
     loadedArticles = data.articles || [];
     lastTotalCount = Number(data.totalCount || loadedArticles.length || 0);
     totalAllArticles = Number(data.totalAllCount || totalAllArticles || lastTotalCount);
@@ -1047,6 +1059,12 @@ async function saveArticle(card) {
     throw new Error('Invalid ET publish date format');
   }
 
+  const imageValue = card.querySelector('.field-image').value;
+  const imageStatus = String(imageValue || '').trim() ? 'with_image' : 'text_only';
+  const placementEligible = imageStatus === 'with_image'
+    ? ['main', 'top', 'carousel', 'grid', 'sidebar', 'extra_headlines']
+    : ['sidebar', 'extra_headlines'];
+
   await apiRequest('/api/admin-update-article', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1059,9 +1077,11 @@ async function saveArticle(card) {
       beat: card.querySelector('.field-beat').value,
       persona: card.querySelector('.field-persona').value,
       section: card.querySelector('.field-section').value,
-      image: card.querySelector('.field-image').value,
+      image: imageValue,
       imageCaption: card.querySelector('.field-image-caption').value,
       imageCredit: card.querySelector('.field-image-credit').value,
+      imageStatus,
+      placementEligible,
       pubDate
     })
   });
@@ -1093,6 +1113,20 @@ async function removeArticle() {
     body: JSON.stringify({
       id: removeTargetArticleId
     })
+  });
+}
+
+async function emergencyReplaceImage(card) {
+  const id = Number(card?.dataset?.id || 0);
+  if (!id) throw new Error('Missing article id');
+  const reason = String(window.prompt('Reason code for immutable audit log (required):', 'editor_emergency_replace') || '').trim();
+  if (!reason) throw new Error('Reason code is required');
+  const confirmed = window.confirm('Emergency Replace Now will overwrite image fields immediately. Continue?');
+  if (!confirmed) return;
+  await apiRequest('/api/admin-emergency-image-replace', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ articleId: id, reasonCode: reason })
   });
 }
 
@@ -1296,6 +1330,17 @@ function onListClick(event) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       })
       .catch((err) => setMessage(`Save failed: ${err.message}`));
+    return;
+  }
+
+  if (button.classList.contains('btn-emergency-replace-image')) {
+    emergencyReplaceImage(card)
+      .then(async () => {
+        await loadArticles();
+        setMessage(`Article #${card.dataset.id}: emergency replace completed.`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      })
+      .catch((err) => setMessage(`Emergency replace failed: ${err.message}`));
     return;
   }
 
@@ -1580,6 +1625,11 @@ listEl.addEventListener('dragleave', onListDragLeave);
 listEl.addEventListener('drop', onListDrop);
 articleSearchInput.addEventListener('input', applySearchFilter);
 showAllBtn.addEventListener('click', showAllArticles);
+if (imageStatusFilterInput) {
+  imageStatusFilterInput.addEventListener('change', () => {
+    loadArticles().catch((err) => setMessage(`Load failed: ${err.message}`));
+  });
+}
 document.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;

@@ -45,6 +45,9 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
     console.error('Newsletter campaigns error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Failed to manage newsletter campaigns' });
   }
 };

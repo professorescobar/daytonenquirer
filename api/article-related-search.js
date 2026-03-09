@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
       const targetRows = await sql`
         SELECT slug
         FROM articles
-        WHERE slug = ${slug}
+        WHERE lower(trim(slug)) = lower(trim(${slug}))
           AND COALESCE(status, 'published') = 'published'
         LIMIT 1
       `;

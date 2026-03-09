@@ -138,6 +138,9 @@ module.exports = async (req, res) => {
     });
   } catch (error) {
     console.error('Admin usage error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Failed to load usage metrics' });
   }
 };

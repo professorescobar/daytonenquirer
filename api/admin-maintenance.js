@@ -42,54 +42,15 @@ async function tableExists(sql, tableName) {
 }
 
 async function ensureArchiveTables(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS research_artifacts_archive (
-      id UUID PRIMARY KEY,
-      run_id UUID NOT NULL,
-      engine_id UUID NOT NULL,
-      candidate_id UUID NOT NULL,
-      stage TEXT NOT NULL,
-      artifact_type TEXT NOT NULL,
-      source_url TEXT,
-      source_domain TEXT,
-      title TEXT,
-      published_at TIMESTAMPTZ,
-      content TEXT,
-      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL,
-      archived_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS pipeline_steps_archive (
-      id UUID PRIMARY KEY,
-      run_id UUID NOT NULL,
-      stage TEXT NOT NULL,
-      attempt SMALLINT NOT NULL,
-      status TEXT NOT NULL,
-      runner TEXT NOT NULL,
-      provider TEXT NOT NULL,
-      model_or_endpoint TEXT NOT NULL,
-      input_payload JSONB NOT NULL,
-      output_payload JSONB NOT NULL,
-      metrics JSONB NOT NULL,
-      error TEXT,
-      started_at TIMESTAMPTZ,
-      ended_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL,
-      archived_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_research_artifacts_archive_engine_created
-    ON research_artifacts_archive(engine_id, created_at DESC)
-  `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_pipeline_steps_archive_run_created
-    ON pipeline_steps_archive(run_id, created_at DESC)
-  `;
+  const requiredTables = ['research_artifacts_archive', 'pipeline_steps_archive'];
+  for (const tableName of requiredTables) {
+    const rows = await sql`SELECT to_regclass(${`public.${tableName}`}) AS reg`;
+    if (!rows?.[0]?.reg) {
+      const error = new Error(`Schema not ready: missing table ${tableName}. Apply migration 20260309_27.`);
+      error.statusCode = 503;
+      throw error;
+    }
+  }
 }
 
 async function countEligibleResearchArtifacts(sql, daysOld) {
@@ -106,6 +67,15 @@ async function countEligiblePipelineSteps(sql, daysOld) {
     SELECT COUNT(*)::int AS count
     FROM pipeline_steps
     WHERE created_at < NOW() - make_interval(days => ${daysOld})
+  `;
+  return Number(rows?.[0]?.count || 0);
+}
+
+async function countEligibleApiRateLimits(sql, daysOld) {
+  const rows = await sql`
+    SELECT COUNT(*)::int AS count
+    FROM api_rate_limits
+    WHERE window_start < NOW() - make_interval(days => ${daysOld})
   `;
   return Number(rows?.[0]?.count || 0);
 }
@@ -172,6 +142,25 @@ async function archivePipelineStepsChunk(sql, daysOld, batchSize) {
   return rows.length;
 }
 
+async function pruneApiRateLimitsChunk(sql, daysOld, batchSize) {
+  const rows = await sql`
+    WITH target AS (
+      SELECT limiter_key, window_start
+      FROM api_rate_limits
+      WHERE window_start < NOW() - make_interval(days => ${daysOld})
+      ORDER BY window_start ASC
+      LIMIT ${batchSize}
+      FOR UPDATE SKIP LOCKED
+    )
+    DELETE FROM api_rate_limits arl
+    USING target t
+    WHERE arl.limiter_key = t.limiter_key
+      AND arl.window_start = t.window_start
+    RETURNING arl.limiter_key
+  `;
+  return rows.length;
+}
+
 module.exports = async (req, res) => {
   if (!requireAdminApiKey(req, res)) return;
   if (!['GET', 'POST'].includes(req.method)) {
@@ -184,6 +173,10 @@ module.exports = async (req, res) => {
   const stepsDays = parsePositiveInt(input.stepsDays, 90, 1, 3650);
   const researchBatchSize = parsePositiveInt(input.researchBatchSize, 500, 1, 10000);
   const stepsBatchSize = parsePositiveInt(input.stepsBatchSize, 1000, 1, 10000);
+  const apiRateLimitDays = parsePositiveInt(input.apiRateLimitDays, 14, 1, 3650);
+  const apiRateLimitBatchSize = parsePositiveInt(input.apiRateLimitBatchSize, 5000, 1, 50000);
+  const refreshAudit = parseBool(input.refreshAudit, !dryRun);
+  const auditBatchSize = parsePositiveInt(input.auditBatchSize, 200, 1, 5000);
 
   try {
     const sql = neon(process.env.DATABASE_URL);
@@ -191,9 +184,12 @@ module.exports = async (req, res) => {
 
     const hasResearchArtifacts = await tableExists(sql, 'research_artifacts');
     const hasPipelineSteps = await tableExists(sql, 'pipeline_steps');
+    const hasPipelineRuns = await tableExists(sql, 'pipeline_runs');
+    const hasApiRateLimits = await tableExists(sql, 'api_rate_limits');
 
     let eligibleResearchArtifacts = 0;
     let eligiblePipelineSteps = 0;
+    let eligibleApiRateLimits = 0;
 
     if (hasResearchArtifacts) {
       eligibleResearchArtifacts = await countEligibleResearchArtifacts(sql, researchDays);
@@ -207,8 +203,17 @@ module.exports = async (req, res) => {
       warnings.push('Table pipeline_steps not found; skipping step eligibility count.');
     }
 
+    if (hasApiRateLimits) {
+      eligibleApiRateLimits = await countEligibleApiRateLimits(sql, apiRateLimitDays);
+    } else {
+      warnings.push('Table api_rate_limits not found; skipping rate-limit cleanup eligibility count.');
+    }
+
     let archivedResearchArtifacts = 0;
     let archivedPipelineSteps = 0;
+    let prunedApiRateLimits = 0;
+    let refreshedPipelineRunAudit = 0;
+    let auditRefreshAttempted = false;
 
     if (!dryRun) {
       await ensureArchiveTables(sql);
@@ -218,6 +223,25 @@ module.exports = async (req, res) => {
       if (hasPipelineSteps) {
         archivedPipelineSteps = await archivePipelineStepsChunk(sql, stepsDays, stepsBatchSize);
       }
+      if (hasApiRateLimits) {
+        prunedApiRateLimits = await pruneApiRateLimitsChunk(sql, apiRateLimitDays, apiRateLimitBatchSize);
+      }
+
+      if (refreshAudit) {
+        auditRefreshAttempted = true;
+        if (hasPipelineRuns && hasPipelineSteps) {
+          try {
+            const rows = await sql`
+              SELECT refresh_pipeline_run_audit_batch(${auditBatchSize})::int as "refreshedCount"
+            `;
+            refreshedPipelineRunAudit = Number(rows?.[0]?.refreshedCount || 0);
+          } catch (error) {
+            warnings.push('Pipeline run audit refresh function missing or failed; run migration 20260308_15_pipeline_run_audit_hardening_and_usage.sql.');
+          }
+        } else {
+          warnings.push('Tables pipeline_runs/pipeline_steps missing; skipping pipeline run audit refresh.');
+        }
+      }
     }
 
     return res.status(200).json({
@@ -226,25 +250,37 @@ module.exports = async (req, res) => {
       params: {
         researchDays,
         stepsDays,
+        apiRateLimitDays,
         researchBatchSize,
-        stepsBatchSize
+        stepsBatchSize,
+        apiRateLimitBatchSize,
+        refreshAudit,
+        auditBatchSize
       },
       eligibility: {
         researchArtifacts: eligibleResearchArtifacts,
-        pipelineSteps: eligiblePipelineSteps
+        pipelineSteps: eligiblePipelineSteps,
+        apiRateLimits: eligibleApiRateLimits
       },
       archived: {
         researchArtifacts: archivedResearchArtifacts,
-        pipelineSteps: archivedPipelineSteps
+        pipelineSteps: archivedPipelineSteps,
+        apiRateLimits: prunedApiRateLimits
+      },
+      audit: {
+        attempted: auditRefreshAttempted,
+        refreshedRuns: refreshedPipelineRunAudit
       },
       warnings
     });
   } catch (error) {
     console.error('Admin maintenance error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
     return res.status(500).json({
       error: 'Failed to run maintenance',
       details: error.message
     });
   }
 };
-

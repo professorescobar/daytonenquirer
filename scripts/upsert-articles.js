@@ -9,17 +9,70 @@ function generateSlug(title) {
     .replace(/^-+|-+$/g, '');
 }
 
+function stableSlugSuffix(seed) {
+  const text = String(seed || 'article').trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash || 1).toString(36);
+}
+
+function buildFallbackSeed(article) {
+  const seed = [
+    article?.sourceUrl,
+    article?.source_url,
+    article?.url,
+    article?.externalId,
+    article?.external_id,
+    article?.id,
+    article?.title,
+    article?.section,
+    article?.pubDate,
+    article?.pub_date
+  ].find((value) => String(value || '').trim());
+  return String(seed || 'article').trim();
+}
+
+function ensureNonEmptySlug(rawSlug, fallbackSeed = '') {
+  const normalized = generateSlug(rawSlug);
+  if (normalized) return normalized;
+  const fallback = generateSlug(fallbackSeed);
+  if (fallback) return fallback;
+  return `article-${stableSlugSuffix(fallbackSeed)}`;
+}
+
+function buildImageContract(imageValue) {
+  const image = String(imageValue || '').trim();
+  const hasImage = image.length > 0;
+  return {
+    image: hasImage ? image : '',
+    imageStatus: hasImage ? 'with_image' : 'text_only',
+    renderClass: hasImage ? 'with_image' : 'text_only',
+    placementEligible: hasImage
+      ? ['main', 'top', 'carousel', 'grid', 'sidebar', 'extra_headlines']
+      : ['sidebar', 'extra_headlines']
+  };
+}
+
 function normalizeArticle(article) {
-  const slug = article.slug || generateSlug(article.title);
+  const slug = ensureNonEmptySlug(
+    article.slug,
+    buildFallbackSeed(article)
+  );
+  const imageContract = buildImageContract(article.image);
   return {
     slug,
     title: article.title || '',
     description: article.description || '',
     content: article.content || '',
     section: article.section || 'local',
-    image: article.image || '',
+    image: imageContract.image,
     imageCaption: article.imageCaption || '',
     imageCredit: article.imageCredit || '',
+    imageStatus: imageContract.imageStatus,
+    renderClass: imageContract.renderClass,
+    placementEligible: imageContract.placementEligible,
     pubDate: article.pubDate || new Date().toISOString(),
     status: article.status || 'published'
   };
@@ -52,6 +105,10 @@ async function upsertArticles() {
           image,
           image_caption,
           image_credit,
+          image_status,
+          image_status_changed_at,
+          render_class,
+          placement_eligible,
           pub_date,
           status
         )
@@ -64,10 +121,17 @@ async function upsertArticles() {
           ${article.image},
           ${article.imageCaption},
           ${article.imageCredit},
+          ${article.imageStatus},
+          NOW(),
+          ${article.renderClass},
+          ${JSON.stringify(article.placementEligible)}::jsonb,
           ${article.pubDate},
           ${article.status}
         )
-        ON CONFLICT (slug) DO UPDATE SET
+        ON CONFLICT ((lower(trim(slug))))
+          WHERE slug IS NOT NULL
+            AND trim(slug) <> ''
+          DO UPDATE SET
           title = EXCLUDED.title,
           description = EXCLUDED.description,
           content = EXCLUDED.content,
@@ -75,6 +139,13 @@ async function upsertArticles() {
           image = EXCLUDED.image,
           image_caption = EXCLUDED.image_caption,
           image_credit = EXCLUDED.image_credit,
+          image_status = EXCLUDED.image_status,
+          image_status_changed_at = CASE
+            WHEN COALESCE(articles.image_status, '') <> EXCLUDED.image_status THEN NOW()
+            ELSE articles.image_status_changed_at
+          END,
+          render_class = EXCLUDED.render_class,
+          placement_eligible = EXCLUDED.placement_eligible,
           pub_date = EXCLUDED.pub_date,
           status = EXCLUDED.status,
           updated_at = NOW()

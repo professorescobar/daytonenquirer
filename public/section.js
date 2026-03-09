@@ -53,10 +53,24 @@ function articleLink(article, section) {
 }
 
 let allArticles = [];
+let pagedArticles = [];
 let paginationState = {
   currentPage: 1,
   mobileShown: 0
 };
+
+function getImageStatus(article) {
+  const raw = String(article?.imageStatus || article?.renderClass || '').trim().toLowerCase();
+  if (raw === 'with_image' || raw === 'text_only') return raw;
+  return 'text_only';
+}
+
+function isEligibleForSlot(article, slot) {
+  const raw = article?.placementEligible;
+  const list = Array.isArray(raw) ? raw : [];
+  if (!list.length) return false;
+  return list.includes(slot);
+}
 
 function renderFeatured(article) {
   const container = document.getElementById("section-featured");
@@ -186,7 +200,7 @@ function renderPagination(totalArticles, articlesPerPage) {
   if (prevBtn && !prevBtn.disabled) {
     prevBtn.onclick = () => {
       paginationState.currentPage--;
-      renderArticles(allArticles.slice(6));
+      renderArticles(pagedArticles);
       window.scrollTo({ top: document.getElementById("section-articles-grid").offsetTop - 100, behavior: 'smooth' });
     };
   }
@@ -194,7 +208,7 @@ function renderPagination(totalArticles, articlesPerPage) {
   if (nextBtn && !nextBtn.disabled) {
     nextBtn.onclick = () => {
       paginationState.currentPage++;
-      renderArticles(allArticles.slice(6));
+      renderArticles(pagedArticles);
       window.scrollTo({ top: document.getElementById("section-articles-grid").offsetTop - 100, behavior: 'smooth' });
     };
   }
@@ -226,21 +240,25 @@ function renderLoadMoreButton(totalArticles) {
   document.getElementById("load-more-btn").onclick = () => {
     const LOAD_MORE_AMOUNT = 7;
     paginationState.mobileShown += LOAD_MORE_AMOUNT;
-    renderArticles(allArticles.slice(6));
+    renderArticles(pagedArticles);
   };
 }
 
-function renderFeaturedCustoms(articles) {
+function renderFeaturedCustoms(articles, featuredArticle = null) {
   const section = document.getElementById("featured-customs-section");
   const grid = document.getElementById("featured-customs-grid");
   
   if (!section || !grid) return;
+  const safeArticles = Array.isArray(articles) ? articles.filter(Boolean) : [];
   
-  // Get custom articles with images, sorted by date, excluding the featured article (first one)
-  const customs = articles
-    .filter(a => a.image)  // Remove the a.custom check
+  const featuredSlug = String(featuredArticle?.slug || '').trim();
+
+  // Get custom articles with images, excluding featured when present.
+  const customs = safeArticles
+    .filter(a => !featuredSlug || String(a?.slug || '').trim() !== featuredSlug)
+    .filter(a => a.image && getImageStatus(a) === 'with_image' && isEligibleForSlot(a, 'grid'))
     .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
-    .slice(1, 7);  // Skip first (featured), take next 6
+    .slice(0, 6);
   
   if (customs.length === 0) return;
   
@@ -278,14 +296,28 @@ async function loadSection() {
 
     allArticles = data.articles;
 
-    // Render featured article
-    renderFeatured(allArticles[0]);
+    // Render featured article (image-required slot)
+    const featuredArticle = allArticles.find((a) =>
+      String(a?.image || '').trim() &&
+      getImageStatus(a) === 'with_image' &&
+      isEligibleForSlot(a, 'main')
+    ) || null;
+    const nonFeaturedArticles = allArticles.filter((a) => !featuredArticle || a.slug !== featuredArticle.slug);
+    if (featuredArticle) {
+      renderFeatured(featuredArticle);
+    } else {
+      const featuredContainer = document.getElementById("section-featured");
+      if (featuredContainer) featuredContainer.innerHTML = "<p>No image-eligible featured story right now.</p>";
+    }
 
     // Render sidebar headlines (next 5 articles)
     const sidebarContainer = document.getElementById("section-sidebar-headlines");
     if (sidebarContainer) {
       const sidebarList = document.createElement("ul");
-      allArticles.slice(1, 6).forEach(article => {
+      nonFeaturedArticles
+        .filter((a) => isEligibleForSlot(a, 'sidebar') || isEligibleForSlot(a, 'extra_headlines'))
+        .slice(0, 5)
+        .forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article)}">
@@ -301,10 +333,11 @@ async function loadSection() {
     }
 
     // Render remaining articles with pagination
-    renderArticles(allArticles.slice(6));
+    pagedArticles = nonFeaturedArticles.slice(5);
+    renderArticles(pagedArticles);
     
     // Render featured custom articles if any exist
-    renderFeaturedCustoms(allArticles);
+    renderFeaturedCustoms(nonFeaturedArticles, featuredArticle);
 
   } catch (err) {
     console.error("Section load error:", err);

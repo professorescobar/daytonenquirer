@@ -9,7 +9,8 @@ import {
   createResearchDiscoveryMockFunction,
   createResearchStartFunction,
   createStoryPlanningStartFunction,
-  createDraftWritingStartFunction
+  createDraftWritingStartFunction,
+  createImageSourcingStartFunction
 } from "./gatekeeper-pipeline";
 import { inngest } from "./client";
 
@@ -23,6 +24,7 @@ export const functions = [
   createEvidenceExtractionStartFunction(inngest),
   createStoryPlanningStartFunction(inngest),
   createDraftWritingStartFunction(inngest),
+  createImageSourcingStartFunction(inngest),
   createEvidenceExtractionMockFunction(inngest),
   createResearchDiscoveryMockFunction(inngest)
 ];

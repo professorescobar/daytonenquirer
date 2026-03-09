@@ -1,6 +1,6 @@
 const { neon } = require('@neondatabase/serverless');
 const { requireAdmin } = require('./_admin-auth');
-const { ensureTopicEngineTables, TOPIC_ENGINE_STAGES } = require('./_topic-engine-workflow');
+const { TOPIC_ENGINE_STAGES } = require('./_topic-engine-workflow');
 const HARD_CODED_STAGE_STACK = {
   topic_qualification: { runnerType: 'llm', provider: 'google', modelOrEndpoint: 'gemini-1.5-flash' },
   research_discovery: { runnerType: 'api_workflow', provider: 'tavily', modelOrEndpoint: 'https://api.tavily.com/search' },
@@ -24,33 +24,54 @@ const DEFAULT_BEAT = 'general-local';
 const VALID_SECTION_SET = new Set(Object.keys(BEAT_OPTIONS_BY_SECTION));
 
 async function ensurePersonasTable(sql) {
-  await ensureTopicEngineTables(sql);
-  await sql`
-    ALTER TABLE personas
-    ADD COLUMN IF NOT EXISTS activation_mode TEXT DEFAULT 'both'
+  const requiredTables = [
+    'personas',
+    'topic_engines',
+    'topic_engine_feeds',
+    'topic_engine_stage_configs'
+  ];
+  for (const tableName of requiredTables) {
+    const rows = await sql`SELECT to_regclass(${`public.${tableName}`}) as name`;
+    if (!rows[0]?.name) {
+      const error = new Error(`Schema not ready: missing table ${tableName}`);
+      error.statusCode = 503;
+      throw error;
+    }
+  }
+  const requiredPersonaColumns = [
+    'activation_mode',
+    'display_name',
+    'section',
+    'beat',
+    'image_db_enabled',
+    'image_sourcing_enabled',
+    'image_generation_enabled',
+    'image_mode',
+    'image_profile',
+    'image_fallback_asset_url',
+    'image_fallback_cloudinary_public_id',
+    'quota_postgres_image_daily',
+    'quota_sourced_image_daily',
+    'quota_generated_image_daily',
+    'quota_text_only_daily',
+    'layer6_timeout_seconds',
+    'layer6_budget_usd',
+    'exa_max_attempts',
+    'generation_max_attempts'
+  ];
+  const columnRows = await sql`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'personas'
   `;
-  await sql`
-    ALTER TABLE personas
-    ADD COLUMN IF NOT EXISTS display_name TEXT
-  `;
-  await sql`
-    ALTER TABLE personas
-    ADD COLUMN IF NOT EXISTS section TEXT DEFAULT 'local'
-  `;
-  await sql`
-    ALTER TABLE personas
-    ADD COLUMN IF NOT EXISTS beat TEXT DEFAULT 'general-local'
-  `;
-  await sql`
-    UPDATE personas
-    SET section = ${DEFAULT_SECTION}
-    WHERE section IS NULL OR trim(section) = ''
-  `;
-  await sql`
-    UPDATE personas
-    SET beat = ${DEFAULT_BEAT}
-    WHERE beat IS NULL OR trim(beat) = ''
-  `;
+  const existingColumns = new Set(columnRows.map((row) => String(row.column_name || '')));
+  const missingColumns = requiredPersonaColumns.filter((columnName) => !existingColumns.has(columnName));
+  if (missingColumns.length) {
+    const error = new Error(`Schema not ready: missing personas columns: ${missingColumns.join(', ')}`);
+    error.statusCode = 503;
+    throw error;
+  }
 }
 
 function normalizeActivationMode(value) {
@@ -119,6 +140,46 @@ function normalizePacingConfig(value) {
     minSpacingMinutes: Number.isFinite(minSpacingMinutes) ? Math.min(Math.max(minSpacingMinutes, 0), 1440) : 90,
     maxBacklog: Number.isFinite(maxBacklog) ? Math.min(Math.max(maxBacklog, 1), 5000) : 200,
     maxRetries: Number.isFinite(maxRetries) ? Math.min(Math.max(maxRetries, 0), 20) : 3
+  };
+}
+
+function toIntBounded(value, fallback, min, max) {
+  const parsed = Number.parseInt(String(value ?? fallback), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function toNumberBounded(value, fallback, min, max) {
+  const parsed = Number(value ?? fallback);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function normalizeImageConfig(value) {
+  const raw = value && typeof value === 'object' ? value : {};
+  const mode = cleanText(raw.imageMode || raw.image_mode || 'manual', 40).toLowerCase();
+  const profile = cleanText(raw.imageProfile || raw.image_profile || 'professional', 40).toLowerCase();
+
+  return {
+    imageDbEnabled: raw.imageDbEnabled === undefined && raw.image_db_enabled === undefined
+      ? true
+      : (raw.imageDbEnabled === true || raw.image_db_enabled === true),
+    imageSourcingEnabled: raw.imageSourcingEnabled === undefined && raw.image_sourcing_enabled === undefined
+      ? true
+      : (raw.imageSourcingEnabled === true || raw.image_sourcing_enabled === true),
+    imageGenerationEnabled: raw.imageGenerationEnabled === true || raw.image_generation_enabled === true,
+    imageMode: mode === 'auto' ? 'auto' : 'manual',
+    imageProfile: mode && (profile === 'professional' || profile === 'creative' || profile === 'cheap') ? profile : 'professional',
+    imageFallbackAssetUrl: cleanText(raw.imageFallbackAssetUrl || raw.image_fallback_asset_url || '', 5000) || null,
+    imageFallbackCloudinaryPublicId: cleanText(raw.imageFallbackCloudinaryPublicId || raw.image_fallback_cloudinary_public_id || '', 500) || null,
+    quotaPostgresImageDaily: toIntBounded(raw.quotaPostgresImageDaily ?? raw.quota_postgres_image_daily, 200, 0, 5000),
+    quotaSourcedImageDaily: toIntBounded(raw.quotaSourcedImageDaily ?? raw.quota_sourced_image_daily, 120, 0, 5000),
+    quotaGeneratedImageDaily: toIntBounded(raw.quotaGeneratedImageDaily ?? raw.quota_generated_image_daily, 30, 0, 5000),
+    quotaTextOnlyDaily: toIntBounded(raw.quotaTextOnlyDaily ?? raw.quota_text_only_daily, 400, 0, 5000),
+    layer6TimeoutSeconds: toIntBounded(raw.layer6TimeoutSeconds ?? raw.layer6_timeout_seconds, 90, 15, 600),
+    layer6BudgetUsd: toNumberBounded(raw.layer6BudgetUsd ?? raw.layer6_budget_usd, 0.20, 0, 50),
+    exaMaxAttempts: toIntBounded(raw.exaMaxAttempts ?? raw.exa_max_attempts, 3, 1, 20),
+    generationMaxAttempts: toIntBounded(raw.generationMaxAttempts ?? raw.generation_max_attempts, 2, 1, 20)
   };
 }
 
@@ -232,7 +293,22 @@ module.exports = async (req, res) => {
           disclosure,
           COALESCE(NULLIF(trim(activation_mode), ''), 'both') as "activationMode",
           COALESCE(NULLIF(trim(section), ''), ${DEFAULT_SECTION}) as section,
-          COALESCE(NULLIF(trim(beat), ''), ${DEFAULT_BEAT}) as beat
+          COALESCE(NULLIF(trim(beat), ''), ${DEFAULT_BEAT}) as beat,
+          COALESCE(image_db_enabled, TRUE) as "imageDbEnabled",
+          COALESCE(image_sourcing_enabled, TRUE) as "imageSourcingEnabled",
+          COALESCE(image_generation_enabled, FALSE) as "imageGenerationEnabled",
+          COALESCE(NULLIF(trim(image_mode), ''), 'manual') as "imageMode",
+          COALESCE(NULLIF(trim(image_profile), ''), 'professional') as "imageProfile",
+          image_fallback_asset_url as "imageFallbackAssetUrl",
+          image_fallback_cloudinary_public_id as "imageFallbackCloudinaryPublicId",
+          COALESCE(quota_postgres_image_daily, 200) as "quotaPostgresImageDaily",
+          COALESCE(quota_sourced_image_daily, 120) as "quotaSourcedImageDaily",
+          COALESCE(quota_generated_image_daily, 30) as "quotaGeneratedImageDaily",
+          COALESCE(quota_text_only_daily, 400) as "quotaTextOnlyDaily",
+          COALESCE(layer6_timeout_seconds, 90) as "layer6TimeoutSeconds",
+          COALESCE(layer6_budget_usd, 0.20) as "layer6BudgetUsd",
+          COALESCE(exa_max_attempts, 3) as "exaMaxAttempts",
+          COALESCE(generation_max_attempts, 2) as "generationMaxAttempts"
         FROM personas
       `;
       const personas = [];
@@ -249,9 +325,8 @@ module.exports = async (req, res) => {
       return res.status(200).json({ personas });
     } catch (error) {
       console.error('Error fetching personas:', error);
-      // If table doesn't exist yet, return empty list instead of crashing
-      if (error.message.includes('does not exist')) {
-         return res.status(200).json({ personas: [] });
+      if (Number(error?.statusCode || 0) === 503) {
+        return res.status(503).json({ error: error.message });
       }
       return res.status(500).json({ error: 'Failed to fetch personas' });
     }
@@ -271,7 +346,8 @@ module.exports = async (req, res) => {
         feeds,
         stageConfigs,
         isAutoPromoteEnabled,
-        pacingConfig
+        pacingConfig,
+        imageConfig
       } = req.body;
       const normalizedId = cleanPersonaId(id);
       if (!normalizedId) {
@@ -281,10 +357,57 @@ module.exports = async (req, res) => {
       const normalizedDisplayName = cleanText(displayName, 160) || null;
       const normalizedSection = normalizeSection(section);
       const normalizedBeat = normalizeBeat(normalizedSection, beat);
+      const normalizedImageConfig = normalizeImageConfig(imageConfig || req.body);
 
       const rows = await sql`
-        INSERT INTO personas (id, display_name, avatar_url, disclosure, activation_mode, section, beat)
-        VALUES (${normalizedId}, ${normalizedDisplayName}, ${avatarUrl}, ${disclosure}, ${normalizedActivationMode}, ${normalizedSection}, ${normalizedBeat})
+        INSERT INTO personas (
+          id,
+          display_name,
+          avatar_url,
+          disclosure,
+          activation_mode,
+          section,
+          beat,
+          image_db_enabled,
+          image_sourcing_enabled,
+          image_generation_enabled,
+          image_mode,
+          image_profile,
+          image_fallback_asset_url,
+          image_fallback_cloudinary_public_id,
+          quota_postgres_image_daily,
+          quota_sourced_image_daily,
+          quota_generated_image_daily,
+          quota_text_only_daily,
+          layer6_timeout_seconds,
+          layer6_budget_usd,
+          exa_max_attempts,
+          generation_max_attempts
+        )
+        VALUES (
+          ${normalizedId},
+          ${normalizedDisplayName},
+          ${avatarUrl},
+          ${disclosure},
+          ${normalizedActivationMode},
+          ${normalizedSection},
+          ${normalizedBeat},
+          ${normalizedImageConfig.imageDbEnabled},
+          ${normalizedImageConfig.imageSourcingEnabled},
+          ${normalizedImageConfig.imageGenerationEnabled},
+          ${normalizedImageConfig.imageMode},
+          ${normalizedImageConfig.imageProfile},
+          ${normalizedImageConfig.imageFallbackAssetUrl},
+          ${normalizedImageConfig.imageFallbackCloudinaryPublicId},
+          ${normalizedImageConfig.quotaPostgresImageDaily},
+          ${normalizedImageConfig.quotaSourcedImageDaily},
+          ${normalizedImageConfig.quotaGeneratedImageDaily},
+          ${normalizedImageConfig.quotaTextOnlyDaily},
+          ${normalizedImageConfig.layer6TimeoutSeconds},
+          ${normalizedImageConfig.layer6BudgetUsd},
+          ${normalizedImageConfig.exaMaxAttempts},
+          ${normalizedImageConfig.generationMaxAttempts}
+        )
         ON CONFLICT (id) DO UPDATE
         SET display_name = EXCLUDED.display_name,
             avatar_url = EXCLUDED.avatar_url,
@@ -292,6 +415,21 @@ module.exports = async (req, res) => {
             activation_mode = EXCLUDED.activation_mode,
             section = EXCLUDED.section,
             beat = EXCLUDED.beat,
+            image_db_enabled = EXCLUDED.image_db_enabled,
+            image_sourcing_enabled = EXCLUDED.image_sourcing_enabled,
+            image_generation_enabled = EXCLUDED.image_generation_enabled,
+            image_mode = EXCLUDED.image_mode,
+            image_profile = EXCLUDED.image_profile,
+            image_fallback_asset_url = EXCLUDED.image_fallback_asset_url,
+            image_fallback_cloudinary_public_id = EXCLUDED.image_fallback_cloudinary_public_id,
+            quota_postgres_image_daily = EXCLUDED.quota_postgres_image_daily,
+            quota_sourced_image_daily = EXCLUDED.quota_sourced_image_daily,
+            quota_generated_image_daily = EXCLUDED.quota_generated_image_daily,
+            quota_text_only_daily = EXCLUDED.quota_text_only_daily,
+            layer6_timeout_seconds = EXCLUDED.layer6_timeout_seconds,
+            layer6_budget_usd = EXCLUDED.layer6_budget_usd,
+            exa_max_attempts = EXCLUDED.exa_max_attempts,
+            generation_max_attempts = EXCLUDED.generation_max_attempts,
             updated_at = now()
         RETURNING
           id,
@@ -300,7 +438,22 @@ module.exports = async (req, res) => {
           disclosure,
           COALESCE(NULLIF(trim(activation_mode), ''), 'both') as "activationMode",
           COALESCE(NULLIF(trim(section), ''), ${DEFAULT_SECTION}) as section,
-          COALESCE(NULLIF(trim(beat), ''), ${DEFAULT_BEAT}) as beat;
+          COALESCE(NULLIF(trim(beat), ''), ${DEFAULT_BEAT}) as beat,
+          COALESCE(image_db_enabled, TRUE) as "imageDbEnabled",
+          COALESCE(image_sourcing_enabled, TRUE) as "imageSourcingEnabled",
+          COALESCE(image_generation_enabled, FALSE) as "imageGenerationEnabled",
+          COALESCE(NULLIF(trim(image_mode), ''), 'manual') as "imageMode",
+          COALESCE(NULLIF(trim(image_profile), ''), 'professional') as "imageProfile",
+          image_fallback_asset_url as "imageFallbackAssetUrl",
+          image_fallback_cloudinary_public_id as "imageFallbackCloudinaryPublicId",
+          COALESCE(quota_postgres_image_daily, 200) as "quotaPostgresImageDaily",
+          COALESCE(quota_sourced_image_daily, 120) as "quotaSourcedImageDaily",
+          COALESCE(quota_generated_image_daily, 30) as "quotaGeneratedImageDaily",
+          COALESCE(quota_text_only_daily, 400) as "quotaTextOnlyDaily",
+          COALESCE(layer6_timeout_seconds, 90) as "layer6TimeoutSeconds",
+          COALESCE(layer6_budget_usd, 0.20) as "layer6BudgetUsd",
+          COALESCE(exa_max_attempts, 3) as "exaMaxAttempts",
+          COALESCE(generation_max_attempts, 2) as "generationMaxAttempts";
       `;
 
       if (Array.isArray(feeds)) {
@@ -439,6 +592,9 @@ module.exports = async (req, res) => {
       });
     } catch (error) {
       console.error('Error saving persona:', error);
+      if (Number(error?.statusCode || 0) === 503) {
+        return res.status(503).json({ error: error.message });
+      }
       return res.status(500).json({ error: 'Failed to save persona' });
     }
   }

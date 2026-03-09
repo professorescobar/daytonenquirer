@@ -9,7 +9,8 @@ module.exports = async (req, res) => {
   }
 
   const status = (req.query.status || 'pending_review').toString();
-  const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+  const parsedLimit = Number.parseInt(String(req.query.limit || '50'), 10);
+  const limit = Math.max(1, Math.min(Number.isFinite(parsedLimit) ? parsedLimit : 50, 200));
 
   try {
     const sql = neon(process.env.DATABASE_URL);

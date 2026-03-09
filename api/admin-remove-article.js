@@ -26,15 +26,25 @@ module.exports = async (req, res) => {
       return res.status(404).json({ error: 'Article not found' });
     }
 
-    await sql`
-      UPDATE article_drafts
-      SET
-        published_article_id = NULL,
-        updated_at = NOW()
-      WHERE published_article_id = ${id}
-    `;
-
-    await sql`DELETE FROM articles WHERE id = ${id}`;
+    const deletedRows = await sql.transaction([
+      sql`
+        UPDATE article_drafts
+        SET
+          status = 'pending_review',
+          published_article_id = NULL,
+          updated_at = NOW()
+        WHERE published_article_id = ${id}
+      `,
+      sql`
+        DELETE FROM articles
+        WHERE id = ${id}
+        RETURNING id
+      `
+    ]);
+    const deleted = Array.isArray(deletedRows?.[1]) ? deletedRows[1][0] : null;
+    if (!deleted) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
 
     return res.status(200).json({
       ok: true,

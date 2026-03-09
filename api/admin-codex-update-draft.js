@@ -52,6 +52,52 @@ function sanitizeKey(value) {
     .slice(0, 120);
 }
 
+function isUniqueViolation(error) {
+  const code = String(error?.code || '').trim();
+  const message = String(error?.message || '').toLowerCase();
+  return code === '23505' || message.includes('duplicate key value violates unique constraint');
+}
+
+function getUniqueViolationMessage(error) {
+  const constraint = cleanText(error?.constraint || '', 160).toLowerCase();
+  const detail = cleanText(error?.detail || '', 500).toLowerCase();
+  const message = cleanText(error?.message || '', 500).toLowerCase();
+  const haystack = `${constraint} ${detail} ${message}`;
+
+  if (haystack.includes('codex_idempotency_key')) {
+    return 'Codex idempotency key already exists';
+  }
+  if (haystack.includes('source_url')) {
+    return 'Draft source URL already exists';
+  }
+  if (haystack.includes('slug')) {
+    return 'Draft slug already exists';
+  }
+  return 'Draft already exists';
+}
+
+async function ensureCodexIdempotencySchema(sql) {
+  const columnRows = await sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'article_drafts'
+        AND column_name = 'codex_idempotency_key'
+    ) AS present
+  `;
+  const hasColumn = Boolean(columnRows?.[0]?.present);
+  const indexRows = await sql`
+    SELECT to_regclass('public.uq_article_drafts_codex_idempotency_key_norm') AS name
+  `;
+  const hasNormalizedUniqueIndex = Boolean(indexRows?.[0]?.name);
+  if (!hasColumn || !hasNormalizedUniqueIndex) {
+    const error = new Error('Codex idempotency schema not ready. Apply migrations 20260309_23 and 20260309_24.');
+    error.statusCode = 503;
+    throw error;
+  }
+}
+
 module.exports = async (req, res) => {
   if (!requireCodexAutomation(req, res)) return;
 
@@ -65,9 +111,14 @@ module.exports = async (req, res) => {
     }
 
     const sql = neon(process.env.DATABASE_URL);
+    await ensureCodexIdempotencySchema(sql);
 
     const id = Number(req.body?.id || 0);
-    const idempotencyKey = sanitizeKey(req.body?.idempotencyKey || '');
+    const rawIdempotencyKey = cleanText(req.body?.idempotencyKey || '', 240);
+    const idempotencyKey = sanitizeKey(rawIdempotencyKey);
+    if (rawIdempotencyKey && !idempotencyKey) {
+      return res.status(400).json({ error: 'idempotencyKey is invalid after normalization' });
+    }
 
     if ((!Number.isInteger(id) || id <= 0) && !idempotencyKey) {
       return res.status(400).json({ error: 'Provide a valid draft id or idempotencyKey' });
@@ -104,21 +155,21 @@ module.exports = async (req, res) => {
     }
 
     let targetRows;
+    const isIdLookup = Number.isInteger(id) && id > 0;
     if (Number.isInteger(id) && id > 0) {
       targetRows = await sql`
-        SELECT id, slug, title, section, status
+        SELECT id, slug, title, section, status, source_url as "sourceUrl", codex_idempotency_key as "codexIdempotencyKey"
         FROM article_drafts
         WHERE id = ${id}
           AND created_via = 'codex_automation'
         LIMIT 1
       `;
     } else {
-      const syntheticSourceUrl = `codex://automation/${idempotencyKey}`;
       targetRows = await sql`
-        SELECT id, slug, title, section, status
+        SELECT id, slug, title, section, status, source_url as "sourceUrl", codex_idempotency_key as "codexIdempotencyKey"
         FROM article_drafts
         WHERE created_via = 'codex_automation'
-          AND source_url = ${syntheticSourceUrl}
+          AND lower(trim(codex_idempotency_key)) = ${idempotencyKey}
         ORDER BY created_at DESC
         LIMIT 1
       `;
@@ -128,10 +179,16 @@ module.exports = async (req, res) => {
     if (!target) {
       return res.status(404).json({ error: 'Codex draft not found' });
     }
+    const existingIdempotencyKey = cleanText(target.codexIdempotencyKey || '').toLowerCase();
+    if (isIdLookup && idempotencyKey && existingIdempotencyKey && existingIdempotencyKey !== idempotencyKey) {
+      return res.status(409).json({ error: 'Codex idempotency key mismatch for this draft' });
+    }
 
     const nextSection = sectionRaw ? normalizeSection(sectionRaw) : null;
+    const nextSourceUrl = sourceUrl || null;
+    const nextIdempotencyKey = idempotencyKey || cleanText(target.codexIdempotencyKey || '') || null;
 
-    await sql`
+    const updateRows = await sql`
       UPDATE article_drafts
       SET
         title = COALESCE(${title || null}, title),
@@ -142,12 +199,21 @@ module.exports = async (req, res) => {
         image_caption = COALESCE(${imageCaption || null}, image_caption),
         image_credit = COALESCE(${imageCredit || null}, image_credit),
         source_title = COALESCE(${sourceTitle || null}, source_title),
-        source_url = COALESCE(${sourceUrl || null}, source_url),
+        source_url = COALESCE(${nextSourceUrl}, source_url),
         source_published_at = COALESCE(${sourcePublishedAt}, source_published_at),
+        codex_idempotency_key = CASE
+          WHEN codex_idempotency_key IS NULL OR btrim(codex_idempotency_key) = ''
+            THEN COALESCE(${nextIdempotencyKey}, codex_idempotency_key)
+          ELSE codex_idempotency_key
+        END,
         model = COALESCE(${model || null}, model),
         updated_at = NOW()
       WHERE id = ${target.id}
+      RETURNING id
     `;
+    if (!updateRows?.length) {
+      return res.status(404).json({ error: 'Codex draft not found' });
+    }
 
     const updatedRows = await sql`
       SELECT id, slug, title, section, status
@@ -155,10 +221,18 @@ module.exports = async (req, res) => {
       WHERE id = ${target.id}
       LIMIT 1
     `;
-
+    if (!updatedRows?.[0]) {
+      return res.status(404).json({ error: 'Codex draft not found' });
+    }
     return res.status(200).json({ ok: true, draft: updatedRows[0] });
   } catch (error) {
     console.error('Codex update draft error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
+    if (isUniqueViolation(error)) {
+      return res.status(409).json({ error: getUniqueViolationMessage(error) });
+    }
     return res.status(500).json({ error: 'Failed to update codex draft', details: error.message });
   }
 };

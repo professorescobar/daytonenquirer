@@ -1134,6 +1134,17 @@ async function createPersonaFromInputs() {
       disclosure: '',
       activationMode: 'both',
       isAutoPromoteEnabled: false,
+      imageConfig: {
+        imageDbEnabled: true,
+        imageSourcingEnabled: true,
+        imageGenerationEnabled: false,
+        imageMode: 'manual',
+        imageProfile: 'professional',
+        layer6TimeoutSeconds: 90,
+        layer6BudgetUsd: 0.20,
+        exaMaxAttempts: 3,
+        generationMaxAttempts: 2
+      },
       pacingConfig: getPacingConfig(null),
       feeds: [],
       stageConfigs: getDefaultStageConfigs()
@@ -1293,6 +1304,25 @@ function renderPersonas(personas) {
                 const activationMode = String(data.activationMode || 'both');
                 const isAutoPromoteEnabled = data.isAutoPromoteEnabled === true;
                 const pacingConfig = getPacingConfig(data.pacingConfig);
+                const imageConfig = {
+                  imageDbEnabled: data.imageDbEnabled !== false,
+                  imageSourcingEnabled: data.imageSourcingEnabled !== false,
+                  imageGenerationEnabled: data.imageGenerationEnabled === true,
+                  imageMode: cleanText(data.imageMode || 'manual', 20).toLowerCase() === 'auto' ? 'auto' : 'manual',
+                  imageProfile: ['professional', 'creative', 'cheap'].includes(cleanText(data.imageProfile || '', 30).toLowerCase())
+                    ? cleanText(data.imageProfile || '', 30).toLowerCase()
+                    : 'professional',
+                  imageFallbackAssetUrl: cleanText(data.imageFallbackAssetUrl || '', 5000),
+                  imageFallbackCloudinaryPublicId: cleanText(data.imageFallbackCloudinaryPublicId || '', 500),
+                  quotaPostgresImageDaily: parseNumberWithFallback(data.quotaPostgresImageDaily, 200),
+                  quotaSourcedImageDaily: parseNumberWithFallback(data.quotaSourcedImageDaily, 120),
+                  quotaGeneratedImageDaily: parseNumberWithFallback(data.quotaGeneratedImageDaily, 30),
+                  quotaTextOnlyDaily: parseNumberWithFallback(data.quotaTextOnlyDaily, 400),
+                  layer6TimeoutSeconds: parseNumberWithFallback(data.layer6TimeoutSeconds, 90),
+                  layer6BudgetUsd: parseNumberWithFallback(data.layer6BudgetUsd, 0.20),
+                  exaMaxAttempts: Number(data.exaMaxAttempts ?? 3) || 3,
+                  generationMaxAttempts: Number(data.generationMaxAttempts ?? 2) || 2
+                };
                 const feedsText = formatFeedsForTextArea(data.feeds);
                 return `
                   <article class="draft-card persona-card" data-id="${p.id}" data-default-name="${escapeHtml(defaultDisplayName)}" data-display-name-committed="${escapeHtml(savedDisplayName)}" data-section="${escapeHtml(p.section || 'local')}" data-beat="${escapeHtml(p.beat || 'general-local')}">
@@ -1339,6 +1369,73 @@ function renderPersonas(personas) {
                       </div>
 
                       <div class="workflow-grid">
+                        <label>
+                          Image DB Enabled
+                          <input type="checkbox" class="field-image-db-enabled" ${imageConfig.imageDbEnabled ? 'checked' : ''}>
+                        </label>
+                        <label>
+                          Image Sourcing Enabled
+                          <input type="checkbox" class="field-image-sourcing-enabled" ${imageConfig.imageSourcingEnabled ? 'checked' : ''}>
+                        </label>
+                        <label>
+                          Image Generation Enabled
+                          <input type="checkbox" class="field-image-generation-enabled" ${imageConfig.imageGenerationEnabled ? 'checked' : ''}>
+                        </label>
+                        <label>
+                          Image Mode
+                          <select class="field-image-mode">
+                            <option value="manual" ${imageConfig.imageMode === 'manual' ? 'selected' : ''}>manual</option>
+                            <option value="auto" ${imageConfig.imageMode === 'auto' ? 'selected' : ''}>auto</option>
+                          </select>
+                        </label>
+                        <label>
+                          Image Profile
+                          <select class="field-image-profile">
+                            <option value="professional" ${imageConfig.imageProfile === 'professional' ? 'selected' : ''}>professional</option>
+                            <option value="creative" ${imageConfig.imageProfile === 'creative' ? 'selected' : ''}>creative</option>
+                            <option value="cheap" ${imageConfig.imageProfile === 'cheap' ? 'selected' : ''}>cheap</option>
+                          </select>
+                        </label>
+                        <label>
+                          Exa Max Attempts
+                          <input type="number" min="1" max="20" step="1" class="field-exa-max-attempts" value="${escapeHtml(String(imageConfig.exaMaxAttempts))}">
+                        </label>
+                        <label>
+                          Generation Max Attempts
+                          <input type="number" min="1" max="20" step="1" class="field-generation-max-attempts" value="${escapeHtml(String(imageConfig.generationMaxAttempts))}">
+                        </label>
+                        <label>
+                          Layer 6 Timeout (seconds)
+                          <input type="number" min="15" max="600" step="1" class="field-layer6-timeout-seconds" value="${escapeHtml(String(imageConfig.layer6TimeoutSeconds))}">
+                        </label>
+                        <label>
+                          Layer 6 Budget (USD)
+                          <input type="number" min="0" max="50" step="0.01" class="field-layer6-budget-usd" value="${escapeHtml(String(imageConfig.layer6BudgetUsd))}">
+                        </label>
+                        <label>
+                          Daily Postgres Image Quota
+                          <input type="number" min="0" max="5000" step="1" class="field-quota-postgres-image-daily" value="${escapeHtml(String(imageConfig.quotaPostgresImageDaily))}">
+                        </label>
+                        <label>
+                          Daily Sourced Image Quota
+                          <input type="number" min="0" max="5000" step="1" class="field-quota-sourced-image-daily" value="${escapeHtml(String(imageConfig.quotaSourcedImageDaily))}">
+                        </label>
+                        <label>
+                          Daily Generated Image Quota
+                          <input type="number" min="0" max="5000" step="1" class="field-quota-generated-image-daily" value="${escapeHtml(String(imageConfig.quotaGeneratedImageDaily))}">
+                        </label>
+                        <label>
+                          Daily Text-Only Quota
+                          <input type="number" min="0" max="5000" step="1" class="field-quota-text-only-daily" value="${escapeHtml(String(imageConfig.quotaTextOnlyDaily))}">
+                        </label>
+                        <label class="workflow-wide">
+                          Persona Fallback Image URL
+                          <input type="text" class="field-image-fallback-asset-url" value="${escapeHtml(imageConfig.imageFallbackAssetUrl)}" placeholder="https://...">
+                        </label>
+                        <label class="workflow-wide">
+                          Persona Fallback Cloudinary Public ID
+                          <input type="text" class="field-image-fallback-cloudinary-public-id" value="${escapeHtml(imageConfig.imageFallbackCloudinaryPublicId)}" placeholder="folder/public_id">
+                        </label>
                         <label>
                           Posts / Active Day
                           <input type="number" min="0" max="24" step="1" class="field-pacing-posts-per-day" value="${escapeHtml(String(pacingConfig.postsPerActiveDay))}">
@@ -1442,12 +1539,24 @@ function getPacingConfig(value) {
     postingDays: Array.isArray(raw.postingDays) && raw.postingDays.length === 7
       ? raw.postingDays.map(Boolean)
       : [true, true, true, true, true, true, true],
-    postsPerActiveDay: Number.parseInt(String(raw.postsPerActiveDay ?? 1), 10) || 1,
+    postsPerActiveDay: Number.isFinite(Number.parseInt(String(raw.postsPerActiveDay ?? 1), 10))
+      ? Number.parseInt(String(raw.postsPerActiveDay ?? 1), 10)
+      : 1,
     windowStartLocal: String(raw.windowStartLocal || '06:00:00'),
     windowEndLocal: String(raw.windowEndLocal || '22:00:00'),
     cadenceEnabled: raw.cadenceEnabled !== false,
     singlePostTimeLocal: raw.singlePostTimeLocal ? String(raw.singlePostTimeLocal) : ''
   };
+}
+
+function parseIntegerWithFallback(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseNumberWithFallback(value, fallback) {
+  const parsed = Number(String(value ?? ''));
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function formatPostingDays(days) {
@@ -1514,8 +1623,9 @@ function normalizeOptionalTimeInput(value) {
 
 function updatePacingControlState(card) {
   if (!card) return;
-  const posts = Number.parseInt(String(card.querySelector('.field-pacing-posts-per-day')?.value || '1'), 10) || 1;
-  const isSingleMode = posts <= 1;
+  const posts = parseIntegerWithFallback(card.querySelector('.field-pacing-posts-per-day')?.value, 1);
+  const isPausedMode = posts <= 0;
+  const isSingleMode = posts === 1;
   const windowStart = card.querySelector('.field-pacing-window-start-time');
   const windowStartMeridiem = card.querySelector('.field-pacing-window-start-meridiem');
   const windowEnd = card.querySelector('.field-pacing-window-end-time');
@@ -1523,13 +1633,13 @@ function updatePacingControlState(card) {
   const singleTime = card.querySelector('.field-pacing-single-time');
   const singleTimeMeridiem = card.querySelector('.field-pacing-single-time-meridiem');
   const cadenceToggle = card.querySelector('.field-pacing-cadence-enabled');
-  if (windowStart) windowStart.disabled = isSingleMode;
-  if (windowStartMeridiem) windowStartMeridiem.disabled = isSingleMode;
-  if (windowEnd) windowEnd.disabled = isSingleMode;
-  if (windowEndMeridiem) windowEndMeridiem.disabled = isSingleMode;
+  if (windowStart) windowStart.disabled = isSingleMode || isPausedMode;
+  if (windowStartMeridiem) windowStartMeridiem.disabled = isSingleMode || isPausedMode;
+  if (windowEnd) windowEnd.disabled = isSingleMode || isPausedMode;
+  if (windowEndMeridiem) windowEndMeridiem.disabled = isSingleMode || isPausedMode;
   if (singleTime) singleTime.disabled = !isSingleMode;
   if (singleTimeMeridiem) singleTimeMeridiem.disabled = !isSingleMode;
-  if (cadenceToggle) cadenceToggle.disabled = isSingleMode;
+  if (cadenceToggle) cadenceToggle.disabled = isSingleMode || isPausedMode;
 }
 
 function getDefaultStageConfig() {
@@ -2020,8 +2130,9 @@ async function savePersona(card) {
   const disclosure = card.querySelector('.field-disclosure').value;
   const activationMode = card.querySelector('.field-activation-mode')?.value || 'both';
   const isAutoPromoteEnabled = Boolean(card.querySelector('.field-is-auto-promote-enabled')?.checked);
-  const postsPerActiveDay = Number.parseInt(String(card.querySelector('.field-pacing-posts-per-day')?.value || '1'), 10) || 1;
-  const isSingleMode = postsPerActiveDay <= 1;
+  const postsPerActiveDay = parseIntegerWithFallback(card.querySelector('.field-pacing-posts-per-day')?.value, 1);
+  const isPausedMode = postsPerActiveDay <= 0;
+  const isSingleMode = postsPerActiveDay === 1;
   const windowStartLocal = normalizeTimeInput(
     formatTimeWithMeridiem(
       card.querySelector('.field-pacing-window-start-time')?.value || '',
@@ -2042,27 +2153,47 @@ async function savePersona(card) {
       card.querySelector('.field-pacing-single-time-meridiem')?.value || 'AM'
     )
   );
-  if (!isSingleMode && (!windowStartLocal || !windowEndLocal)) {
+  if (!isSingleMode && !isPausedMode && (!windowStartLocal || !windowEndLocal)) {
     throw new Error('Invalid pacing time format. Use H:MM with AM/PM.');
   }
   if (isSingleMode && !singlePostTimeLocal) {
-    throw new Error('Single post time is required when posts/day is 1 or less.');
+    throw new Error('Single post time is required when posts/day is exactly 1.');
   }
-  if (card.querySelector('.field-pacing-single-time')?.value && !singlePostTimeLocal) {
+  if (isSingleMode && card.querySelector('.field-pacing-single-time')?.value && !singlePostTimeLocal) {
     throw new Error('Invalid single post time format. Use H:MM with AM/PM.');
   }
   const pacingConfig = {
     enabled: true,
     postingDays: parsePostingDays(card.querySelector('.field-pacing-posting-days')?.value || ''),
     postsPerActiveDay,
-    windowStartLocal: isSingleMode ? '06:00:00' : windowStartLocal,
-    windowEndLocal: isSingleMode ? '22:00:00' : windowEndLocal,
-    cadenceEnabled: isSingleMode ? false : Boolean(card.querySelector('.field-pacing-cadence-enabled')?.checked),
-    singlePostTimeLocal,
+    windowStartLocal: (isSingleMode || isPausedMode) ? '06:00:00' : windowStartLocal,
+    windowEndLocal: (isSingleMode || isPausedMode) ? '22:00:00' : windowEndLocal,
+    cadenceEnabled: (isSingleMode || isPausedMode) ? false : Boolean(card.querySelector('.field-pacing-cadence-enabled')?.checked),
+    singlePostTimeLocal: isSingleMode ? singlePostTimeLocal : null,
     singlePostDaypart: null,
     minSpacingMinutes: 90,
     maxBacklog: 200,
     maxRetries: 3
+  };
+  const imageConfig = {
+    imageDbEnabled: Boolean(card.querySelector('.field-image-db-enabled')?.checked),
+    imageSourcingEnabled: Boolean(card.querySelector('.field-image-sourcing-enabled')?.checked),
+    imageGenerationEnabled: Boolean(card.querySelector('.field-image-generation-enabled')?.checked),
+    imageMode: cleanText(card.querySelector('.field-image-mode')?.value || 'manual', 20).toLowerCase() === 'auto' ? 'auto' : 'manual',
+    imageProfile: (() => {
+      const raw = cleanText(card.querySelector('.field-image-profile')?.value || 'professional', 30).toLowerCase();
+      return raw === 'creative' || raw === 'cheap' ? raw : 'professional';
+    })(),
+    imageFallbackAssetUrl: cleanText(card.querySelector('.field-image-fallback-asset-url')?.value || '', 5000) || null,
+    imageFallbackCloudinaryPublicId: cleanText(card.querySelector('.field-image-fallback-cloudinary-public-id')?.value || '', 500) || null,
+    quotaPostgresImageDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-postgres-image-daily')?.value, 200), 0), 5000),
+    quotaSourcedImageDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-sourced-image-daily')?.value, 120), 0), 5000),
+    quotaGeneratedImageDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-generated-image-daily')?.value, 30), 0), 5000),
+    quotaTextOnlyDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-text-only-daily')?.value, 400), 0), 5000),
+    layer6TimeoutSeconds: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-layer6-timeout-seconds')?.value, 90), 15), 600),
+    layer6BudgetUsd: Math.min(Math.max(parseNumberWithFallback(card.querySelector('.field-layer6-budget-usd')?.value, 0.20), 0), 50),
+    exaMaxAttempts: Math.min(Math.max(Number.parseInt(String(card.querySelector('.field-exa-max-attempts')?.value || '3'), 10) || 3, 1), 20),
+    generationMaxAttempts: Math.min(Math.max(Number.parseInt(String(card.querySelector('.field-generation-max-attempts')?.value || '2'), 10) || 2, 1), 20)
   };
   const feeds = parseFeedsFromText(card.querySelector('.field-feeds')?.value || '');
   const stageConfigs = {};
@@ -2104,6 +2235,7 @@ async function savePersona(card) {
       disclosure,
       activationMode,
       isAutoPromoteEnabled,
+      imageConfig,
       pacingConfig,
       feeds,
       stageConfigs
@@ -2224,6 +2356,7 @@ function getStageStatusClass(status) {
   const normalized = cleanText(status, 40).toLowerCase();
   if (normalized === 'completed') return 'is-completed';
   if (normalized === 'in_progress') return 'is-in-progress';
+  if (normalized === 'timed_out') return 'is-failed';
   if (normalized === 'failed') return 'is-failed';
   return 'is-pending';
 }
@@ -2231,6 +2364,7 @@ function getStageStatusClass(status) {
 function formatStageStatusLabel(status) {
   const normalized = cleanText(status, 40).toLowerCase();
   if (normalized === 'in_progress') return 'in progress';
+  if (normalized === 'timed_out') return 'timed out';
   return normalized || 'pending';
 }
 
@@ -2266,8 +2400,16 @@ function renderPipelineStageDetailItems(items) {
 
 function renderPersonaPipelineRunCard(run) {
   const statusClass = getStageStatusClass(
-    run.runStatus === 'phase_5_complete' || run.runStatus === 'phase_4_complete' || run.runStatus === 'phase_3_complete'
+    run.runStatus === 'phase_6_complete'
+      || run.runStatus === 'phase_2_complete'
+      || run.runStatus === 'phase_5_complete'
+      || run.runStatus === 'phase_4_complete'
+      || run.runStatus === 'phase_3_complete'
       ? 'completed'
+      : run.runStatus === 'phase_6_failed'
+        || run.runStatus === 'phase_6_timed_out'
+        || run.runStatus === 'blocked'
+        ? 'failed'
       : run.runStatus === 'queued'
         ? 'in_progress'
         : run.runStatus

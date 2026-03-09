@@ -71,14 +71,40 @@ async function setupDatabase() {
   `;
 
   await sql`
+    ALTER TABLE article_drafts
+    ADD COLUMN IF NOT EXISTS codex_idempotency_key TEXT
+  `;
+
+  await sql`
     CREATE INDEX IF NOT EXISTS idx_article_drafts_status_created
     ON article_drafts(status, created_at DESC)
   `;
 
   await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_article_drafts_source_url_unique
+    DROP INDEX IF EXISTS idx_article_drafts_source_url_unique
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_article_drafts_source_url
     ON article_drafts(source_url)
     WHERE source_url IS NOT NULL
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_article_drafts_codex_idempotency_key
+    ON article_drafts(codex_idempotency_key)
+  `;
+
+  await sql`
+    DROP INDEX IF EXISTS uq_article_drafts_codex_idempotency_key
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_article_drafts_codex_idempotency_key_norm
+    ON article_drafts((lower(trim(codex_idempotency_key))))
+    WHERE created_via = 'codex_automation'
+      AND codex_idempotency_key IS NOT NULL
+      AND trim(codex_idempotency_key) <> ''
   `;
 
   await sql`

@@ -1684,11 +1684,14 @@ function isNearDuplicateTitle(candidateTitle, existingTitles) {
 }
 
 async function alreadyExists(sql, candidate) {
-  const slug = generateSlug(candidate.title);
+  const slug = String(generateSlug(candidate.title) || "").trim();
   const rows = await sql`
     SELECT EXISTS(
       SELECT 1 FROM articles
-      WHERE slug = ${slug}
+      WHERE (
+          ${slug} <> ''
+          AND lower(trim(slug)) = lower(trim(${slug}))
+        )
          OR lower(title) = lower(${candidate.title})
       UNION ALL
       SELECT 1 FROM article_drafts
@@ -1699,59 +1702,49 @@ async function alreadyExists(sql, candidate) {
   return !!rows?.[0]?.exists;
 }
 
+function stableSlugSuffix(seed) {
+  const text = String(seed || 'draft').trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash || 1).toString(36);
+}
+
+function ensureNonEmptyDraftSlug(draftTitle, candidate) {
+  const primary = String(generateSlug(draftTitle) || '').trim();
+  if (primary) return primary;
+  const sourceTitle = String(generateSlug(candidate?.title || '') || '').trim();
+  if (sourceTitle) return sourceTitle;
+  const seed = `${candidate?.url || ''}|${candidate?.title || ''}|${candidate?.section || ''}`;
+  return `draft-${stableSlugSuffix(seed)}`;
+}
+
 async function ensureDuplicateReportsTable() {}
 async function ensureEditorialRejectionsTable() {}
 async function ensureModelTrackingReset() {}
 
 async function ensureDraftGenerationRunsTable(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS draft_generation_runs (
-      id SERIAL PRIMARY KEY,
-      run_at TIMESTAMP DEFAULT NOW(),
-      run_status TEXT NOT NULL,
-      run_reason TEXT,
-      schedule_mode TEXT,
-      track TEXT,
-      run_mode TEXT,
-      created_via TEXT,
-      dry_run BOOLEAN DEFAULT false,
-      include_sections TEXT,
-      exclude_sections TEXT,
-      active_sections TEXT,
-      et_date TEXT,
-      et_time TEXT,
-      requested_count INTEGER,
-      target_count INTEGER,
-      created_count INTEGER DEFAULT 0,
-      skipped_count INTEGER DEFAULT 0,
-      daily_token_budget INTEGER,
-      tokens_used_today INTEGER DEFAULT 0,
-      run_tokens_consumed INTEGER DEFAULT 0,
-      writer_provider TEXT,
-      writer_model TEXT,
-      top_skip_reasons JSONB DEFAULT '[]'::jsonb
-    )
+  const tableRows = await sql`SELECT to_regclass('public.draft_generation_runs') AS name`;
+  if (!tableRows[0]?.name) {
+    const error = new Error('Schema not ready: missing draft_generation_runs. Apply migration 20260309_26.');
+    error.statusCode = 503;
+    throw error;
+  }
+  const columnRows = await sql`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'draft_generation_runs'
   `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_draft_generation_runs_run_at
-    ON draft_generation_runs(run_at DESC)
-  `;
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_draft_generation_runs_status
-    ON draft_generation_runs(run_status)
-  `;
-
-  await sql`
-    ALTER TABLE draft_generation_runs
-    ADD COLUMN IF NOT EXISTS writer_provider TEXT
-  `;
-
-  await sql`
-    ALTER TABLE draft_generation_runs
-    ADD COLUMN IF NOT EXISTS writer_model TEXT
-  `;
+  const existingColumns = new Set(columnRows.map((row) => String(row.column_name || '')));
+  const requiredColumns = ['writer_provider', 'writer_model', 'top_skip_reasons', 'run_status', 'run_at'];
+  const missingColumns = requiredColumns.filter((columnName) => !existingColumns.has(columnName));
+  if (missingColumns.length) {
+    const error = new Error(`Schema not ready: missing draft_generation_runs columns: ${missingColumns.join(', ')}`);
+    error.statusCode = 503;
+    throw error;
+  }
 }
 
 function getTopSkipReasons(skipped, limit = 10) {
@@ -2638,7 +2631,7 @@ module.exports = async (req, res) => {
           }
         }
       }
-      const slug = generateSlug(draft.title);
+      const slug = ensureNonEmptyDraftSlug(draft.title, candidate);
 
       if (!dryRun) {
         const inserted = await sql`
@@ -2826,6 +2819,9 @@ module.exports = async (req, res) => {
     });
   } catch (error) {
     console.error('Generate drafts error:', error);
+    if (Number(error?.statusCode || 0) === 503) {
+      return res.status(503).json({ error: error.message });
+    }
     try {
       await logDraftGenerationRun(sql, {
         runStatus: 'error',

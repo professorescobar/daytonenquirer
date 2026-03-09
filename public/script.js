@@ -116,6 +116,27 @@ function getSidebarHeadlineCount() {
   return window.innerWidth >= 901 ? 5 : 4;
 }
 
+function normalizeImageStatus(article) {
+  const raw = String(article?.imageStatus || article?.renderClass || '').trim().toLowerCase();
+  if (raw === 'with_image' || raw === 'text_only') return raw;
+  return 'text_only';
+}
+
+function placementEligibleIncludes(article, slot) {
+  const list = Array.isArray(article?.placementEligible) ? article.placementEligible : [];
+  if (!list.length) return false;
+  return list.includes(slot);
+}
+
+function pickFeaturedArticle(articles) {
+  const rows = Array.isArray(articles) ? articles : [];
+  return rows.find((article) =>
+    String(article?.image || '').trim() &&
+    normalizeImageStatus(article) === 'with_image' &&
+    (placementEligibleIncludes(article, 'main') || placementEligibleIncludes(article, 'top') || placementEligibleIncludes(article, 'grid'))
+  ) || null;
+}
+
 // ============================
 // MARKET TICKER (TradingView)
 // ============================
@@ -178,7 +199,10 @@ async function loadWorldNews() {
      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    const featured = articles[0];
+    const featured = pickFeaturedArticle(articles);
+    const remainingArticles = featured ? articles.filter((article) => article !== featured) : articles.slice();
+    const listEligibleArticles = remainingArticles.filter((article) => placementEligibleIncludes(article, 'sidebar') || placementEligibleIncludes(article, 'extra_headlines'));
+    const sidebarHeadlineCount = getSidebarHeadlineCount();
     const featuredContainer = document.getElementById("featured-story");
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
@@ -198,7 +222,7 @@ async function loadWorldNews() {
     const headlinesList = document.getElementById("headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
+      listEligibleArticles.slice(0, sidebarHeadlineCount).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'world')}">${article.title}</a>
@@ -210,12 +234,12 @@ async function loadWorldNews() {
     }
 
     const moreList = document.getElementById("more-headlines-list");
-    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
+    if (moreList && listEligibleArticles.length > sidebarHeadlineCount) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
+      listEligibleArticles.slice(sidebarHeadlineCount, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'world')}">${article.title}</a>
@@ -280,7 +304,10 @@ async function loadNationalNews() {
      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    const featured = articles[0];
+    const featured = pickFeaturedArticle(articles);
+    const remainingArticles = featured ? articles.filter((article) => article !== featured) : articles.slice();
+    const listEligibleArticles = remainingArticles.filter((article) => placementEligibleIncludes(article, 'sidebar') || placementEligibleIncludes(article, 'extra_headlines'));
+    const sidebarHeadlineCount = getSidebarHeadlineCount();
     const featuredContainer = document.getElementById("national-featured-story");
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
@@ -300,7 +327,7 @@ async function loadNationalNews() {
     const headlinesList = document.getElementById("national-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
+      listEligibleArticles.slice(0, sidebarHeadlineCount).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'national')}">${article.title}</a>
@@ -312,12 +339,12 @@ async function loadNationalNews() {
     }
 
     const moreList = document.getElementById("national-more-headlines-list");
-    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
+    if (moreList && listEligibleArticles.length > sidebarHeadlineCount) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
+      listEligibleArticles.slice(sidebarHeadlineCount, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'national')}">${article.title}</a>
@@ -357,7 +384,10 @@ async function loadBusinessNews() {
      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    const featured = articles[0];
+    const featured = pickFeaturedArticle(articles);
+    const remainingArticles = featured ? articles.filter((article) => article !== featured) : articles.slice();
+    const listEligibleArticles = remainingArticles.filter((article) => placementEligibleIncludes(article, 'sidebar') || placementEligibleIncludes(article, 'extra_headlines'));
+    const sidebarHeadlineCount = getSidebarHeadlineCount();
     const featuredContainer = document.getElementById("business-featured-story");
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
@@ -377,7 +407,7 @@ async function loadBusinessNews() {
     const headlinesList = document.getElementById("business-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
+      listEligibleArticles.slice(0, sidebarHeadlineCount).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'business')}">${article.title}</a>
@@ -389,12 +419,12 @@ async function loadBusinessNews() {
     }
 
     const moreList = document.getElementById("business-more-headlines-list");
-    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
+    if (moreList && listEligibleArticles.length > sidebarHeadlineCount) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
+      listEligibleArticles.slice(sidebarHeadlineCount, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'business')}">${article.title}</a>
@@ -434,7 +464,10 @@ async function loadSportsNews() {
      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    const featured = articles[0];
+    const featured = pickFeaturedArticle(articles);
+    const remainingArticles = featured ? articles.filter((article) => article !== featured) : articles.slice();
+    const listEligibleArticles = remainingArticles.filter((article) => placementEligibleIncludes(article, 'sidebar') || placementEligibleIncludes(article, 'extra_headlines'));
+    const sidebarHeadlineCount = getSidebarHeadlineCount();
     const featuredContainer = document.getElementById("sports-featured-story");
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
@@ -454,7 +487,7 @@ async function loadSportsNews() {
     const headlinesList = document.getElementById("sports-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
+      listEligibleArticles.slice(0, sidebarHeadlineCount).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'sports')}">${article.title}</a>
@@ -466,12 +499,12 @@ async function loadSportsNews() {
     }
 
     const moreList = document.getElementById("sports-more-headlines-list");
-    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
+    if (moreList && listEligibleArticles.length > sidebarHeadlineCount) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
+      listEligibleArticles.slice(sidebarHeadlineCount, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'sports')}">${article.title}</a>
@@ -511,7 +544,10 @@ async function loadHealthNews() {
      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    const featured = articles[0];
+    const featured = pickFeaturedArticle(articles);
+    const remainingArticles = featured ? articles.filter((article) => article !== featured) : articles.slice();
+    const listEligibleArticles = remainingArticles.filter((article) => placementEligibleIncludes(article, 'sidebar') || placementEligibleIncludes(article, 'extra_headlines'));
+    const sidebarHeadlineCount = getSidebarHeadlineCount();
     const featuredContainer = document.getElementById("health-featured-story");
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
@@ -531,7 +567,7 @@ async function loadHealthNews() {
     const headlinesList = document.getElementById("health-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
+      listEligibleArticles.slice(0, sidebarHeadlineCount).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'health')}">${article.title}</a>
@@ -543,12 +579,12 @@ async function loadHealthNews() {
     }
 
     const moreList = document.getElementById("health-more-headlines-list");
-    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
+    if (moreList && listEligibleArticles.length > sidebarHeadlineCount) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
+      listEligibleArticles.slice(sidebarHeadlineCount, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'health')}">${article.title}</a>
@@ -588,7 +624,10 @@ async function loadEntertainmentNews() {
      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    const featured = articles[0];
+    const featured = pickFeaturedArticle(articles);
+    const remainingArticles = featured ? articles.filter((article) => article !== featured) : articles.slice();
+    const listEligibleArticles = remainingArticles.filter((article) => placementEligibleIncludes(article, 'sidebar') || placementEligibleIncludes(article, 'extra_headlines'));
+    const sidebarHeadlineCount = getSidebarHeadlineCount();
     const featuredContainer = document.getElementById("entertainment-featured-story");
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
@@ -608,7 +647,7 @@ async function loadEntertainmentNews() {
     const headlinesList = document.getElementById("entertainment-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
+      listEligibleArticles.slice(0, sidebarHeadlineCount).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'entertainment')}">${article.title}</a>
@@ -620,12 +659,12 @@ async function loadEntertainmentNews() {
     }
 
     const moreList = document.getElementById("entertainment-more-headlines-list");
-    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
+    if (moreList && listEligibleArticles.length > sidebarHeadlineCount) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
+      listEligibleArticles.slice(sidebarHeadlineCount, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'entertainment')}">${article.title}</a>
@@ -665,7 +704,10 @@ async function loadTechnologyNews() {
      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    const featured = articles[0];
+    const featured = pickFeaturedArticle(articles);
+    const remainingArticles = featured ? articles.filter((article) => article !== featured) : articles.slice();
+    const listEligibleArticles = remainingArticles.filter((article) => placementEligibleIncludes(article, 'sidebar') || placementEligibleIncludes(article, 'extra_headlines'));
+    const sidebarHeadlineCount = getSidebarHeadlineCount();
     const featuredContainer = document.getElementById("technology-featured-story");
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
@@ -685,7 +727,7 @@ async function loadTechnologyNews() {
     const headlinesList = document.getElementById("technology-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
+      listEligibleArticles.slice(0, sidebarHeadlineCount).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'technology')}">${article.title}</a>
@@ -697,12 +739,12 @@ async function loadTechnologyNews() {
     }
 
     const moreList = document.getElementById("technology-more-headlines-list");
-    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
+    if (moreList && listEligibleArticles.length > sidebarHeadlineCount) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
+      listEligibleArticles.slice(sidebarHeadlineCount, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'technology')}">${article.title}</a>
@@ -839,7 +881,10 @@ async function loadLocalNews() {
      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    const featured = articles[0];
+    const featured = pickFeaturedArticle(articles);
+    const remainingArticles = featured ? articles.filter((article) => article !== featured) : articles.slice();
+    const listEligibleArticles = remainingArticles.filter((article) => placementEligibleIncludes(article, 'sidebar') || placementEligibleIncludes(article, 'extra_headlines'));
+    const sidebarHeadlineCount = getSidebarHeadlineCount();
     const featuredContainer = document.getElementById("local-featured-story");
     if (featuredContainer && featured) {
       featuredContainer.innerHTML = `
@@ -859,7 +904,7 @@ async function loadLocalNews() {
     const headlinesList = document.getElementById("local-headlines-list");
     if (headlinesList) {
       headlinesList.innerHTML = "";
-      articles.slice(1, 1 + getSidebarHeadlineCount()).forEach(article => {
+      listEligibleArticles.slice(0, sidebarHeadlineCount).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'local')}">${article.title}</a>
@@ -871,12 +916,12 @@ async function loadLocalNews() {
     }
 
     const moreList = document.getElementById("local-more-headlines-list");
-    if (moreList && articles.length > (1 + getSidebarHeadlineCount())) {
+    if (moreList && listEligibleArticles.length > sidebarHeadlineCount) {
       moreList.innerHTML = "";
       const isMobile = window.innerWidth <= 768;
       const maxArticles = isMobile ? 12 : 24;
       
-      articles.slice(1 + getSidebarHeadlineCount(), maxArticles).forEach(article => {
+      listEligibleArticles.slice(sidebarHeadlineCount, maxArticles).forEach(article => {
         const li = document.createElement("li");
         li.innerHTML = `
           <a href="${articleLink(article, 'local')}">${article.title}</a>

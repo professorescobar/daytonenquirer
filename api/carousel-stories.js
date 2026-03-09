@@ -1,17 +1,6 @@
 const { neon } = require('@neondatabase/serverless');
 
-let cachedCarousel = null;
-let cacheTimestamp = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
 export default async function handler(req, res) {
-  const now = Date.now();
-  
-  // Return cached data if still fresh
-  if (cachedCarousel && (now - cacheTimestamp < CACHE_DURATION)) {
-    return res.json(cachedCarousel);
-  }
-
   try {
     const sql = neon(process.env.DATABASE_URL);
     
@@ -31,6 +20,11 @@ export default async function handler(req, res) {
         FROM articles
         WHERE section = ${section} 
           AND COALESCE(status, 'published') = 'published'
+          AND image_status = 'with_image'
+          AND (
+            jsonb_typeof(placement_eligible) = 'array'
+            AND placement_eligible ? 'carousel'
+          )
           AND image IS NOT NULL 
           AND image != ''
         ORDER BY pub_date DESC
@@ -64,11 +58,7 @@ export default async function handler(req, res) {
     }
 
     const result = { stories };
-    
-    // Cache the result
-    cachedCarousel = result;
-    cacheTimestamp = now;
-    
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.json(result);
   } catch (error) {
     console.error('Carousel database error:', error);
