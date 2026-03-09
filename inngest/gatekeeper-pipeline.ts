@@ -4098,11 +4098,13 @@ async function checkCorroborationPreAI(signal: SignalRecord): Promise<Corroborat
         array_agg(DISTINCT s.source_type) FILTER (WHERE s.source_type IS NOT NULL),
         ARRAY[]::text[]
       ) as "distinctSourceTypes24h",
-      COUNT(DISTINCT s.session_hash)::int FILTER (
-        WHERE s.source_type IN ('chat_yes', 'chat_specify')
-          AND s.session_hash IS NOT NULL
-          AND length(trim(s.session_hash)) > 0
-      ) as "distinctChatSessions24h"
+      (
+        COUNT(DISTINCT s.session_hash) FILTER (
+          WHERE s.source_type IN ('chat_yes', 'chat_specify')
+            AND s.session_hash IS NOT NULL
+            AND length(trim(s.session_hash)) > 0
+        )
+      )::int as "distinctChatSessions24h"
     FROM topic_signals s
     WHERE s.persona_id = ${signal.personaId}
       AND s.id <> ${signal.id}
