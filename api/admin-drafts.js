@@ -18,8 +18,15 @@ module.exports = async (req, res) => {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    let hasBeat = true;
+    let hasPersona = true;
+    let hasImageCaption = true;
+    let hasImageCredit = true;
+    let hasSourceUrl = true;
     let hasSourceTitle = true;
     let hasSourcePublishedAt = true;
+    let hasPubDate = true;
+    let hasModel = true;
     let hasPublishedArticleId = true;
     let hasCreatedVia = true;
 
@@ -32,16 +39,16 @@ module.exports = async (req, res) => {
           description,
           content,
           section,
-          beat,
-          persona,
+          ${hasBeat ? sql`beat` : sql`NULL::text`} as "beat",
+          ${hasPersona ? sql`persona` : sql`NULL::text`} as "persona",
           image,
-          image_caption as "imageCaption",
-          image_credit as "imageCredit",
-          source_url as "sourceUrl",
+          ${hasImageCaption ? sql`image_caption` : sql`NULL::text`} as "imageCaption",
+          ${hasImageCredit ? sql`image_credit` : sql`NULL::text`} as "imageCredit",
+          ${hasSourceUrl ? sql`source_url` : sql`NULL::text`} as "sourceUrl",
           ${hasSourceTitle ? sql`source_title` : sql`NULL::text`} as "sourceTitle",
           ${hasSourcePublishedAt ? sql`source_published_at` : sql`NULL::timestamptz`} as "sourcePublishedAt",
-          pub_date as "pubDate",
-          model,
+          ${hasPubDate ? sql`pub_date` : sql`NULL::timestamptz`} as "pubDate",
+          ${hasModel ? sql`model` : sql`NULL::text`} as "model",
           ${hasCreatedVia ? sql`created_via` : sql`NULL::text`} as "createdVia",
           status,
           ${hasPublishedArticleId ? sql`published_article_id` : sql`NULL::bigint`} as "publishedArticleId",
@@ -59,12 +66,40 @@ module.exports = async (req, res) => {
       drafts = await queryDrafts();
     } catch (error) {
       let changed = false;
+      if (hasBeat && isMissingColumn(error, 'beat')) {
+        hasBeat = false;
+        changed = true;
+      }
+      if (hasPersona && isMissingColumn(error, 'persona')) {
+        hasPersona = false;
+        changed = true;
+      }
+      if (hasImageCaption && isMissingColumn(error, 'image_caption')) {
+        hasImageCaption = false;
+        changed = true;
+      }
+      if (hasImageCredit && isMissingColumn(error, 'image_credit')) {
+        hasImageCredit = false;
+        changed = true;
+      }
+      if (hasSourceUrl && isMissingColumn(error, 'source_url')) {
+        hasSourceUrl = false;
+        changed = true;
+      }
       if (hasSourceTitle && isMissingColumn(error, 'source_title')) {
         hasSourceTitle = false;
         changed = true;
       }
       if (hasSourcePublishedAt && isMissingColumn(error, 'source_published_at')) {
         hasSourcePublishedAt = false;
+        changed = true;
+      }
+      if (hasPubDate && isMissingColumn(error, 'pub_date')) {
+        hasPubDate = false;
+        changed = true;
+      }
+      if (hasModel && isMissingColumn(error, 'model')) {
+        hasModel = false;
         changed = true;
       }
       if (hasPublishedArticleId && isMissingColumn(error, 'published_article_id')) {
