@@ -413,6 +413,29 @@ async function handlePersonaImageUpload(card, file) {
   }
 }
 
+async function handlePersonaFallbackImageUpload(card, file) {
+  const imageInput = card.querySelector('.field-image-fallback-asset-url');
+  const publicIdInput = card.querySelector('.field-image-fallback-cloudinary-public-id');
+  const status = card.querySelector('.fallback-upload-status');
+  if (!file || !imageInput || !publicIdInput || !status) return;
+
+  const mime = String(file.type || '');
+  if (!mime.startsWith('image/')) {
+    status.textContent = 'Please drop/select an image file.';
+    return;
+  }
+
+  try {
+    status.textContent = 'Uploading fallback image...';
+    const result = await uploadImageToCloudinary(file);
+    imageInput.value = result.optimizedUrl || result.secureUrl || '';
+    publicIdInput.value = result.publicId || '';
+    status.textContent = 'Fallback image ready. Save persona to apply.';
+  } catch (err) {
+    status.textContent = `Fallback upload failed: ${err.message}`;
+  }
+}
+
 function injectPersonaStyles() {
   const styleId = 'persona-settings-styles';
   if (document.getElementById(styleId)) return;
@@ -1140,6 +1163,10 @@ async function createPersonaFromInputs() {
         imageGenerationEnabled: false,
         imageMode: 'manual',
         imageProfile: 'professional',
+        quotaPostgresImageDaily: 2,
+        quotaSourcedImageDaily: 2,
+        quotaGeneratedImageDaily: 2,
+        quotaTextOnlyDaily: 3,
         layer6TimeoutSeconds: 90,
         layer6BudgetUsd: 0.20,
         exaMaxAttempts: 3,
@@ -1314,10 +1341,10 @@ function renderPersonas(personas) {
                     : 'professional',
                   imageFallbackAssetUrl: cleanText(data.imageFallbackAssetUrl || '', 5000),
                   imageFallbackCloudinaryPublicId: cleanText(data.imageFallbackCloudinaryPublicId || '', 500),
-                  quotaPostgresImageDaily: parseNumberWithFallback(data.quotaPostgresImageDaily, 200),
-                  quotaSourcedImageDaily: parseNumberWithFallback(data.quotaSourcedImageDaily, 120),
-                  quotaGeneratedImageDaily: parseNumberWithFallback(data.quotaGeneratedImageDaily, 30),
-                  quotaTextOnlyDaily: parseNumberWithFallback(data.quotaTextOnlyDaily, 400),
+                  quotaPostgresImageDaily: parseNumberWithFallback(data.quotaPostgresImageDaily, 2),
+                  quotaSourcedImageDaily: parseNumberWithFallback(data.quotaSourcedImageDaily, 2),
+                  quotaGeneratedImageDaily: parseNumberWithFallback(data.quotaGeneratedImageDaily, 2),
+                  quotaTextOnlyDaily: parseNumberWithFallback(data.quotaTextOnlyDaily, 3),
                   layer6TimeoutSeconds: parseNumberWithFallback(data.layer6TimeoutSeconds, 90),
                   layer6BudgetUsd: parseNumberWithFallback(data.layer6BudgetUsd, 0.20),
                   exaMaxAttempts: Number(data.exaMaxAttempts ?? 3) || 3,
@@ -1431,6 +1458,12 @@ function renderPersonas(personas) {
                         <label class="workflow-wide">
                           Persona Fallback Image URL
                           <input type="text" class="field-image-fallback-asset-url" value="${escapeHtml(imageConfig.imageFallbackAssetUrl)}" placeholder="https://...">
+                          <div class="persona-fallback-upload-row">
+                            <input type="file" class="file-fallback-image" accept="image/*" hidden>
+                            <button type="button" class="btn btn-secondary btn-upload-fallback-image">Upload or Drop Image</button>
+                            <span class="draft-meta">Tip: drag an image file onto the URL field.</span>
+                          </div>
+                          <p class="fallback-upload-status"></p>
                         </label>
                         <label class="workflow-wide">
                           Persona Fallback Cloudinary Public ID
@@ -2186,10 +2219,10 @@ async function savePersona(card) {
     })(),
     imageFallbackAssetUrl: cleanText(card.querySelector('.field-image-fallback-asset-url')?.value || '', 5000) || null,
     imageFallbackCloudinaryPublicId: cleanText(card.querySelector('.field-image-fallback-cloudinary-public-id')?.value || '', 500) || null,
-    quotaPostgresImageDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-postgres-image-daily')?.value, 200), 0), 5000),
-    quotaSourcedImageDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-sourced-image-daily')?.value, 120), 0), 5000),
-    quotaGeneratedImageDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-generated-image-daily')?.value, 30), 0), 5000),
-    quotaTextOnlyDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-text-only-daily')?.value, 400), 0), 5000),
+    quotaPostgresImageDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-postgres-image-daily')?.value, 2), 0), 5000),
+    quotaSourcedImageDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-sourced-image-daily')?.value, 2), 0), 5000),
+    quotaGeneratedImageDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-generated-image-daily')?.value, 2), 0), 5000),
+    quotaTextOnlyDaily: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-quota-text-only-daily')?.value, 3), 0), 5000),
     layer6TimeoutSeconds: Math.min(Math.max(parseIntegerWithFallback(card.querySelector('.field-layer6-timeout-seconds')?.value, 90), 15), 600),
     layer6BudgetUsd: Math.min(Math.max(parseNumberWithFallback(card.querySelector('.field-layer6-budget-usd')?.value, 0.20), 0), 50),
     exaMaxAttempts: Math.min(Math.max(Number.parseInt(String(card.querySelector('.field-exa-max-attempts')?.value || '3'), 10) || 3, 1), 20),
@@ -2768,6 +2801,11 @@ function onPersonaListClick(event) {
     return;
   }
 
+  if (button.classList.contains('btn-upload-fallback-image')) {
+    card.querySelector('.file-fallback-image')?.click();
+    return;
+  }
+
   if (button.classList.contains('btn-save-persona')) {
     button.disabled = true;
     savePersona(card)
@@ -2823,7 +2861,11 @@ function onPersonaListChange(event) {
     const card = target.closest('.persona-card');
     const file = target.files?.[0];
     if (card && file) {
-      handlePersonaImageUpload(card, file);
+      if (target.classList.contains('file-fallback-image')) {
+        handlePersonaFallbackImageUpload(card, file);
+      } else {
+        handlePersonaImageUpload(card, file);
+      }
     }
     return;
   }
@@ -2839,6 +2881,24 @@ function onPersonaListChange(event) {
 
   const stageEl = target.closest('.workflow-stage');
   if (!stageEl) return;
+}
+
+function onPersonaListDragOver(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target?.closest('.field-image-fallback-asset-url')) return;
+  event.preventDefault();
+}
+
+function onPersonaListDrop(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  const input = target?.closest('.field-image-fallback-asset-url');
+  if (!input) return;
+  event.preventDefault();
+  const card = input.closest('.persona-card');
+  const file = event.dataTransfer?.files?.[0];
+  if (card && file) {
+    handlePersonaFallbackImageUpload(card, file);
+  }
 }
 
 function onPersonaListFocusOut(event) {
@@ -3026,6 +3086,8 @@ function init() {
   if (personaListEl) {
     personaListEl.addEventListener('click', onPersonaListClick);
     personaListEl.addEventListener('change', onPersonaListChange);
+    personaListEl.addEventListener('dragover', onPersonaListDragOver);
+    personaListEl.addEventListener('drop', onPersonaListDrop);
     personaListEl.addEventListener('focusout', onPersonaListFocusOut);
     personaListEl.addEventListener('keydown', onPersonaListKeyDown);
   }
