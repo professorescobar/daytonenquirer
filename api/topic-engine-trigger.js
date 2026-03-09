@@ -110,12 +110,12 @@ async function persistSignalDispatchStatus(sql, signalId, eventResult) {
         COALESCE(metadata, '{}'::jsonb),
         '{eventDispatch}',
         jsonb_build_object(
-          'attempted', ${attempted},
-          'sent', ${sent},
-          'status', ${status},
-          'reason', ${reason},
-          'needsRetry', ${needsRetry},
-          'lastAttemptAt', ${lastAttemptAt},
+          'attempted', ${attempted}::boolean,
+          'sent', ${sent}::boolean,
+          'status', ${status}::integer,
+          'reason', ${reason}::text,
+          'needsRetry', ${needsRetry}::boolean,
+          'lastAttemptAt', ${lastAttemptAt}::timestamptz,
           'retryCount',
             (
               CASE
@@ -124,21 +124,21 @@ async function persistSignalDispatchStatus(sql, signalId, eventResult) {
                 ELSE 0
               END
               +
-              CASE WHEN ${needsRetry} THEN 1 ELSE 0 END
+              CASE WHEN ${needsRetry}::boolean THEN 1 ELSE 0 END
             )
         ),
         true
       ),
       action = CASE
-        WHEN ${needsRetry} THEN 'pending'
+        WHEN ${needsRetry}::boolean THEN 'pending'
         ELSE action
       END,
       review_decision = CASE
-        WHEN ${needsRetry} THEN 'pending_review'
+        WHEN ${needsRetry}::boolean THEN 'pending_review'
         ELSE review_decision
       END,
       updated_at = NOW()
-    WHERE id = ${signalId}
+    WHERE id = ${signalId}::bigint
   `;
 }
 
