@@ -52,8 +52,16 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run }) {
   const evidenceCount = Number(stageCounts?.evidence_extraction || 0);
   const storyPlanningCount = Number(stageCounts?.story_planning || 0);
   const draftWritingCount = Number(stageCounts?.draft_writing || 0);
+  const hasDownstreamProgress =
+    researchCount > 0 ||
+    evidenceCount > 0 ||
+    storyPlanningCount > 0 ||
+    draftWritingCount > 0 ||
+    Boolean(layer6Run);
   const queueStatus = cleanText(queue?.status || '', 40).toLowerCase();
-  const promoted = cleanText(signal?.action || '', 40).toLowerCase() === 'promote';
+  const promoted =
+    cleanText(signal?.action || '', 40).toLowerCase() === 'promote' ||
+    hasDownstreamProgress;
 
   const stages = {
     topic_qualification: promoted ? 'completed' : 'pending',
@@ -72,7 +80,7 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run }) {
     stages.quota_pacing = 'in_progress';
   } else if (queueStatus === 'rejected') {
     stages.quota_pacing = 'failed';
-  } else if (promoted) {
+  } else if (promoted || hasDownstreamProgress) {
     stages.quota_pacing = 'completed';
   }
 
