@@ -188,7 +188,8 @@ const TEST_SIGNAL_ID = 12345;
 const TEST_MODE_ENABLED =
   String(process.env.TOPIC_ENGINE_TEST_MODE || "").trim().toLowerCase() === "true" ||
   String(process.env.VERCEL_ENV || "").trim().toLowerCase() !== "production";
-const HARD_CODED_GATEKEEPER_MODEL = "gemini-1.5-flash";
+const HARD_CODED_GATEKEEPER_MODEL = "gemini-2.0-flash";
+const HARD_CODED_GATEKEEPER_OPENAI_MODEL = "gpt-4o-mini";
 const HARD_CODED_RESEARCH_QUERY_MODEL = "gemini-1.5-flash";
 const HARD_CODED_EVIDENCE_MODEL_CANDIDATES = ["gemini-1.5-pro", "gemini-1.5-pro-002"];
 const HARD_CODED_STORY_PLANNING_OPENAI_MODEL = "gpt-4o-mini";
@@ -4140,13 +4141,8 @@ async function classifyWithGatekeeper(
     signal.personaSection
   );
 
-  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-
-  const model = HARD_CODED_GATEKEEPER_MODEL;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    model
-  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const geminiApiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  const openAiApiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
   const prompt = [
     guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
     guidanceBundle.promptSourceVersion
@@ -4166,24 +4162,70 @@ async function classifyWithGatekeeper(
     `Corroboration: ${JSON.stringify(corroboration)}`
   ].join("\n");
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 1300,
-        responseMimeType: "application/json"
+  let text = "";
+  const gatekeeperErrors: string[] = [];
+
+  if (geminiApiKey) {
+    const model =
+      cleanText(process.env.TOPIC_ENGINE_GATEKEEPER_GEMINI_MODEL || "", 120) ||
+      HARD_CODED_GATEKEEPER_MODEL;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      model
+    )}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1300,
+          responseMimeType: "application/json"
+        }
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      gatekeeperErrors.push(`gemini:${model}:${response.status}:${body.slice(0, 220)}`);
+    } else {
+      const data = await response.json();
+      text =
+        data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+      if (!cleanText(text, 20).length) {
+        gatekeeperErrors.push(`gemini:${model}:empty_response`);
       }
-    })
-  });
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Gemini gatekeeper classify failed ${response.status}: ${body.slice(0, 220)}`);
+    }
   }
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+
+  if (!cleanText(text, 20).length && openAiApiKey) {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openAiApiKey}`
+      },
+      body: JSON.stringify({
+        model: HARD_CODED_GATEKEEPER_OPENAI_MODEL,
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      gatekeeperErrors.push(`openai:${HARD_CODED_GATEKEEPER_OPENAI_MODEL}:${response.status}:${body.slice(0, 220)}`);
+    } else {
+      const data = await response.json();
+      text = data?.choices?.[0]?.message?.content || "";
+    }
+  }
+
+  if (!cleanText(text, 20).length) {
+    throw new Error(
+      `Gatekeeper classify failed: ${gatekeeperErrors.length ? gatekeeperErrors.join(" | ") : "no_provider_available"}`
+    );
+  }
+
   const parsed = safeJsonParse(text) || {};
 
   const relation = ["none", "duplicate", "update", "follow_up"].includes(String(parsed.relation_to_archive || ""))
