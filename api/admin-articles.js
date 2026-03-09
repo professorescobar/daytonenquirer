@@ -68,7 +68,6 @@ module.exports = async (req, res) => {
           title,
           description,
           content,
-          research,
           section,
           image,
           pub_date as "pubDate",
@@ -91,6 +90,7 @@ module.exports = async (req, res) => {
           if (imageStatus && imageStatus !== 'all' && imageStatus !== normalizedStatus) return null;
           return {
             ...row,
+            research: null,
             beat: null,
             persona: null,
             imageCaption: null,
