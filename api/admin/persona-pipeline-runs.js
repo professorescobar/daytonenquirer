@@ -114,7 +114,9 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run }) {
   }
 
   if (stages.image_sourcing === 'completed') {
-    stages.final_review = 'completed';
+    // Final review is not auto-derived from image sourcing completion.
+    // Keep it pending until an explicit final-review implementation/artifact exists.
+    stages.final_review = 'pending';
   } else if (stages.image_sourcing === 'timed_out') {
     stages.final_review = 'failed';
   } else if (stages.image_sourcing === 'failed') {
@@ -126,6 +128,7 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run }) {
   let currentStage = 'topic_qualification';
   if (stages.image_sourcing === 'in_progress') currentStage = 'image_sourcing';
   else if (stages.image_sourcing === 'failed') currentStage = 'image_sourcing';
+  else if (stages.image_sourcing === 'completed' && stages.final_review !== 'completed') currentStage = 'final_review';
   else if (stages.draft_writing === 'in_progress') currentStage = 'draft_writing';
   else if (stages.story_planning === 'in_progress') currentStage = 'story_planning';
   else if (stages.evidence_extraction === 'in_progress') currentStage = 'evidence_extraction';
