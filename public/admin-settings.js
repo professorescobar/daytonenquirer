@@ -1735,6 +1735,7 @@ function renderDraftWritingModelControls(config) {
   const modelByProvider = getDraftWritingModelByProvider();
   const provider = cleanText(config?.provider || HARD_CODED_STAGE_STACK.draft_writing?.provider || '', 80).toLowerCase() || 'openai';
   const modelOrEndpoint = modelByProvider[provider] || modelByProvider.openai;
+  // Keep the provider selector colocated with the Draft Writing persona prompt layer.
   return `
     <label>
       Writer Provider
