@@ -192,6 +192,33 @@ function normalizeFeedEntry(entry) {
   return { feedUrl: value, sourceName, priority };
 }
 
+function normalizeResearchTrustEntry(entry, section, beat, personaId = null) {
+  const raw = entry && typeof entry === 'object' ? entry : {};
+  const domain = cleanText(raw.domain || raw.host || '', 255)
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+    .replace(/^\.+|\.+$/g, '');
+  if (!domain) return null;
+  const trustTierRaw = cleanText(raw.trustTier || raw.trust_tier || 'trusted', 40).toLowerCase();
+  const trustTier = ['official', 'local_news', 'trusted', 'contextual'].includes(trustTierRaw)
+    ? trustTierRaw
+    : 'trusted';
+  const priorityRaw = Number.parseInt(String(raw.priority ?? 100), 10);
+  const priority = Number.isFinite(priorityRaw) ? Math.min(Math.max(priorityRaw, 1), 10000) : 100;
+  return {
+    personaId: cleanText(personaId || raw.personaId || raw.persona_id || '', 255) || null,
+    section: normalizeSection(raw.section || section || DEFAULT_SECTION),
+    beat: normalizeBeat(normalizeSection(raw.section || section || DEFAULT_SECTION), raw.beat || beat || DEFAULT_BEAT),
+    domain,
+    trustTier,
+    isOfficial: raw.isOfficial === true || raw.is_official === true || trustTier === 'official',
+    priority,
+    enabled: raw.enabled !== false,
+    notes: cleanText(raw.notes || '', 500) || null
+  };
+}
+
 async function fetchPersonaWorkflow(sql, personaId) {
   const feeds = await sql`
     SELECT
@@ -274,7 +301,29 @@ async function fetchPersonaWorkflow(sql, personaId) {
     if (!String(error?.message || '').toLowerCase().includes('topic_engine_pacing')) throw error;
   }
 
-  return { feeds, stageConfigs, isAutoPromoteEnabled, pacingConfig };
+  let researchTrustConfig = [];
+  try {
+    const trustRows = await sql`
+      SELECT
+        persona_id as "personaId",
+        COALESCE(NULLIF(trim(section), ''), ${DEFAULT_SECTION}) as section,
+        COALESCE(NULLIF(trim(beat), ''), ${DEFAULT_BEAT}) as beat,
+        domain,
+        trust_tier as "trustTier",
+        is_official as "isOfficial",
+        priority,
+        enabled,
+        notes
+      FROM topic_engine_research_trust
+      WHERE persona_id = ${personaId}
+      ORDER BY priority ASC, id ASC
+    `;
+    researchTrustConfig = trustRows.map((row) => normalizeResearchTrustEntry(row, row.section, row.beat, row.personaId)).filter(Boolean);
+  } catch (error) {
+    if (!String(error?.message || '').toLowerCase().includes('topic_engine_research_trust')) throw error;
+  }
+
+  return { feeds, stageConfigs, isAutoPromoteEnabled, pacingConfig, researchTrustConfig };
 }
 
 module.exports = async (req, res) => {
@@ -319,7 +368,8 @@ module.exports = async (req, res) => {
           feeds: workflow.feeds,
           stageConfigs: workflow.stageConfigs,
           isAutoPromoteEnabled: workflow.isAutoPromoteEnabled,
-          pacingConfig: workflow.pacingConfig
+          pacingConfig: workflow.pacingConfig,
+          researchTrustConfig: workflow.researchTrustConfig
         });
       }
       return res.status(200).json({ personas });
@@ -347,7 +397,8 @@ module.exports = async (req, res) => {
         stageConfigs,
         isAutoPromoteEnabled,
         pacingConfig,
-        imageConfig
+        imageConfig,
+        researchTrustConfig
       } = req.body;
       const normalizedId = cleanPersonaId(id);
       if (!normalizedId) {
@@ -470,6 +521,46 @@ module.exports = async (req, res) => {
         }
       }
 
+      if (Array.isArray(researchTrustConfig)) {
+        const normalizedTrustRows = researchTrustConfig
+          .map((entry) => normalizeResearchTrustEntry(entry, normalizedSection, normalizedBeat, normalizedId))
+          .filter(Boolean)
+          .filter((item, index, arr) => arr.findIndex((x) => x.domain === item.domain && x.personaId === item.personaId) === index);
+        try {
+          await sql`DELETE FROM topic_engine_research_trust WHERE persona_id = ${normalizedId}`;
+          for (const trustRow of normalizedTrustRows) {
+            await sql`
+              INSERT INTO topic_engine_research_trust (
+                persona_id,
+                section,
+                beat,
+                domain,
+                trust_tier,
+                is_official,
+                priority,
+                enabled,
+                notes,
+                updated_at
+              )
+              VALUES (
+                ${trustRow.personaId},
+                ${trustRow.section},
+                ${trustRow.beat},
+                ${trustRow.domain},
+                ${trustRow.trustTier},
+                ${trustRow.isOfficial},
+                ${trustRow.priority},
+                ${trustRow.enabled},
+                ${trustRow.notes},
+                NOW()
+              )
+            `;
+          }
+        } catch (error) {
+          if (!String(error?.message || '').toLowerCase().includes('topic_engine_research_trust')) throw error;
+        }
+      }
+
       if (stageConfigs && typeof stageConfigs === 'object') {
         for (const stageName of TOPIC_ENGINE_STAGES) {
           const raw = stageConfigs[stageName];
@@ -587,7 +678,8 @@ module.exports = async (req, res) => {
           feeds: workflow.feeds,
           stageConfigs: workflow.stageConfigs,
           isAutoPromoteEnabled: workflow.isAutoPromoteEnabled,
-          pacingConfig: workflow.pacingConfig
+          pacingConfig: workflow.pacingConfig,
+          researchTrustConfig: workflow.researchTrustConfig
         }
       });
     } catch (error) {

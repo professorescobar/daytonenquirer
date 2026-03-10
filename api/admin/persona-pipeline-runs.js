@@ -47,7 +47,18 @@ function mapLayer6StageStatus(layer6Run) {
   return 'pending';
 }
 
-function summarizeStageStatus({ signal, queue, stageCounts, layer6Run }) {
+function summarizeResearchDiscovery(details, signal, queue, stageCounts) {
+  const researchCount = Number(stageCounts?.research_discovery || 0);
+  const queueStatus = cleanText(queue?.status || '', 40).toLowerCase();
+  const promoted = cleanText(signal?.action || '', 40).toLowerCase() === 'promote';
+  const status = cleanText(details?.status || '', 40).toLowerCase();
+  if (status === 'completed' || status === 'degraded' || status === 'failed') return status;
+  if (researchCount > 0) return 'completed';
+  if (promoted && queueStatus !== 'queued' && queueStatus !== 'deferred' && queueStatus !== 'rejected') return 'in_progress';
+  return 'pending';
+}
+
+function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchDiscovery }) {
   const researchCount = Number(stageCounts?.research_discovery || 0);
   const evidenceCount = Number(stageCounts?.evidence_extraction || 0);
   const storyPlanningCount = Number(stageCounts?.story_planning || 0);
@@ -84,28 +95,30 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run }) {
     stages.quota_pacing = 'completed';
   }
 
-  if (researchCount > 0) {
-    stages.research_discovery = 'completed';
-  } else if (promoted && queueStatus !== 'queued' && queueStatus !== 'deferred' && queueStatus !== 'rejected') {
-    stages.research_discovery = 'in_progress';
-  }
+  stages.research_discovery = summarizeResearchDiscovery(researchDiscovery, signal, queue, stageCounts);
 
   if (evidenceCount > 0) {
     stages.evidence_extraction = 'completed';
-  } else if (stages.research_discovery === 'completed') {
+  } else if (stages.research_discovery === 'completed' || stages.research_discovery === 'degraded') {
     stages.evidence_extraction = 'in_progress';
+  } else if (stages.research_discovery === 'failed') {
+    stages.evidence_extraction = 'failed';
   }
 
   if (storyPlanningCount > 0) {
     stages.story_planning = 'completed';
   } else if (stages.evidence_extraction === 'completed') {
     stages.story_planning = 'in_progress';
+  } else if (stages.evidence_extraction === 'failed') {
+    stages.story_planning = 'failed';
   }
 
   if (draftWritingCount > 0) {
     stages.draft_writing = 'completed';
   } else if (stages.story_planning === 'completed') {
     stages.draft_writing = 'in_progress';
+  } else if (stages.story_planning === 'failed') {
+    stages.draft_writing = 'failed';
   }
 
   if (stages.draft_writing === 'completed') {
@@ -130,9 +143,14 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run }) {
   else if (stages.image_sourcing === 'failed') currentStage = 'image_sourcing';
   else if (stages.image_sourcing === 'completed' && stages.final_review !== 'completed') currentStage = 'final_review';
   else if (stages.draft_writing === 'in_progress') currentStage = 'draft_writing';
+  else if (stages.draft_writing === 'failed') currentStage = 'draft_writing';
   else if (stages.story_planning === 'in_progress') currentStage = 'story_planning';
+  else if (stages.story_planning === 'failed') currentStage = 'story_planning';
   else if (stages.evidence_extraction === 'in_progress') currentStage = 'evidence_extraction';
+  else if (stages.evidence_extraction === 'failed') currentStage = 'evidence_extraction';
   else if (stages.research_discovery === 'in_progress') currentStage = 'research_discovery';
+  else if (stages.research_discovery === 'degraded') currentStage = 'research_discovery';
+  else if (stages.research_discovery === 'failed') currentStage = 'research_discovery';
   else if (stages.quota_pacing === 'in_progress') currentStage = 'quota_pacing';
   else if (stages.quota_pacing === 'failed') currentStage = 'quota_pacing';
   else if (stages.draft_writing === 'completed') currentStage = 'image_sourcing';
@@ -150,6 +168,7 @@ function summarizeRunStatus({ queue, stageStatuses }) {
   if (stageStatuses.image_sourcing === 'in_progress') return 'in_progress';
   if (stageStatuses.draft_writing === 'in_progress') return 'in_progress';
   if (stageStatuses.story_planning === 'in_progress') return 'in_progress';
+  if (stageStatuses.evidence_extraction === 'in_progress') return 'in_progress';
   if (stageStatuses.research_discovery === 'in_progress') return 'in_progress';
   if (stageStatuses.image_sourcing === 'completed') return 'phase_6_complete';
   if (stageStatuses.image_sourcing === 'timed_out') return 'phase_6_timed_out';
@@ -157,8 +176,37 @@ function summarizeRunStatus({ queue, stageStatuses }) {
   if (stageStatuses.draft_writing === 'completed') return 'phase_5_complete';
   if (stageStatuses.story_planning === 'completed') return 'phase_4_complete';
   if (stageStatuses.evidence_extraction === 'completed') return 'phase_3_complete';
+  if (stageStatuses.research_discovery === 'failed') return 'phase_2_failed';
+  if (stageStatuses.research_discovery === 'degraded') return 'phase_2_degraded';
   if (stageStatuses.research_discovery === 'completed') return 'phase_2_complete';
   return 'promoted';
+}
+
+function getResearchDiscoverySummary(artifacts) {
+  const items = Array.isArray(artifacts) ? artifacts : [];
+  const searchPlanArtifact = items.find((item) => cleanText(item.artifactType, 120).toLowerCase() === 'search_plan');
+  if (!searchPlanArtifact) return null;
+  const metadata = toMetadataObject(searchPlanArtifact.metadata);
+  const passSummaries = Array.isArray(metadata.passSummaries) ? metadata.passSummaries : [];
+  return {
+    status: cleanText(metadata.status || '', 40).toLowerCase() || 'pending',
+    provider: cleanText(metadata.provider || '', 80),
+    model: cleanText(metadata.model || '', 120),
+    successfulPassType: cleanText(metadata.successfulPassType || '', 80),
+    degradationReason: cleanText(metadata.degradationReason || '', 240),
+    failureReason: cleanText(metadata.failureReason || '', 240),
+    passSummaries: passSummaries.slice(0, 3).map((pass) => ({
+      passType: cleanText(pass.passType || '', 80),
+      passIndex: Number.isFinite(Number(pass.passIndex)) ? Number(pass.passIndex) : null,
+      intent: cleanText(pass.intent || '', 280),
+      fetchedResultCount: Number(pass.fetchedResultCount || 0),
+      usableResultCount: Number(pass.usableResultCount || 0),
+      distinctDomainCount: Number(pass.distinctDomainCount || 0),
+      appliedDomains: Array.isArray(pass.appliedDomains) ? pass.appliedDomains.map((v) => cleanText(v, 255)).filter(Boolean) : [],
+      appliedMaxAgeDays: Number.isFinite(Number(pass.appliedMaxAgeDays)) ? Number(pass.appliedMaxAgeDays) : null,
+      sufficiencyMet: pass.sufficiencyMet === true
+    }))
+  };
 }
 
 module.exports = async (req, res) => {
@@ -342,6 +390,7 @@ module.exports = async (req, res) => {
         sourceUrl: cleanText(row.sourceUrl, 2000),
         title: cleanText(row.title, 300),
         content: cleanText(row.content, 900),
+        metadata,
         createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
         query: cleanText(metadata.query || '', 200),
         provider: cleanText(metadata.provider || '', 80),
@@ -362,7 +411,8 @@ module.exports = async (req, res) => {
       const layer6Run = imageRunBySignal.get(signalIdNum) || null;
       const stageCounts = stageCountBySignal.get(signalIdNum) || {};
       const artifactsByStage = stageArtifactsBySignal.get(signalIdNum) || {};
-      const stageInfo = summarizeStageStatus({ signal, queue, stageCounts, layer6Run });
+      const researchDiscovery = getResearchDiscoverySummary(artifactsByStage.research_discovery || []);
+      const stageInfo = summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchDiscovery });
       const runStatus = summarizeRunStatus({ queue, stageStatuses: stageInfo.stages });
 
       const timestamps = [
@@ -419,7 +469,9 @@ module.exports = async (req, res) => {
           status: stageInfo.stages[stageName] || 'pending',
           artifactCount: stageName === 'image_sourcing'
             ? Number(layer6Run?.candidateCount || 0)
-            : Number(stageCounts[stageName] || 0),
+            : stageName === 'research_discovery' && researchDiscovery
+              ? Number(stageCounts[stageName] || 0)
+              : Number(stageCounts[stageName] || 0),
           latestAt: stageName === 'image_sourcing'
             ? layer6Run?.updatedAt || layer6Run?.completedAt || layer6Run?.startedAt || null
             : stageCounts[`${stageName}Latest`] || null,
@@ -434,8 +486,34 @@ module.exports = async (req, res) => {
                   updatedAt: layer6Run.updatedAt ? new Date(layer6Run.updatedAt).toISOString() : null
                 }]
               : [])
+            : stageName === 'research_discovery' && researchDiscovery
+              ? [{
+                  artifactType: 'search_plan_summary',
+                  title: 'Research Discovery Summary',
+                  sourceUrl: '',
+                  content: '',
+                  createdAt: stageCounts[`${stageName}Latest`] || null,
+                  query: '',
+                  provider: researchDiscovery.provider,
+                  model: researchDiscovery.model,
+                  score: null,
+                  confidence: null,
+                  rank: null,
+                  sectionCount: null,
+                  evidenceCount: null,
+                  evidenceQuote: '',
+                  whyItMatters: '',
+                  metadata: {
+                    status: researchDiscovery.status,
+                    successfulPassType: researchDiscovery.successfulPassType,
+                    degradationReason: researchDiscovery.degradationReason,
+                    failureReason: researchDiscovery.failureReason,
+                    passSummaries: researchDiscovery.passSummaries
+                  }
+                }].concat((artifactsByStage[stageName] || []).filter((item) => cleanText(item.artifactType, 120).toLowerCase() !== 'search_plan'))
             : (artifactsByStage[stageName] || [])
         })),
+        researchDiscovery,
         imageSourcing: layer6Run
           ? {
               runId: cleanText(layer6Run.id, 120),

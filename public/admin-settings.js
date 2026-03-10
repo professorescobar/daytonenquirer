@@ -1349,9 +1349,10 @@ function renderPersonas(personas) {
                   layer6BudgetUsd: parseNumberWithFallback(data.layer6BudgetUsd, 0.20),
                   exaMaxAttempts: Number(data.exaMaxAttempts ?? 3) || 3,
                   generationMaxAttempts: Number(data.generationMaxAttempts ?? 2) || 2
-                };
-                const feedsText = formatFeedsForTextArea(data.feeds);
-                return `
+	                };
+	                const feedsText = formatFeedsForTextArea(data.feeds);
+	                const researchTrustText = formatResearchTrustForTextArea(data.researchTrustConfig);
+	                return `
                   <article class="draft-card persona-card" data-id="${p.id}" data-default-name="${escapeHtml(defaultDisplayName)}" data-display-name-committed="${escapeHtml(savedDisplayName)}" data-section="${escapeHtml(p.section || 'local')}" data-beat="${escapeHtml(p.beat || 'general-local')}">
                     <div class="persona-header-row">
                       <button class="draft-header draft-toggle btn-reset" type="button">
@@ -1508,11 +1509,15 @@ function renderPersonas(personas) {
                           Cadence (off = even spacing)
                           <input type="checkbox" class="field-pacing-cadence-enabled" ${pacingConfig.cadenceEnabled ? 'checked' : ''}>
                         </label>
-                        <label class="workflow-wide">
-                          Discovery Feeds (one per line; optional format: URL | Source Name | Priority)
-                          <textarea class="field-feeds" rows="4" placeholder="https://example.com/rss | City Hall Agenda | 20">${escapeHtml(feedsText)}</textarea>
-                        </label>
-                      </div>
+	                        <label class="workflow-wide">
+	                          Discovery Feeds (one per line; optional format: URL | Source Name | Priority)
+	                          <textarea class="field-feeds" rows="4" placeholder="https://example.com/rss | City Hall Agenda | 20">${escapeHtml(feedsText)}</textarea>
+	                        </label>
+	                        <label class="workflow-wide">
+	                          Research Trust Domains (one per line: domain | trust tier | official/non-official | priority)
+	                          <textarea class="field-research-trust" rows="4" placeholder="daytondailynews.com | local_news | non-official | 50">${escapeHtml(researchTrustText)}</textarea>
+	                        </label>
+	                      </div>
 
                       <section class="persona-pipeline-runs">
                         <button type="button" class="persona-pipeline-runs-header btn-reset btn-toggle-persona-pipeline-runs" aria-expanded="false">
@@ -1712,6 +1717,23 @@ function formatFeedsForTextArea(feeds) {
   }).filter(Boolean).join('\n');
 }
 
+function formatResearchTrustForTextArea(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) return '';
+  return entries.map((entry) => {
+    const domain = cleanText(entry?.domain || '', 255);
+    if (!domain) return '';
+    const trustTier = cleanText(entry?.trustTier || 'trusted', 40).toLowerCase() || 'trusted';
+    const official = entry?.isOfficial === true ? 'official' : 'non-official';
+    const priority = Number.parseInt(String(entry?.priority || ''), 10);
+    return [
+      domain,
+      trustTier,
+      official,
+      Number.isFinite(priority) && priority > 0 ? String(priority) : '100'
+    ].join(' | ');
+  }).filter(Boolean).join('\n');
+}
+
 function renderStageEditors(stageConfigs) {
   return TOPIC_ENGINE_STAGES.map((stageName) => {
     const config = getStageConfig(stageConfigs, stageName);
@@ -1854,6 +1876,35 @@ function parseFeedsFromText(value) {
       feedUrl: feedUrlRaw,
       sourceName: sourceNameRaw,
       priority: Number.isFinite(parsedPriority) && parsedPriority > 0 ? parsedPriority : 100
+    };
+  }).filter(Boolean);
+}
+
+function parseResearchTrustFromText(value, section, beat) {
+  const lines = String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.map((line) => {
+    const [domainRaw = '', trustTierRaw = 'trusted', officialRaw = '', priorityRaw = '100'] = line.split('|').map((part) => part.trim());
+    const domain = cleanText(domainRaw, 255).toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^\.+|\.+$/g, '');
+    if (!domain) return null;
+    const trustTierNormalized = cleanText(trustTierRaw, 40).toLowerCase();
+    const trustTier = ['official', 'local_news', 'trusted', 'contextual'].includes(trustTierNormalized)
+      ? trustTierNormalized
+      : 'trusted';
+    const officialToken = cleanText(officialRaw, 40).toLowerCase();
+    const isOfficial = officialToken === 'official' || officialToken === 'true' || trustTier === 'official';
+    return {
+      section,
+      beat,
+      domain,
+      trustTier,
+      isOfficial,
+      priority: Math.min(Math.max(parseIntegerWithFallback(priorityRaw, 100), 1), 10000),
+      enabled: true,
+      notes: null
     };
   }).filter(Boolean);
 }
@@ -2226,6 +2277,11 @@ async function savePersona(card) {
     generationMaxAttempts: Math.min(Math.max(Number.parseInt(String(card.querySelector('.field-generation-max-attempts')?.value || '2'), 10) || 2, 1), 20)
   };
   const feeds = parseFeedsFromText(card.querySelector('.field-feeds')?.value || '');
+  const researchTrustConfig = parseResearchTrustFromText(
+    card.querySelector('.field-research-trust')?.value || '',
+    section,
+    beat
+  );
   const stageConfigs = {};
   const stageEls = card.querySelectorAll('.workflow-stage[data-stage]');
   for (const stageEl of stageEls) {
@@ -2268,6 +2324,7 @@ async function savePersona(card) {
       imageConfig,
       pacingConfig,
       feeds,
+      researchTrustConfig,
       stageConfigs
     })
   });
@@ -2385,6 +2442,7 @@ async function updateSignalAction(signalId, action) {
 function getStageStatusClass(status) {
   const normalized = cleanText(status, 40).toLowerCase();
   if (normalized === 'completed') return 'is-completed';
+  if (normalized === 'degraded') return 'is-in-progress';
   if (normalized === 'in_progress') return 'is-in-progress';
   if (normalized === 'timed_out') return 'is-failed';
   if (normalized === 'failed') return 'is-failed';
@@ -2395,7 +2453,48 @@ function formatStageStatusLabel(status) {
   const normalized = cleanText(status, 40).toLowerCase();
   if (normalized === 'in_progress') return 'in progress';
   if (normalized === 'timed_out') return 'timed out';
+  if (normalized === 'phase_2_degraded') return 'phase 2 degraded';
+  if (normalized === 'phase_2_failed') return 'phase 2 failed';
   return normalized || 'pending';
+}
+
+function formatResearchPassType(value) {
+  const normalized = cleanText(value, 80).toLowerCase();
+  if (normalized === 'strict_official') return 'strict official';
+  if (normalized === 'broad_context') return 'broad context';
+  if (normalized === 'historical_background') return 'historical background';
+  return normalized ? normalized.replace(/_/g, ' ') : 'n/a';
+}
+
+function formatResearchReason(value) {
+  const normalized = cleanText(value, 240).toLowerCase();
+  if (normalized === 'used_broad_context_pass') return 'Used broad context rescue pass';
+  if (normalized === 'used_historical_background_pass') return 'Used historical background rescue pass';
+  if (normalized === 'insufficient_research_evidence') return 'No pass found enough usable evidence';
+  if (normalized === 'research_search_plan_generation_failed') return 'Model output did not produce a valid search plan';
+  if (normalized === 'research_search_plan_provider_unavailable') return 'Search plan provider unavailable';
+  if (normalized === 'research_retrieval_failed') return 'Research retrieval failed';
+  return normalized ? normalized.replace(/_/g, ' ') : 'n/a';
+}
+
+function renderResearchSummaryDetail(item) {
+  const metadata = item && item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+  const passSummaries = Array.isArray(metadata.passSummaries) ? metadata.passSummaries : [];
+  return [
+    metadata.status ? `<p class="signal-meta">status=${escapeHtml(formatStageStatusLabel(metadata.status))}</p>` : '',
+    metadata.successfulPassType ? `<p class="signal-meta">successfulPass=${escapeHtml(formatResearchPassType(metadata.successfulPassType))}</p>` : '',
+    metadata.degradationReason ? `<p class="signal-meta">degraded=${escapeHtml(formatResearchReason(metadata.degradationReason))}</p>` : '',
+    metadata.failureReason ? `<p class="signal-meta">failure=${escapeHtml(formatResearchReason(metadata.failureReason))}</p>` : '',
+    passSummaries.map((pass) => `
+      <article class="pipeline-stage-detail-item">
+        <p class="signal-meta"><strong>Pass ${escapeHtml(String(pass.passIndex || '?'))}: ${escapeHtml(formatResearchPassType(pass.passType || ''))}</strong></p>
+        ${pass.intent ? `<p class="signal-meta">${escapeHtml(pass.intent)}</p>` : ''}
+        <p class="signal-meta">usable=${Number(pass.usableResultCount || 0)} | fetched=${Number(pass.fetchedResultCount || 0)} | domains=${Number(pass.distinctDomainCount || 0)} | sufficiency=${pass.sufficiencyMet === true ? 'yes' : 'no'}</p>
+        ${Array.isArray(pass.appliedDomains) && pass.appliedDomains.length ? `<p class="signal-meta">domains=${escapeHtml(pass.appliedDomains.join(', '))}</p>` : '<p class="signal-meta">domains=whole web</p>'}
+        ${Number.isFinite(Number(pass.appliedMaxAgeDays)) ? `<p class="signal-meta">maxAgeDays=${Number(pass.appliedMaxAgeDays)}</p>` : '<p class="signal-meta">maxAgeDays=none</p>'}
+      </article>
+    `).join('')
+  ].join('');
 }
 
 function buildPipelineRunsQueryParams() {
@@ -2411,6 +2510,7 @@ function renderPipelineStageDetailItems(items) {
   return items.map((item) => `
     <article class="pipeline-stage-detail-item">
       <p class="signal-meta"><strong>${escapeHtml(item.title || item.artifactType || 'artifact')}</strong></p>
+      ${cleanText(item.artifactType, 120).toLowerCase() === 'search_plan_summary' ? renderResearchSummaryDetail(item) : ''}
       ${item.sourceUrl ? `<p class="signal-meta">source=<a href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.sourceUrl)}</a></p>` : ''}
       ${item.query ? `<p class="signal-meta">query=${escapeHtml(item.query)}</p>` : ''}
       ${item.provider ? `<p class="signal-meta">provider=${escapeHtml(item.provider)}</p>` : ''}
@@ -2436,7 +2536,10 @@ function renderPersonaPipelineRunCard(run) {
       || run.runStatus === 'phase_4_complete'
       || run.runStatus === 'phase_3_complete'
       ? 'completed'
+      : run.runStatus === 'phase_2_degraded'
+        ? 'degraded'
       : run.runStatus === 'phase_6_failed'
+        || run.runStatus === 'phase_2_failed'
         || run.runStatus === 'phase_6_timed_out'
         || run.runStatus === 'blocked'
         ? 'failed'
@@ -2473,6 +2576,7 @@ function renderPersonaPipelineRunCard(run) {
       <p class="signal-meta">signal=#${Number(run.signalId)} | current=${escapeHtml(STAGE_LABELS[run.currentStage] || run.currentStage || 'n/a')}</p>
       <p class="signal-meta">action=${escapeHtml(run.action || 'n/a')} | review=${escapeHtml(run.reviewDecision || 'n/a')} | next=${escapeHtml(run.nextStep || 'n/a')}</p>
       <p class="signal-meta">event=${escapeHtml(run.eventKey || 'n/a')} | lastActivity=${escapeHtml(run.lastActivityAt ? formatDate(run.lastActivityAt) : 'n/a')}</p>
+      ${run.researchDiscovery ? `<p class="signal-meta">phase2=${escapeHtml(formatStageStatusLabel(run.researchDiscovery.status || 'pending'))} | pass=${escapeHtml(formatResearchPassType(run.researchDiscovery.successfulPassType || ''))} | reason=${escapeHtml(formatResearchReason(run.researchDiscovery.degradationReason || run.researchDiscovery.failureReason || ''))}</p>` : ''}
       ${run.queue ? `<p class="signal-meta">queue=${escapeHtml(run.queue.status || 'n/a')} | reason=${escapeHtml(run.queue.reasonCode || 'n/a')} | scheduled=${escapeHtml(run.queue.scheduledForUtc ? formatDate(run.queue.scheduledForUtc) : 'n/a')} | released=${escapeHtml(run.queue.releasedAt ? formatDate(run.queue.releasedAt) : 'n/a')}</p>` : '<p class="signal-meta">queue=n/a (manual route or pacing bypass)</p>'}
       <div class="pipeline-stages">${stageChips}</div>
       <details class="pipeline-stage-details">

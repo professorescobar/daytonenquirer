@@ -88,6 +88,91 @@ type TavilyResult = {
   query: string;
 };
 
+type ResearchPassType = "strict_official" | "broad_context" | "historical_background";
+
+type SearchPlanPass = {
+  passType: ResearchPassType;
+  intent: string;
+  optimizedQueries: string[];
+};
+
+type SearchPlan = {
+  passes: SearchPlanPass[];
+};
+
+type SearchPlanGenerationResult = {
+  searchPlan: SearchPlan;
+  provider: "gemini" | "openai" | "test";
+  model: string;
+};
+
+type ResearchRunStatus = "completed" | "degraded" | "failed";
+
+type ResearchPassPolicy = {
+  passType: ResearchPassType;
+  includeDomains: string[];
+  maxAgeDays: number | null;
+  minUsableArtifacts: number;
+  minDistinctDomains: number;
+  appliedTrustTier: string | null;
+  trustProfileSummary: {
+    totalDomains: number;
+    officialDomains: number;
+    localNewsDomains: number;
+    contextualDomains: number;
+    sources: string[];
+  };
+};
+
+type ExecutedResearchPass = {
+  passType: ResearchPassType;
+  intent: string;
+  optimizedQueries: string[];
+  appliedDomains: string[];
+  appliedMaxAgeDays: number | null;
+  appliedTrustTier: string | null;
+  trustProfileSummary: ResearchPassPolicy["trustProfileSummary"];
+  fetchedResultCount: number;
+  usableResultCount: number;
+  distinctDomainCount: number;
+  selected: TavilyResult[];
+  sufficiencyMet: boolean;
+};
+
+type ResearchDiscoveryResult = {
+  queries: string[];
+  saved: number;
+  fetched: number;
+  status: ResearchRunStatus;
+  provider: string;
+  model: string;
+  successfulPassType: ResearchPassType | null;
+  degradationReason: string | null;
+  failureReason: string | null;
+  passSummaries: Array<{
+    passType: ResearchPassType;
+    fetchedResultCount: number;
+    usableResultCount: number;
+    distinctDomainCount: number;
+    appliedDomains: string[];
+    appliedMaxAgeDays: number | null;
+    appliedTrustTier?: string | null;
+    sufficiencyMet: boolean;
+  }>;
+};
+
+type ResearchTrustEntry = {
+  personaId: string | null;
+  section: string | null;
+  beat: string | null;
+  domain: string;
+  trustTier: "official" | "local_news" | "trusted" | "contextual";
+  isOfficial: boolean;
+  priority: number;
+  enabled: boolean;
+  source: "persona" | "default" | "signal";
+};
+
 type EvidenceSource = {
   sourceUrl: string;
   title: string | null;
@@ -210,6 +295,60 @@ const LOCAL_SCOPE_TERMS = [
   "moraine",
   "west carrollton"
 ];
+const RESEARCH_PLAN_PASS_ORDER: ResearchPassType[] = ["strict_official", "broad_context", "historical_background"];
+const RESEARCH_PASS_TYPE_ALIASES: Record<string, ResearchPassType> = {
+  strict_official: "strict_official",
+  pass_1_strict: "strict_official",
+  broad_context: "broad_context",
+  pass_2_broad: "broad_context",
+  historical_background: "historical_background",
+  pass_3_historical: "historical_background"
+};
+const SECTION_TRUSTED_RESEARCH_DOMAINS: Record<string, Array<{
+  domain: string;
+  trustTier: "official" | "local_news" | "trusted" | "contextual";
+  isOfficial?: boolean;
+  priority?: number;
+}>> = {
+  local: [
+    { domain: "daytondailynews.com", trustTier: "local_news", priority: 20 },
+    { domain: "whio.com", trustTier: "local_news", priority: 30 },
+    { domain: "wdtn.com", trustTier: "local_news", priority: 40 }
+  ],
+  sports: [
+    { domain: "milb.com", trustTier: "official", isOfficial: true, priority: 10 },
+    { domain: "daytondragons.com", trustTier: "official", isOfficial: true, priority: 20 },
+    { domain: "daytondailynews.com", trustTier: "local_news", priority: 30 }
+  ],
+  business: [
+    { domain: "daytondailynews.com", trustTier: "local_news", priority: 20 },
+    { domain: "bizjournals.com", trustTier: "trusted", priority: 30 },
+    { domain: "whio.com", trustTier: "local_news", priority: 40 }
+  ],
+  health: [
+    { domain: "daytondailynews.com", trustTier: "local_news", priority: 20 },
+    { domain: "whio.com", trustTier: "local_news", priority: 30 },
+    { domain: "wdtn.com", trustTier: "local_news", priority: 40 }
+  ],
+  entertainment: [
+    { domain: "daytondailynews.com", trustTier: "local_news", priority: 20 },
+    { domain: "whio.com", trustTier: "local_news", priority: 30 },
+    { domain: "wdtn.com", trustTier: "local_news", priority: 40 }
+  ],
+  technology: [
+    { domain: "daytondailynews.com", trustTier: "local_news", priority: 20 },
+    { domain: "whio.com", trustTier: "local_news", priority: 30 },
+    { domain: "wdtn.com", trustTier: "local_news", priority: 40 }
+  ],
+  national: [
+    { domain: "apnews.com", trustTier: "trusted", priority: 20 },
+    { domain: "reuters.com", trustTier: "trusted", priority: 30 }
+  ],
+  world: [
+    { domain: "apnews.com", trustTier: "trusted", priority: 20 },
+    { domain: "reuters.com", trustTier: "trusted", priority: 30 }
+  ]
+};
 
 function isTestSignalId(signalId: number): boolean {
   return TEST_MODE_ENABLED && signalId === TEST_SIGNAL_ID;
@@ -1319,17 +1458,38 @@ async function releaseDueQueuedSignals(limit = 30): Promise<Array<{ signalId: nu
   return released;
 }
 
-function fallbackQueries(signal: ResearchSignalContext): string[] {
+function getDefaultSearchPlan(signal: ResearchSignalContext): SearchPlan {
   const title = cleanText(signal.title, 220);
-  const snippet = cleanText(signal.snippet || "", 240);
   const sourceName = cleanText(signal.sourceName || "", 120);
-  return uniqueQueries([
-    `${title} latest`,
-    `${title} local impact`,
-    sourceName ? `${title} ${sourceName}` : "",
-    snippet ? `${title} ${snippet.split(/\s+/).slice(0, 8).join(" ")}` : "",
-    `${title} timeline`
-  ]);
+  const snippetTerms = cleanText(signal.snippet || "", 240).split(/\s+/).slice(0, 8).join(" ");
+  return {
+    passes: [
+      {
+        passType: "strict_official",
+        intent: "Find official confirmation of the signal.",
+        optimizedQueries: uniqueQueries([
+          `${title} official announcement`,
+          sourceName ? `${title} ${sourceName} official` : ""
+        ]).slice(0, 2)
+      },
+      {
+        passType: "broad_context",
+        intent: "Find local community context and reporting around the signal.",
+        optimizedQueries: uniqueQueries([
+          `${title} local coverage`,
+          snippetTerms ? `${title} ${snippetTerms}` : ""
+        ]).slice(0, 2)
+      },
+      {
+        passType: "historical_background",
+        intent: "Find historical or background context relevant to the signal.",
+        optimizedQueries: uniqueQueries([
+          `${title} history`,
+          `${title} timeline`
+        ]).slice(0, 2)
+      }
+    ]
+  };
 }
 
 async function loadResearchSignalContext(signalId: number): Promise<ResearchSignalContext> {
@@ -1385,33 +1545,110 @@ async function loadResearchSignalContext(signalId: number): Promise<ResearchSign
   };
 }
 
-async function generateResearchQueries(
-  signal: ResearchSignalContext,
-  guidanceBundle: StagePromptBundle
-): Promise<string[]> {
-  const geminiApiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
-  const openAiApiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
-  const prompt = [
+function normalizeSearchPlanPassType(value: unknown): ResearchPassType | null {
+  const key = cleanText(value, 80).toLowerCase();
+  return RESEARCH_PASS_TYPE_ALIASES[key] || null;
+}
+
+function normalizeSearchPlanPass(rawPass: any, fallbackPassType: ResearchPassType): SearchPlanPass {
+  const passType = normalizeSearchPlanPassType(rawPass?.passType || rawPass?.type || rawPass?.name) || fallbackPassType;
+  const queries = uniqueQueries(
+    (Array.isArray(rawPass?.optimized_queries) ? rawPass.optimized_queries : rawPass?.optimizedQueries)
+      ?.map((value: unknown) => cleanText(value, 220))
+      || []
+  ).slice(0, 2);
+  return {
+    passType,
+    intent: cleanText(rawPass?.intent || "", 280),
+    optimizedQueries: queries
+  };
+}
+
+function parseAndValidateSearchPlan(raw: unknown): SearchPlan | null {
+  const payload = toSafeJsonObject(raw);
+  const container = toSafeJsonObject(payload.search_plan || payload.searchPlan || payload);
+  const passes = RESEARCH_PLAN_PASS_ORDER.map((passType) => {
+    const aliasKey = passType === "strict_official"
+      ? "pass_1_strict"
+      : passType === "broad_context"
+        ? "pass_2_broad"
+        : "pass_3_historical";
+    const normalized = normalizeSearchPlanPass(container[passType] || container[aliasKey], passType);
+    if (!normalized.intent) {
+      normalized.intent = passType === "strict_official"
+        ? "Find official confirmation of the signal."
+        : passType === "broad_context"
+          ? "Find local context and reporting around the signal."
+          : "Find background and precedent for the signal.";
+    }
+    return normalized;
+  });
+  for (const pass of passes) {
+    const seen = new Set<string>();
+    pass.optimizedQueries = pass.optimizedQueries.filter((query) => {
+      const key = query.toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 2);
+  }
+  if (passes.some((pass) => pass.optimizedQueries.length < 1)) return null;
+  return { passes };
+}
+
+function buildRetryableResearchError(message: string): Error & { retryable: true } {
+  const error = new Error(message) as Error & { retryable: true };
+  error.retryable = true;
+  return error;
+}
+
+function buildResearchSearchPlanPrompt(signal: ResearchSignalContext, guidanceBundle: StagePromptBundle): string {
+  return [
     guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
     guidanceBundle.promptSourceVersion
       ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}`
       : "",
-    "You generate search queries for local journalism research.",
-    "Return strict JSON only: {\"queries\":[\"...\"]}",
+    "You are planning a newsroom research strategy for a promoted signal.",
+    "Return strict JSON only.",
+    "Do not include domains, dates, site: operators, or time windows in queries.",
+    "Provide exactly three passes in this schema:",
+    "{\"search_plan\":{\"pass_1_strict\":{\"intent\":\"...\",\"optimized_queries\":[\"...\",\"...\"]},\"pass_2_broad\":{\"intent\":\"...\",\"optimized_queries\":[\"...\",\"...\"]},\"pass_3_historical\":{\"intent\":\"...\",\"optimized_queries\":[\"...\",\"...\"]}}}",
     "Rules:",
-    "- Generate 3 to 5 highly specific web search queries.",
-    "- Focus on verifiable reporting evidence and source documents.",
-    "- Prefer local/regional angle when available.",
+    "- pass_1_strict: official confirmation queries.",
+    "- pass_2_broad: local reporting and context queries.",
+    "- pass_3_historical: background and precedent queries.",
+    "- 1 to 2 optimized queries per pass.",
+    "- Prefer local and persona-relevant framing.",
     "- No commentary, no markdown, no extra keys.",
     "",
+    `Persona Section: ${signal.personaSection}`,
+    `Persona Beat: ${signal.personaBeat}`,
     `Title: ${signal.title}`,
     `Snippet: ${signal.snippet || ""}`,
     `Source Name: ${signal.sourceName || ""}`,
     `Source URL: ${signal.sourceUrl || ""}`
-  ].join("\n");
+  ].filter(Boolean).join("\n");
+}
 
-  const tryGemini = async (): Promise<string[]> => {
-    if (!geminiApiKey) return [];
+async function generateSearchPlan(
+  signal: ResearchSignalContext,
+  guidanceBundle: StagePromptBundle
+): Promise<SearchPlanGenerationResult> {
+  if (isTestSignalId(signal.id)) {
+    return {
+      searchPlan: getDefaultSearchPlan(signal),
+      provider: "test",
+      model: "research-search-plan-test-v1"
+    };
+  }
+
+  const geminiApiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  const openAiApiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
+  const prompt = buildResearchSearchPlanPrompt(signal, guidanceBundle);
+  let hadRetryableProviderFailure = false;
+
+  const tryGemini = async (): Promise<SearchPlanGenerationResult | null> => {
+    if (!geminiApiKey) return null;
     const model = HARD_CODED_RESEARCH_QUERY_MODEL;
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
       model
@@ -1423,21 +1660,24 @@ async function generateResearchQueries(
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 700,
+          maxOutputTokens: 1400,
           responseMimeType: "application/json"
         }
       })
     });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      hadRetryableProviderFailure = true;
+      return null;
+    }
     const data = await response.json();
     const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
-    const parsed = safeJsonParse(text);
-    const candidateQueries = Array.isArray(parsed?.queries) ? parsed.queries : [];
-    return uniqueQueries(candidateQueries.map((value: unknown) => cleanText(value, 220)));
+    const searchPlan = parseAndValidateSearchPlan(safeJsonParse(text));
+    return searchPlan ? { searchPlan, provider: "gemini", model } : null;
   };
 
-  const tryOpenAi = async (): Promise<string[]> => {
-    if (!openAiApiKey) return [];
+  const tryOpenAi = async (): Promise<SearchPlanGenerationResult | null> => {
+    if (!openAiApiKey) return null;
+    const model = HARD_CODED_GATEKEEPER_OPENAI_MODEL;
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -1445,40 +1685,255 @@ async function generateResearchQueries(
         Authorization: `Bearer ${openAiApiKey}`
       },
       body: JSON.stringify({
-        model: HARD_CODED_GATEKEEPER_OPENAI_MODEL,
+        model,
         temperature: 0.2,
         response_format: { type: "json_object" },
         messages: [{ role: "user", content: prompt }]
       })
     });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      hadRetryableProviderFailure = true;
+      return null;
+    }
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content || "";
-    const parsed = safeJsonParse(text);
-    const candidateQueries = Array.isArray(parsed?.queries) ? parsed.queries : [];
-    return uniqueQueries(candidateQueries.map((value: unknown) => cleanText(value, 220)));
+    const searchPlan = parseAndValidateSearchPlan(safeJsonParse(text));
+    return searchPlan ? { searchPlan, provider: "openai", model } : null;
   };
 
-  try {
-    const geminiQueries = await tryGemini();
-    if (geminiQueries.length >= 3) return geminiQueries.slice(0, 5);
-  } catch (_) {
-    // Fall through to OpenAI fallback.
+  const geminiResult = await tryGemini().catch(() => {
+    hadRetryableProviderFailure = true;
+    return null;
+  });
+  if (geminiResult) return geminiResult;
+  const openAiResult = await tryOpenAi().catch(() => {
+    hadRetryableProviderFailure = true;
+    return null;
+  });
+  if (openAiResult) return openAiResult;
+  if (hadRetryableProviderFailure || (!geminiApiKey && !openAiApiKey)) {
+    throw buildRetryableResearchError("research_search_plan_provider_unavailable");
   }
-
-  try {
-    const openAiQueries = await tryOpenAi();
-    if (openAiQueries.length >= 3) return openAiQueries.slice(0, 5);
-  } catch (_) {
-    // Fall through to deterministic fallback queries.
-  }
-
-  return fallbackQueries(signal).slice(0, 5);
+  throw new Error("research_search_plan_generation_failed");
 }
 
-async function searchTavily(query: string): Promise<TavilyResult[]> {
+function normalizeResearchTrustTier(value: unknown): ResearchTrustEntry["trustTier"] {
+  const normalized = cleanText(value, 40).toLowerCase();
+  if (normalized === "official" || normalized === "local_news" || normalized === "contextual") return normalized;
+  return "trusted";
+}
+
+function normalizeResearchTrustDomain(value: unknown): string {
+  return cleanText(value, 255)
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/^\.+|\.+$/g, "");
+}
+
+function buildDefaultResearchTrustEntries(signal: ResearchSignalContext): ResearchTrustEntry[] {
+  const defaults = (SECTION_TRUSTED_RESEARCH_DOMAINS[signal.personaSection] || []).map((entry, index) => ({
+    personaId: null,
+    section: signal.personaSection,
+    beat: null,
+    domain: normalizeResearchTrustDomain(entry.domain),
+    trustTier: normalizeResearchTrustTier(entry.trustTier),
+    isOfficial: entry.isOfficial === true || entry.trustTier === "official",
+    priority: Number.isFinite(Number(entry.priority)) ? Number(entry.priority) : (index + 1) * 10,
+    enabled: true,
+    source: "default" as const
+  }));
+  const signalDomain = normalizeResearchTrustDomain(parseSourceDomain(signal.sourceUrl || "") || "");
+  if (signalDomain) {
+    defaults.push({
+      personaId: signal.personaId || null,
+      section: signal.personaSection,
+      beat: signal.personaBeat || null,
+      domain: signalDomain,
+      trustTier: "trusted",
+      isOfficial: false,
+      priority: 90,
+      enabled: true,
+      source: "signal"
+    });
+  }
+  return defaults.filter((entry) => entry.domain);
+}
+
+async function loadResearchTrustEntries(sql: any, signal: ResearchSignalContext): Promise<ResearchTrustEntry[]> {
+  const defaults = buildDefaultResearchTrustEntries(signal);
+  try {
+    const rows = await sql`
+      SELECT
+        persona_id as "personaId",
+        NULLIF(trim(section), '') as section,
+        NULLIF(trim(beat), '') as beat,
+        domain,
+        trust_tier as "trustTier",
+        is_official as "isOfficial",
+        priority,
+        enabled
+      FROM topic_engine_research_trust
+      WHERE enabled = TRUE
+        AND (
+          persona_id = ${signal.personaId}
+          OR persona_id IS NULL
+          OR trim(persona_id) = ''
+        )
+        AND (
+          section IS NULL
+          OR trim(section) = ''
+          OR lower(trim(section)) = ${signal.personaSection}
+        )
+        AND (
+          beat IS NULL
+          OR trim(beat) = ''
+          OR lower(trim(beat)) = ${signal.personaBeat}
+        )
+      ORDER BY
+        CASE
+          WHEN persona_id = ${signal.personaId} THEN 0
+          ELSE 1
+        END,
+        priority ASC,
+        id ASC
+    `;
+
+    const merged = [...defaults];
+    const seen = new Set(defaults.map((entry) => entry.domain));
+    for (const row of rows) {
+      const domain = normalizeResearchTrustDomain(row.domain);
+      if (!domain) continue;
+      const entry: ResearchTrustEntry = {
+        personaId: cleanText(row.personaId || "", 255) || null,
+        section: cleanText(row.section || "", 120).toLowerCase() || null,
+        beat: cleanText(row.beat || "", 120).toLowerCase() || null,
+        domain,
+        trustTier: normalizeResearchTrustTier(row.trustTier),
+        isOfficial: row.isOfficial === true || normalizeResearchTrustTier(row.trustTier) === "official",
+        priority: Number.isFinite(Number(row.priority)) ? Number(row.priority) : 100,
+        enabled: row.enabled !== false,
+        source: cleanText(row.personaId || "", 255) ? "persona" : "default"
+      };
+      const existingIndex = merged.findIndex((item) => item.domain === domain);
+      if (existingIndex >= 0) {
+        const existing = merged[existingIndex];
+        const existingPriorityRank = existing.source === "persona" ? 3 : existing.source === "signal" ? 2 : 1;
+        const incomingPriorityRank = entry.source === "persona" ? 3 : entry.source === "signal" ? 2 : 1;
+        if (incomingPriorityRank >= existingPriorityRank) {
+          merged[existingIndex] = entry;
+        }
+      } else if (!seen.has(domain)) {
+        merged.push(entry);
+      }
+      seen.add(domain);
+    }
+    return merged
+      .filter((entry) => entry.enabled !== false && entry.domain)
+      .sort((a, b) => a.priority - b.priority || a.domain.localeCompare(b.domain));
+  } catch (error: any) {
+    if (!String(error?.message || "").toLowerCase().includes("topic_engine_research_trust")) throw error;
+    return defaults.sort((a, b) => a.priority - b.priority || a.domain.localeCompare(b.domain));
+  }
+}
+
+function summarizeTrustProfile(entries: ResearchTrustEntry[]): ResearchPassPolicy["trustProfileSummary"] {
+  return {
+    totalDomains: entries.length,
+    officialDomains: entries.filter((entry) => entry.isOfficial || entry.trustTier === "official").length,
+    localNewsDomains: entries.filter((entry) => entry.trustTier === "local_news").length,
+    contextualDomains: entries.filter((entry) => entry.trustTier === "contextual").length,
+    sources: Array.from(new Set(entries.map((entry) => entry.source)))
+  };
+}
+
+function resolveTrustedResearchDomains(entries: ResearchTrustEntry[], passType: ResearchPassType): string[] {
+  const prioritized = [...entries].sort((a, b) => a.priority - b.priority || a.domain.localeCompare(b.domain));
+  if (passType === "broad_context") return [];
+  if (passType === "strict_official") {
+    const strict = prioritized.filter((entry) => entry.isOfficial || entry.trustTier === "official" || entry.trustTier === "local_news");
+    const selected = strict.length ? strict : prioritized.filter((entry) => entry.trustTier !== "contextual");
+    return Array.from(new Set(selected.map((entry) => entry.domain)));
+  }
+  return Array.from(new Set(
+    prioritized
+      .filter((entry) => entry.trustTier !== "contextual" || entry.isOfficial)
+      .map((entry) => entry.domain)
+  ));
+}
+
+function buildPassExecutionPolicy(
+  signal: ResearchSignalContext,
+  passType: ResearchPassType,
+  trustEntries: ResearchTrustEntry[]
+): ResearchPassPolicy {
+  const trustProfileSummary = summarizeTrustProfile(trustEntries);
+  const trustedDomains = resolveTrustedResearchDomains(trustEntries, passType);
+  if (passType === "strict_official") {
+    return {
+      passType,
+      includeDomains: trustedDomains,
+      maxAgeDays: 2,
+      minUsableArtifacts: 2,
+      minDistinctDomains: 1,
+      appliedTrustTier: trustEntries.some((entry) => entry.isOfficial || entry.trustTier === "official")
+        ? "official"
+        : "local_news",
+      trustProfileSummary
+    };
+  }
+  if (passType === "broad_context") {
+    return {
+      passType,
+      includeDomains: [],
+      maxAgeDays: 2,
+      minUsableArtifacts: 2,
+      minDistinctDomains: 2,
+      appliedTrustTier: "contextual",
+      trustProfileSummary
+    };
+  }
+  return {
+    passType,
+    includeDomains: trustedDomains,
+    maxAgeDays: null,
+    minUsableArtifacts: 1,
+    minDistinctDomains: 1,
+    appliedTrustTier: "trusted",
+    trustProfileSummary
+  };
+}
+
+function isWithinAgeWindow(publishedAt: string | null, maxAgeDays: number | null): boolean {
+  if (maxAgeDays == null) return true;
+  if (!publishedAt) return false;
+  const published = new Date(publishedAt);
+  if (Number.isNaN(published.getTime())) return false;
+  return Date.now() - published.getTime() <= maxAgeDays * 24 * 60 * 60 * 1000;
+}
+
+function urlMatchesTrustedDomains(url: string, includeDomains: string[]): boolean {
+  if (!includeDomains.length) return true;
+  const hostname = cleanText(parseSourceDomain(url) || "", 255).toLowerCase();
+  if (!hostname) return false;
+  return includeDomains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+}
+
+function isUsableResearchResult(result: TavilyResult): boolean {
+  const content = cleanText(result.content || result.rawContent || "", 18000);
+  return Boolean(cleanText(result.url, 2000) && content.length >= 140);
+}
+
+async function searchTavily(
+  query: string,
+  options?: { includeDomains?: string[]; maxAgeDays?: number | null }
+): Promise<TavilyResult[]> {
   const apiKey = cleanText(process.env.TAVILY_API_KEY || "", 500);
   if (!apiKey) throw new Error("Missing TAVILY_API_KEY");
+  const includeDomains = Array.isArray(options?.includeDomains)
+    ? options.includeDomains.map((value) => cleanText(value, 255).toLowerCase()).filter(Boolean)
+    : [];
+  const maxAgeDays = Number.isFinite(Number(options?.maxAgeDays)) ? Number(options?.maxAgeDays) : null;
 
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
@@ -1488,6 +1943,8 @@ async function searchTavily(query: string): Promise<TavilyResult[]> {
       query,
       search_depth: "advanced",
       include_raw_content: true,
+      ...(includeDomains.length ? { include_domains: includeDomains } : {}),
+      ...(maxAgeDays != null ? { days: maxAgeDays } : {}),
       max_results: 8
     })
   });
@@ -1515,7 +1972,9 @@ async function searchTavily(query: string): Promise<TavilyResult[]> {
       publishedAt,
       query
     };
-  });
+  }).filter((item: TavilyResult) =>
+    urlMatchesTrustedDomains(item.url, includeDomains) && isWithinAgeWindow(item.publishedAt, maxAgeDays)
+  );
 }
 
 function parseSourceDomain(url: string): string | null {
@@ -1546,7 +2005,20 @@ async function persistResearchArtifacts(
   signal: ResearchSignalContext,
   queries: string[],
   selected: TavilyResult[],
-  allResultCount: number
+  allResultCount: number,
+  context?: {
+    runId?: string;
+    planProvider?: string;
+    planModel?: string;
+    passType?: ResearchPassType;
+    passIndex?: number;
+    appliedDomains?: string[];
+    appliedMaxAgeDays?: number | null;
+    appliedTrustTier?: string | null;
+    trustProfileSummary?: ResearchPassPolicy["trustProfileSummary"] | null;
+    runStatus?: ResearchRunStatus;
+    degradationReason?: string | null;
+  }
 ): Promise<void> {
   if (!selected.length) return;
 
@@ -1554,7 +2026,7 @@ async function persistResearchArtifacts(
   if (!databaseUrl) throw new Error("Missing DATABASE_URL");
   const sql = neon(databaseUrl);
 
-  const runId = randomUUID();
+  const runId = cleanText(context?.runId || "", 120) || randomUUID();
   const engineId = randomUUID();
   const candidateId = randomUUID();
 
@@ -1574,6 +2046,16 @@ async function persistResearchArtifacts(
       selectedTopN: 5,
       queryCount: queries.length,
       fetchedResultCount: allResultCount,
+      searchPlanProvider: cleanText(context?.planProvider || "", 80) || null,
+      searchPlanModel: cleanText(context?.planModel || "", 160) || null,
+      passType: context?.passType || null,
+      passIndex: Number.isFinite(Number(context?.passIndex)) ? Number(context?.passIndex) : null,
+      appliedDomains: Array.isArray(context?.appliedDomains) ? context?.appliedDomains.slice(0, 20) : [],
+      appliedMaxAgeDays: context?.appliedMaxAgeDays ?? null,
+      appliedTrustTier: cleanText(context?.appliedTrustTier || "", 80) || null,
+      trustProfileSummary: context?.trustProfileSummary || null,
+      runStatus: context?.runStatus || null,
+      degradationReason: cleanText(context?.degradationReason || "", 240) || null,
       tavily: {
         search_depth: "advanced",
         include_raw_content: true
@@ -1627,7 +2109,130 @@ async function persistResearchArtifacts(
   }
 }
 
-async function runResearchDiscovery(signalId: number): Promise<{ queries: string[]; saved: number; fetched: number }> {
+async function persistResearchSearchPlanArtifact(payload: {
+  signal: ResearchSignalContext;
+  runId: string;
+  provider: string;
+  model: string;
+  searchPlan: SearchPlan;
+  status: ResearchRunStatus;
+  successfulPassType: ResearchPassType | null;
+  degradationReason: string | null;
+  failureReason: string | null;
+  passSummaries: ExecutedResearchPass[];
+  trustProfileSummary?: ResearchPassPolicy["trustProfileSummary"] | null;
+}): Promise<number> {
+  if (isTestSignalId(payload.signal.id)) return 1;
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const sourceUrl = `signal://${payload.signal.id}/search-plan/${payload.runId}`;
+  const rows = await sql`
+    INSERT INTO research_artifacts (
+      id,
+      run_id,
+      engine_id,
+      candidate_id,
+      signal_id,
+      persona_id,
+      stage,
+      artifact_type,
+      source_url,
+      source_domain,
+      title,
+      published_at,
+      content,
+      metadata,
+      created_at
+    )
+    VALUES (
+      ${randomUUID()},
+      ${payload.runId},
+      ${randomUUID()},
+      ${randomUUID()},
+      ${payload.signal.id},
+      ${payload.signal.personaId || null},
+      'research_discovery',
+      'search_plan',
+      ${sourceUrl},
+      ${null},
+      ${`Research search plan for signal ${payload.signal.id}`},
+      ${null},
+      ${JSON.stringify(payload.searchPlan)},
+      ${toSafeJsonObject({
+        signalId: payload.signal.id,
+        personaId: payload.signal.personaId,
+        provider: payload.provider,
+        model: payload.model,
+        status: payload.status,
+        successfulPassType: payload.successfulPassType,
+        degradationReason: payload.degradationReason,
+        failureReason: payload.failureReason,
+        trustProfileSummary: payload.trustProfileSummary || null,
+        passSummaries: payload.passSummaries.map((pass, index) => ({
+          passType: pass.passType,
+          passIndex: index + 1,
+          intent: pass.intent,
+          optimizedQueries: pass.optimizedQueries,
+          appliedDomains: pass.appliedDomains,
+          appliedMaxAgeDays: pass.appliedMaxAgeDays,
+          appliedTrustTier: pass.appliedTrustTier || null,
+          trustProfileSummary: pass.trustProfileSummary || null,
+          fetchedResultCount: pass.fetchedResultCount,
+          usableResultCount: pass.usableResultCount,
+          distinctDomainCount: pass.distinctDomainCount,
+          sufficiencyMet: pass.sufficiencyMet
+        })),
+        searchPlan: payload.searchPlan
+      })}::jsonb,
+      NOW()
+    )
+    RETURNING id
+  `;
+  return rows.length;
+}
+
+function evaluateResearchPassSufficiency(pass: ExecutedResearchPass, policy: ResearchPassPolicy): boolean {
+  return pass.usableResultCount >= policy.minUsableArtifacts && pass.distinctDomainCount >= policy.minDistinctDomains;
+}
+
+async function executeSearchPass(
+  signal: ResearchSignalContext,
+  pass: SearchPlanPass,
+  trustEntries: ResearchTrustEntry[]
+): Promise<ExecutedResearchPass> {
+  const policy = buildPassExecutionPolicy(signal, pass.passType, trustEntries);
+  const allResults: TavilyResult[] = [];
+  for (const query of pass.optimizedQueries) {
+    const results = await searchTavily(query, {
+      includeDomains: policy.includeDomains,
+      maxAgeDays: policy.maxAgeDays
+    });
+    allResults.push(...results);
+  }
+  const selected = selectTopResults(allResults.filter(isUsableResearchResult));
+  const distinctDomainCount = new Set(
+    selected.map((item) => cleanText(parseSourceDomain(item.url) || "", 255)).filter(Boolean)
+  ).size;
+  const executed: ExecutedResearchPass = {
+    passType: pass.passType,
+    intent: pass.intent,
+    optimizedQueries: pass.optimizedQueries,
+    appliedDomains: policy.includeDomains,
+    appliedMaxAgeDays: policy.maxAgeDays,
+    appliedTrustTier: policy.appliedTrustTier,
+    trustProfileSummary: policy.trustProfileSummary,
+    fetchedResultCount: allResults.length,
+    usableResultCount: selected.length,
+    distinctDomainCount,
+    selected,
+    sufficiencyMet: false
+  };
+  executed.sufficiencyMet = evaluateResearchPassSufficiency(executed, policy);
+  return executed;
+}
+
+async function runResearchDiscovery(signalId: number): Promise<ResearchDiscoveryResult> {
   const signal = await loadResearchSignalContext(signalId);
   const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
   if (!databaseUrl) throw new Error("Missing DATABASE_URL");
@@ -1638,18 +2243,137 @@ async function runResearchDiscovery(signalId: number): Promise<{ queries: string
     signal.personaId,
     signal.personaSection
   );
-  const queries = await generateResearchQueries(signal, guidanceBundle);
-  const allResults: TavilyResult[] = [];
-  for (const query of queries) {
-    const results = await searchTavily(query);
-    allResults.push(...results);
+  const trustEntries = await loadResearchTrustEntries(sql, signal);
+  const runId = randomUUID();
+
+  let planResult: SearchPlanGenerationResult;
+  try {
+    planResult = await generateSearchPlan(signal, guidanceBundle);
+  } catch (error: any) {
+    const failureReason = cleanText(error?.message || "research_search_plan_generation_failed", 240) || "research_search_plan_generation_failed";
+    const fallbackPlan = getDefaultSearchPlan(signal);
+    await persistResearchSearchPlanArtifact({
+      signal,
+      runId,
+      provider: "none",
+      model: "none",
+      searchPlan: fallbackPlan,
+      status: "failed",
+      successfulPassType: null,
+      degradationReason: null,
+      failureReason,
+      passSummaries: [],
+      trustProfileSummary: summarizeTrustProfile(trustEntries)
+    });
+    if (error?.retryable === true) {
+      throw error;
+    }
+    return {
+      queries: [],
+      saved: 0,
+      fetched: 0,
+      status: "failed",
+      provider: "none",
+      model: "none",
+      successfulPassType: null,
+      degradationReason: null,
+      failureReason,
+      passSummaries: []
+    };
   }
-  const topResults = selectTopResults(allResults);
-  await persistResearchArtifacts(signal, queries, topResults, allResults.length);
+
+  const executedPasses: ExecutedResearchPass[] = [];
+  let successfulPass: ExecutedResearchPass | null = null;
+  try {
+    for (const pass of planResult.searchPlan.passes) {
+      const executedPass = await executeSearchPass(signal, pass, trustEntries);
+      executedPasses.push(executedPass);
+      if (executedPass.sufficiencyMet) {
+        successfulPass = executedPass;
+        break;
+      }
+    }
+  } catch (error: any) {
+    const failureReason = cleanText(error?.message || "research_retrieval_failed", 240) || "research_retrieval_failed";
+    await persistResearchSearchPlanArtifact({
+      signal,
+      runId,
+      provider: planResult.provider,
+      model: planResult.model,
+      searchPlan: planResult.searchPlan,
+      status: "failed",
+      successfulPassType: null,
+      degradationReason: null,
+      failureReason,
+      passSummaries: executedPasses,
+      trustProfileSummary: summarizeTrustProfile(trustEntries)
+    });
+    throw buildRetryableResearchError(failureReason);
+  }
+
+  const status: ResearchRunStatus = !successfulPass
+    ? "failed"
+    : successfulPass.passType === "strict_official"
+      ? "completed"
+      : "degraded";
+  const degradationReason = status === "degraded"
+    ? (successfulPass?.passType === "broad_context" ? "used_broad_context_pass" : "used_historical_background_pass")
+    : null;
+  const failureReason = status === "failed" ? "insufficient_research_evidence" : null;
+  const queries = executedPasses.flatMap((pass) => pass.optimizedQueries);
+  const fetched = executedPasses.reduce((sum, pass) => sum + pass.fetchedResultCount, 0);
+  const selectedResults = successfulPass?.selected || [];
+
+  if (selectedResults.length) {
+    await persistResearchArtifacts(signal, queries, selectedResults, fetched, {
+      runId,
+      planProvider: planResult.provider,
+      planModel: planResult.model,
+      passType: successfulPass?.passType || undefined,
+      passIndex: successfulPass ? executedPasses.findIndex((pass) => pass.passType === successfulPass.passType) + 1 : undefined,
+      appliedDomains: successfulPass?.appliedDomains || [],
+      appliedMaxAgeDays: successfulPass?.appliedMaxAgeDays ?? null,
+      appliedTrustTier: successfulPass?.appliedTrustTier ?? null,
+      trustProfileSummary: successfulPass?.trustProfileSummary || summarizeTrustProfile(trustEntries),
+      runStatus: status,
+      degradationReason
+    });
+  }
+
+  await persistResearchSearchPlanArtifact({
+    signal,
+    runId,
+    provider: planResult.provider,
+    model: planResult.model,
+    searchPlan: planResult.searchPlan,
+    status,
+    successfulPassType: successfulPass?.passType || null,
+    degradationReason,
+    failureReason,
+    passSummaries: executedPasses,
+    trustProfileSummary: summarizeTrustProfile(trustEntries)
+  });
+
   return {
     queries,
-    saved: topResults.length,
-    fetched: allResults.length
+    saved: selectedResults.length,
+    fetched,
+    status,
+    provider: planResult.provider,
+    model: planResult.model,
+    successfulPassType: successfulPass?.passType || null,
+    degradationReason,
+    failureReason,
+    passSummaries: executedPasses.map((pass) => ({
+      passType: pass.passType,
+      fetchedResultCount: pass.fetchedResultCount,
+      usableResultCount: pass.usableResultCount,
+      distinctDomainCount: pass.distinctDomainCount,
+      appliedDomains: pass.appliedDomains,
+      appliedMaxAgeDays: pass.appliedMaxAgeDays,
+      appliedTrustTier: pass.appliedTrustTier,
+      sufficiencyMet: pass.sufficiencyMet
+    }))
   };
 }
 
@@ -4946,6 +5670,13 @@ export function createResearchStartFunction(inngest: Inngest) {
       if (!signalId) throw new Error("Missing signalId");
 
       const result = await step.run("research-discovery", async () => runResearchDiscovery(signalId));
+      if (result.status === "failed") {
+        return {
+          ok: false,
+          signalId,
+          ...result
+        };
+      }
       await step.sendEvent("emit-evidence-extraction-start", {
         name: "evidence.extraction.start",
         data: {
