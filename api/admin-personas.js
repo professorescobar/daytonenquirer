@@ -1,14 +1,27 @@
 const { neon } = require('@neondatabase/serverless');
 const { requireAdmin } = require('./_admin-auth');
 const { TOPIC_ENGINE_STAGES } = require('./_topic-engine-workflow');
-const HARD_CODED_STAGE_STACK = {
-  topic_qualification: { runnerType: 'llm', provider: 'google', modelOrEndpoint: 'gemini-1.5-flash' },
-  research_discovery: { runnerType: 'api_workflow', provider: 'tavily', modelOrEndpoint: 'https://api.tavily.com/search' },
-  evidence_extraction: { runnerType: 'llm', provider: 'google', modelOrEndpoint: 'gemini-1.5-pro' },
-  story_planning: { runnerType: 'llm', provider: 'openai', modelOrEndpoint: 'gpt-4o-mini' },
-  draft_writing: { runnerType: 'llm', provider: 'anthropic', modelOrEndpoint: 'claude-3-5-sonnet' },
-  final_review: { runnerType: 'llm', provider: 'openai', modelOrEndpoint: 'gpt-4o' }
-};
+
+function getCuratedDraftWritingModels() {
+  return {
+    openai: cleanText(process.env.TOPIC_ENGINE_DRAFT_WRITING_OPENAI_MODEL || '', 160) || 'gpt-4o-mini',
+    anthropic: cleanText(process.env.TOPIC_ENGINE_DRAFT_WRITING_ANTHROPIC_MODEL || '', 160) || 'claude-haiku-4-5',
+    gemini: cleanText(process.env.TOPIC_ENGINE_DRAFT_WRITING_GEMINI_MODEL || '', 160) || 'gemini-3.1-flash-lite-preview',
+    grok: cleanText(process.env.TOPIC_ENGINE_DRAFT_WRITING_GROK_MODEL || '', 160) || 'grok-4-1-fast-non-reasoning'
+  };
+}
+
+function getHardcodedStageStack() {
+  const curated = getCuratedDraftWritingModels();
+  return {
+    topic_qualification: { runnerType: 'llm', provider: 'google', modelOrEndpoint: 'gemini-1.5-flash' },
+    research_discovery: { runnerType: 'api_workflow', provider: 'tavily', modelOrEndpoint: 'https://api.tavily.com/search' },
+    evidence_extraction: { runnerType: 'llm', provider: 'google', modelOrEndpoint: 'gemini-1.5-pro' },
+    story_planning: { runnerType: 'llm', provider: 'openai', modelOrEndpoint: 'gpt-4o-mini' },
+    draft_writing: { runnerType: 'llm', provider: 'openai', modelOrEndpoint: curated.openai },
+    final_review: { runnerType: 'llm', provider: 'openai', modelOrEndpoint: 'gpt-4o' }
+  };
+}
 const BEAT_OPTIONS_BY_SECTION = {
   local: ['general-local', 'government', 'crime', 'education'],
   national: ['general-national', 'politics', 'social-issues'],
@@ -22,6 +35,7 @@ const BEAT_OPTIONS_BY_SECTION = {
 const DEFAULT_SECTION = 'local';
 const DEFAULT_BEAT = 'general-local';
 const VALID_SECTION_SET = new Set(Object.keys(BEAT_OPTIONS_BY_SECTION));
+const DRAFT_WRITING_PROVIDERS = new Set(['anthropic', 'openai', 'gemini', 'grok']);
 
 async function ensurePersonasTable(sql) {
   const requiredTables = [
@@ -86,8 +100,53 @@ function normalizeRunnerType(value) {
   return 'llm';
 }
 
+function isDraftWritingStage(stageName) {
+  return cleanText(stageName, 120).toLowerCase() === 'draft_writing';
+}
+
 function cleanText(value, max = 5000) {
   return String(value || '').trim().slice(0, max);
+}
+
+function normalizeDraftWritingProvider(value) {
+  const provider = cleanText(value, 80).toLowerCase();
+  return DRAFT_WRITING_PROVIDERS.has(provider) ? provider : '';
+}
+
+function normalizeDraftWritingModel(provider, value) {
+  const curated = getCuratedDraftWritingModels();
+  const model = cleanText(value, 160);
+  if (!model) return '';
+  return model === curated[provider] ? model : '';
+}
+
+function normalizeStageConfigForPersistence(stageName, raw) {
+  const fixed = getHardcodedStageStack()[stageName] || { runnerType: 'llm', provider: 'google', modelOrEndpoint: '' };
+  const enabled = !raw || typeof raw !== 'object' ? true : raw.enabled !== false;
+  const promptTemplate = !raw || typeof raw !== 'object' ? '' : cleanText(raw.promptTemplate, 5000);
+  const workflowConfig = raw && typeof raw === 'object' && raw.workflowConfig && typeof raw.workflowConfig === 'object'
+    ? raw.workflowConfig
+    : {};
+
+  let provider = cleanText(fixed.provider, 240);
+  let modelOrEndpoint = cleanText(fixed.modelOrEndpoint, 500);
+  if (isDraftWritingStage(stageName) && raw && typeof raw === 'object') {
+    const providerCandidate = normalizeDraftWritingProvider(raw.provider);
+    const modelCandidate = providerCandidate ? normalizeDraftWritingModel(providerCandidate, raw.modelOrEndpoint) : '';
+    if (providerCandidate && modelCandidate) {
+      provider = providerCandidate;
+      modelOrEndpoint = modelCandidate;
+    }
+  }
+
+  return {
+    runnerType: normalizeRunnerType(fixed.runnerType),
+    provider,
+    modelOrEndpoint,
+    enabled,
+    promptTemplate,
+    workflowConfig
+  };
 }
 
 function cleanPersonaId(value) {
@@ -252,21 +311,14 @@ async function fetchPersonaWorkflow(sql, personaId) {
   const stageConfigs = {};
   for (const stageName of TOPIC_ENGINE_STAGES) {
     const current = stageMap.get(stageName);
-    stageConfigs[stageName] = current ? {
-      runnerType: normalizeRunnerType(current.runnerType),
-      provider: cleanText(current.provider, 240),
-      modelOrEndpoint: cleanText(current.modelOrEndpoint, 500),
-      enabled: Boolean(current.enabled),
-      promptTemplate: cleanText(current.promptTemplate, 5000),
-      workflowConfig: current.workflowConfig && typeof current.workflowConfig === 'object' ? current.workflowConfig : {}
-    } : {
-      runnerType: 'llm',
-      provider: '',
-      modelOrEndpoint: '',
-      enabled: true,
-      promptTemplate: '',
-      workflowConfig: {}
-    };
+    stageConfigs[stageName] = normalizeStageConfigForPersistence(stageName, current ? {
+      runnerType: current.runnerType,
+      provider: current.provider,
+      modelOrEndpoint: current.modelOrEndpoint,
+      enabled: current.enabled,
+      promptTemplate: current.promptTemplate,
+      workflowConfig: current.workflowConfig
+    } : null);
   }
 
   const engineRows = await sql`
@@ -372,7 +424,7 @@ module.exports = async (req, res) => {
           researchTrustConfig: workflow.researchTrustConfig
         });
       }
-      return res.status(200).json({ personas });
+      return res.status(200).json({ personas, draftWritingModels: getCuratedDraftWritingModels() });
     } catch (error) {
       console.error('Error fetching personas:', error);
       if (Number(error?.statusCode || 0) === 503) {
@@ -564,16 +616,7 @@ module.exports = async (req, res) => {
       if (stageConfigs && typeof stageConfigs === 'object') {
         for (const stageName of TOPIC_ENGINE_STAGES) {
           const raw = stageConfigs[stageName];
-          if (!raw || typeof raw !== 'object') continue;
-          const fixed = HARD_CODED_STAGE_STACK[stageName] || { runnerType: 'llm', provider: 'google', modelOrEndpoint: '' };
-          const runnerType = normalizeRunnerType(fixed.runnerType);
-          const provider = cleanText(fixed.provider, 240);
-          const modelOrEndpoint = cleanText(fixed.modelOrEndpoint, 500);
-          const enabled = raw.enabled !== false;
-          const promptTemplate = cleanText(raw.promptTemplate, 5000);
-          const workflowConfig = raw.workflowConfig && typeof raw.workflowConfig === 'object'
-            ? raw.workflowConfig
-            : {};
+          const normalizedStage = normalizeStageConfigForPersistence(stageName, raw);
           await sql`
             INSERT INTO topic_engine_stage_configs (
               persona_id,
@@ -589,12 +632,12 @@ module.exports = async (req, res) => {
             VALUES (
               ${normalizedId},
               ${stageName},
-              ${runnerType},
-              ${provider},
-              ${modelOrEndpoint},
-              ${enabled},
-              ${promptTemplate},
-              ${workflowConfig}::jsonb,
+              ${normalizedStage.runnerType},
+              ${normalizedStage.provider},
+              ${normalizedStage.modelOrEndpoint},
+              ${normalizedStage.enabled},
+              ${normalizedStage.promptTemplate},
+              ${normalizedStage.workflowConfig}::jsonb,
               NOW()
             )
             ON CONFLICT (persona_id, stage_name) DO UPDATE
@@ -680,7 +723,8 @@ module.exports = async (req, res) => {
           isAutoPromoteEnabled: workflow.isAutoPromoteEnabled,
           pacingConfig: workflow.pacingConfig,
           researchTrustConfig: workflow.researchTrustConfig
-        }
+        },
+        draftWritingModels: getCuratedDraftWritingModels()
       });
     } catch (error) {
       console.error('Error saving persona:', error);

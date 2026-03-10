@@ -219,6 +219,35 @@ type DraftWritingArtifact = {
   coverageGaps: string[];
 };
 
+type DraftWriterProvider = "anthropic" | "openai" | "gemini" | "grok";
+
+type DraftWriterConfig = {
+  provider: DraftWriterProvider;
+  model: string;
+  source: "persona_config" | "hardcoded_fallback";
+};
+
+type DraftWriterExecutionResult = {
+  provider: DraftWriterProvider;
+  model: string;
+  source: "persona_config" | "hardcoded_fallback";
+  rawText: string;
+  parsed: unknown | null;
+};
+
+type DraftWriterFailureInfo = {
+  provider: DraftWriterProvider;
+  model: string;
+  source: "persona_config" | "hardcoded_fallback";
+  message: string;
+};
+
+type DraftWritingValidationResult = {
+  repaired: boolean;
+  repairReason: string | null;
+  sourceUrlCountAccepted: number;
+};
+
 type PacingConfig = {
   enabled: boolean;
   postingDays: boolean[];
@@ -280,6 +309,8 @@ const HARD_CODED_RESEARCH_QUERY_MODEL = "gemini-1.5-flash";
 const HARD_CODED_EVIDENCE_MODEL_CANDIDATES = ["gemini-1.5-pro", "gemini-1.5-pro-002"];
 const HARD_CODED_STORY_PLANNING_OPENAI_MODEL = "gpt-4o-mini";
 const HARD_CODED_STORY_PLANNING_GEMINI_MODEL = "gemini-1.5-flash";
+const SUPPORTED_DRAFT_WRITER_PROVIDERS: DraftWriterProvider[] = ["anthropic", "openai", "gemini", "grok"];
+const DRAFT_WRITING_TIMEOUT_MS = 45000;
 const LOCAL_SCOPE_TERMS = [
   "dayton",
   "montgomery county",
@@ -356,6 +387,15 @@ function isTestSignalId(signalId: number): boolean {
 
 function cleanText(value: unknown, max = 8000): string {
   return String(value || "").trim().slice(0, max);
+}
+
+function getCuratedDraftWriterModels(): Record<DraftWriterProvider, string> {
+  return {
+    openai: cleanText(process.env.TOPIC_ENGINE_DRAFT_WRITING_OPENAI_MODEL || "", 160) || "gpt-4o-mini",
+    anthropic: cleanText(process.env.TOPIC_ENGINE_DRAFT_WRITING_ANTHROPIC_MODEL || "", 160) || "claude-haiku-4-5",
+    gemini: cleanText(process.env.TOPIC_ENGINE_DRAFT_WRITING_GEMINI_MODEL || "", 160) || "gemini-3.1-flash-lite-preview",
+    grok: cleanText(process.env.TOPIC_ENGINE_DRAFT_WRITING_GROK_MODEL || "", 160) || "grok-4-1-fast-non-reasoning"
+  };
 }
 
 async function loadPromptLayerGuidance(
@@ -1732,7 +1772,7 @@ function normalizeResearchTrustDomain(value: unknown): string {
 }
 
 function buildDefaultResearchTrustEntries(signal: ResearchSignalContext): ResearchTrustEntry[] {
-  const defaults = (SECTION_TRUSTED_RESEARCH_DOMAINS[signal.personaSection] || []).map((entry, index) => ({
+  const defaults: ResearchTrustEntry[] = (SECTION_TRUSTED_RESEARCH_DOMAINS[signal.personaSection] || []).map((entry, index) => ({
     personaId: null,
     section: signal.personaSection,
     beat: null,
@@ -3151,6 +3191,414 @@ function dedupeUrls(urls: string[]): string[] {
   return out;
 }
 
+function normalizeDraftWriterProvider(value: unknown): DraftWriterProvider | null {
+  const provider = cleanText(value, 40).toLowerCase();
+  return SUPPORTED_DRAFT_WRITER_PROVIDERS.includes(provider as DraftWriterProvider)
+    ? (provider as DraftWriterProvider)
+    : null;
+}
+
+function normalizeDraftWriterModel(provider: DraftWriterProvider, value: unknown): string {
+  const model = cleanText(value, 160);
+  if (!model) return "";
+  const curated = getCuratedDraftWriterModels();
+  return model === curated[provider] ? model : "";
+}
+
+function getHardcodedDraftWriterConfig(): DraftWriterConfig {
+  const curated = getCuratedDraftWriterModels();
+  return {
+    provider: "openai",
+    model: curated.openai,
+    source: "hardcoded_fallback"
+  };
+}
+
+async function loadDraftWritingStageConfig(
+  sql: any,
+  personaId: string
+): Promise<{ provider: string; modelOrEndpoint: string } | null> {
+  if (!personaId) return null;
+  const rows = await sql`
+    SELECT
+      provider,
+      model_or_endpoint as "modelOrEndpoint"
+    FROM topic_engine_stage_configs
+    WHERE persona_id = ${personaId}
+      AND stage_name = 'draft_writing'
+    LIMIT 1
+  `;
+  if (!rows?.[0]) return null;
+  return {
+    provider: cleanText(rows[0].provider, 120),
+    modelOrEndpoint: cleanText(rows[0].modelOrEndpoint, 160)
+  };
+}
+
+async function resolveDraftWriterConfig(sql: any, personaId: string): Promise<DraftWriterConfig> {
+  const stageConfig = await loadDraftWritingStageConfig(sql, personaId);
+  const provider = normalizeDraftWriterProvider(stageConfig?.provider);
+  if (!provider) return getHardcodedDraftWriterConfig();
+  const model = normalizeDraftWriterModel(provider, stageConfig?.modelOrEndpoint);
+  if (!model) return getHardcodedDraftWriterConfig();
+  return {
+    provider,
+    model,
+    source: "persona_config"
+  };
+}
+
+function buildDraftWritingPrompt(
+  signal: ResearchSignalContext,
+  plan: StoryPlanArtifact,
+  evidence: StoryPlanningEvidence[],
+  guidanceBundle: StagePromptBundle
+): string {
+  const evidenceContext = evidence
+    .slice(0, 10)
+    .map((item, index) =>
+      [
+        `Evidence ${index + 1}:`,
+        `Claim: ${cleanText(item.claim, 600)}`,
+        `Source URL: ${cleanText(item.sourceUrl, 2000)}`,
+        `Quote: ${cleanText(item.evidenceQuote, 1200)}`,
+        `Confidence: ${item.confidence}`,
+        `Why it matters: ${cleanText(item.whyItMatters, 700)}`
+      ].join("\n")
+    )
+    .join("\n\n");
+  const planContext = plan.sections
+    .slice(0, 8)
+    .map((section, index) =>
+      [
+        `Section ${index + 1}: ${cleanText(section.heading, 220)}`,
+        `Summary: ${cleanText(section.summary, 1400)}`,
+        `Evidence Source URLs: ${(section.evidenceSourceUrls || []).map((url) => cleanText(url, 500)).filter(Boolean).join(", ")}`
+      ].join("\n")
+    )
+    .join("\n\n");
+  const planUrls = dedupeUrls(plan.sections.flatMap((section) => section.evidenceSourceUrls || []));
+  const fallbackUrls = dedupeUrls(evidence.map((item) => item.sourceUrl));
+  const allowedSourceUrls = (planUrls.length ? planUrls : fallbackUrls).join("\n");
+
+  return [
+    guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
+    guidanceBundle.promptSourceVersion
+      ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}`
+      : "",
+    "You are writing a publication-ready newsroom draft for a local autonomous newsroom pipeline.",
+    "Use only the verified story plan and evidence below.",
+    "Do not invent facts, quotes, attributions, figures, chronology, or background.",
+    "Do not use outside knowledge.",
+    "Keep the writing concrete, news-style, and publication ready.",
+    "Return strict JSON only in this schema:",
+    "{\"headline\":\"...\",\"dek\":\"...\",\"body\":\"...\",\"sourceUrls\":[\"...\"],\"uncertaintyNotes\":[\"...\"],\"coverageGaps\":[\"...\"]}",
+    "Rules:",
+    "- body must be a fully written article, not an outline.",
+    "- Write in clean paragraphs with no markdown.",
+    "- headline and dek must be specific and publication-ready.",
+    "- sourceUrls must only contain URLs from the approved list below.",
+    "- uncertaintyNotes and coverageGaps may be empty arrays.",
+    "- No extra keys. No commentary outside JSON.",
+    "",
+    `Persona ID: ${signal.personaId}`,
+    `Section: ${signal.personaSection}`,
+    `Beat: ${signal.personaBeat}`,
+    `Signal Title: ${signal.title}`,
+    `Signal Snippet: ${signal.snippet || ""}`,
+    "",
+    `Planned Angle: ${cleanText(plan.angle, 500)}`,
+    `Narrative Strategy: ${cleanText(plan.narrativeStrategy, 1200)}`,
+    `Plan Uncertainty Notes: ${plan.uncertaintyNotes.map((item) => cleanText(item, 200)).filter(Boolean).join(" | ") || "none"}`,
+    `Plan Missing Information: ${plan.missingInformation.map((item) => cleanText(item, 200)).filter(Boolean).join(" | ") || "none"}`,
+    "",
+    "Story Plan:",
+    planContext,
+    "",
+    "Verified Evidence:",
+    evidenceContext,
+    "",
+    "Approved Source URLs:",
+    allowedSourceUrls
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildDraftWritingRepairPrompt(
+  originalPrompt: string,
+  rawText: string,
+  failureReason: string
+): string {
+  return [
+    "Repair the draft-writing response so it matches the required JSON contract exactly.",
+    "Return strict JSON only.",
+    `Repair reason: ${cleanText(failureReason, 500)}`,
+    "",
+    "Original instructions:",
+    originalPrompt,
+    "",
+    "Previous model output to repair:",
+    cleanText(rawText, 24000)
+  ].join("\n");
+}
+
+function collectAllowedDraftSourceUrls(
+  plan: StoryPlanArtifact,
+  evidence: StoryPlanningEvidence[]
+): string[] {
+  const fromPlan = dedupeUrls(plan.sections.flatMap((section) => section.evidenceSourceUrls || []));
+  const fromEvidence = dedupeUrls(evidence.map((item) => item.sourceUrl));
+  return dedupeUrls([...fromPlan, ...fromEvidence]);
+}
+
+function normalizeDraftWritingArtifact(parsed: any): DraftWritingArtifact {
+  const raw = parsed && typeof parsed === "object" ? parsed : {};
+  return {
+    headline: cleanText(raw.headline || raw.title || "", 220),
+    dek: cleanText(raw.dek || raw.description || "", 320),
+    body: cleanText(raw.body || raw.content || "", 22000),
+    sourceUrls: dedupeUrls(Array.isArray(raw.sourceUrls) ? raw.sourceUrls : []),
+    uncertaintyNotes: Array.isArray(raw.uncertaintyNotes)
+      ? raw.uncertaintyNotes.map((item: unknown) => cleanText(item, 300)).filter(Boolean).slice(0, 8)
+      : [],
+    coverageGaps: Array.isArray(raw.coverageGaps)
+      ? raw.coverageGaps.map((item: unknown) => cleanText(item, 300)).filter(Boolean).slice(0, 8)
+      : []
+  };
+}
+
+function sanitizeDraftWritingArtifact(draft: DraftWritingArtifact, allowedSourceUrls: string[]): DraftWritingArtifact {
+  const allowed = new Set(allowedSourceUrls.map((url) => cleanText(url, 2000).toLowerCase()).filter(Boolean));
+  const filteredUrls = dedupeUrls(
+    draft.sourceUrls.filter((url) => allowed.has(cleanText(url, 2000).toLowerCase()))
+  );
+  return {
+    headline: cleanText(draft.headline, 220),
+    dek: cleanText(draft.dek, 320),
+    body: cleanText(draft.body, 22000),
+    sourceUrls: filteredUrls,
+    uncertaintyNotes: Array.isArray(draft.uncertaintyNotes)
+      ? draft.uncertaintyNotes.map((item) => cleanText(item, 300)).filter(Boolean).slice(0, 8)
+      : [],
+    coverageGaps: Array.isArray(draft.coverageGaps)
+      ? draft.coverageGaps.map((item) => cleanText(item, 300)).filter(Boolean).slice(0, 8)
+      : []
+  };
+}
+
+function validateDraftWritingArtifact(draft: DraftWritingArtifact, allowedSourceUrls: string[]): void {
+  if (!cleanText(draft.headline, 220)) {
+    throw new Error("Draft writing returned empty headline");
+  }
+  if (!cleanText(draft.body, 22000)) {
+    throw new Error("Draft writing returned empty body");
+  }
+  if (cleanText(draft.body, 22000).length < 400) {
+    throw new Error("Draft writing returned body below minimum length");
+  }
+  if (!draft.sourceUrls.length) {
+    throw new Error("Draft writing returned no approved source URLs");
+  }
+  const allowed = new Set(allowedSourceUrls.map((url) => cleanText(url, 2000).toLowerCase()).filter(Boolean));
+  if (draft.sourceUrls.some((url) => !allowed.has(cleanText(url, 2000).toLowerCase()))) {
+    throw new Error("Draft writing returned unapproved source URLs");
+  }
+}
+
+function parseDraftWriterResponse(
+  rawText: string,
+  config: DraftWriterConfig
+): DraftWriterExecutionResult {
+  return {
+    provider: config.provider,
+    model: config.model,
+    source: config.source,
+    rawText,
+    parsed: safeJsonParse(rawText)
+  };
+}
+
+async function executeDraftWriterWithValidation(
+  prompt: string,
+  config: DraftWriterConfig,
+  allowedSourceUrls: string[]
+): Promise<{ execution: DraftWriterExecutionResult; draft: DraftWritingArtifact; validation: DraftWritingValidationResult }> {
+  const firstExecution = await executeDraftWriter(prompt, config);
+  try {
+    const firstDraft = sanitizeDraftWritingArtifact(normalizeDraftWritingArtifact(firstExecution.parsed), allowedSourceUrls);
+    validateDraftWritingArtifact(firstDraft, allowedSourceUrls);
+    return {
+      execution: firstExecution,
+      draft: firstDraft,
+      validation: {
+        repaired: false,
+        repairReason: null,
+        sourceUrlCountAccepted: firstDraft.sourceUrls.length
+      }
+    };
+  } catch (error: any) {
+    const repairReason = cleanText(error?.message || "draft_validation_failed", 500);
+    const repairPrompt = buildDraftWritingRepairPrompt(prompt, firstExecution.rawText, repairReason);
+    const repairedExecution = await executeDraftWriter(repairPrompt, config);
+    const repairedDraft = sanitizeDraftWritingArtifact(
+      normalizeDraftWritingArtifact(repairedExecution.parsed),
+      allowedSourceUrls
+    );
+    validateDraftWritingArtifact(repairedDraft, allowedSourceUrls);
+    return {
+      execution: repairedExecution,
+      draft: repairedDraft,
+      validation: {
+        repaired: true,
+        repairReason,
+        sourceUrlCountAccepted: repairedDraft.sourceUrls.length
+      }
+    };
+  }
+}
+
+async function writeDraftWithAnthropic(prompt: string, config: DraftWriterConfig): Promise<DraftWriterExecutionResult> {
+  const apiKey = cleanText(process.env.ANTHROPIC_API_KEY || "", 500);
+  if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY");
+
+  const response = await fetchWithTimeout(
+    "https://api.anthropic.com/v1/messages",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: config.model,
+        max_tokens: 3200,
+        temperature: 0.35,
+        messages: [{ role: "user", content: prompt }]
+      })
+    },
+    DRAFT_WRITING_TIMEOUT_MS
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Anthropic draft writing failed ${response.status}: ${body.slice(0, 240)}`);
+  }
+
+  const data = await response.json();
+  const rawText = data?.content?.map((item: any) => (item?.type === "text" ? item.text || "" : "")).join("") || "";
+  return parseDraftWriterResponse(rawText, config);
+}
+
+async function writeDraftWithOpenAI(prompt: string, config: DraftWriterConfig): Promise<DraftWriterExecutionResult> {
+  const apiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
+  if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
+
+  const response = await fetchWithTimeout(
+    "https://api.openai.com/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: config.model,
+        temperature: 0.35,
+        max_completion_tokens: 3200,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: prompt }]
+      })
+    },
+    DRAFT_WRITING_TIMEOUT_MS
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`OpenAI draft writing failed ${response.status}: ${body.slice(0, 240)}`);
+  }
+
+  const data = await response.json();
+  const rawText = data?.choices?.[0]?.message?.content || "";
+  return parseDraftWriterResponse(rawText, config);
+}
+
+async function writeDraftWithGemini(prompt: string, config: DraftWriterConfig): Promise<DraftWriterExecutionResult> {
+  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    config.model
+  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const response = await fetchWithTimeout(
+    endpoint,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.35,
+          maxOutputTokens: 3200,
+          responseMimeType: "application/json"
+        }
+      })
+    },
+    DRAFT_WRITING_TIMEOUT_MS
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Gemini draft writing failed ${response.status}: ${body.slice(0, 240)}`);
+  }
+
+  const data = await response.json();
+  const rawText = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+  return parseDraftWriterResponse(rawText, config);
+}
+
+async function writeDraftWithGrok(prompt: string, config: DraftWriterConfig): Promise<DraftWriterExecutionResult> {
+  const apiKey = cleanText(process.env.GROK_API_KEY || "", 500);
+  if (!apiKey) throw new Error("Missing GROK_API_KEY");
+
+  const response = await fetchWithTimeout(
+    "https://api.x.ai/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: config.model,
+        temperature: 0.35,
+        max_tokens: 3200,
+        messages: [{ role: "user", content: prompt }]
+      })
+    },
+    DRAFT_WRITING_TIMEOUT_MS
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Grok draft writing failed ${response.status}: ${body.slice(0, 240)}`);
+  }
+
+  const data = await response.json();
+  const rawText = data?.choices?.[0]?.message?.content || "";
+  return parseDraftWriterResponse(rawText, config);
+}
+
+async function executeDraftWriter(prompt: string, config: DraftWriterConfig): Promise<DraftWriterExecutionResult> {
+  if (config.provider === "openai") return writeDraftWithOpenAI(prompt, config);
+  if (config.provider === "gemini") return writeDraftWithGemini(prompt, config);
+  if (config.provider === "grok") return writeDraftWithGrok(prompt, config);
+  return writeDraftWithAnthropic(prompt, config);
+}
+
 function buildDeterministicDraftFromPlan(
   signal: ResearchSignalContext,
   plan: StoryPlanArtifact,
@@ -3181,6 +3629,11 @@ async function persistDraftWritingArtifact(
   signal: ResearchSignalContext,
   draft: DraftWritingArtifact,
   context: {
+    provider: string;
+    model: string;
+    configSource?: "persona_config" | "hardcoded_fallback";
+    fallbackFailure?: DraftWriterFailureInfo | null;
+    validation: DraftWritingValidationResult;
     evidenceCount: number;
     sectionCount: number;
     promptHash: string;
@@ -3191,6 +3644,8 @@ async function persistDraftWritingArtifact(
   if (isTestSignalId(signal.id)) {
     console.log("test-mode persistDraftWritingArtifact skip", {
       signalId: signal.id,
+      provider: context.provider,
+      model: context.model,
       evidenceCount: context.evidenceCount,
       sectionCount: context.sectionCount,
       draft
@@ -3210,8 +3665,22 @@ async function persistDraftWritingArtifact(
   const metadata = {
     signalId: signal.id,
     personaId: signal.personaId,
-    provider: "deterministic",
-    model: "draft-writing-deterministic-v1",
+    provider: cleanText(context.provider, 80),
+    model: cleanText(context.model, 160),
+    configSource: cleanText(context.configSource || "", 40) || null,
+    fallbackFailure: context.fallbackFailure
+      ? {
+          provider: cleanText(context.fallbackFailure.provider, 80),
+          model: cleanText(context.fallbackFailure.model, 160),
+          source: cleanText(context.fallbackFailure.source, 40),
+          message: cleanText(context.fallbackFailure.message, 1000)
+        }
+      : null,
+    validation: {
+      repaired: context.validation?.repaired === true,
+      repairReason: cleanText(context.validation?.repairReason || "", 500) || null,
+      sourceUrlCountAccepted: Math.max(0, Number(context.validation?.sourceUrlCountAccepted || 0))
+    },
     evidenceCount: context.evidenceCount,
     sectionCount: context.sectionCount,
     sourceCount: draft.sourceUrls.length,
@@ -3288,8 +3757,8 @@ async function runDraftWriting(signalId: number): Promise<{
       sourceCount: 0,
       bodyChars: 0,
       saved: 0,
-      provider: "deterministic",
-      model: "draft-writing-deterministic-v1",
+      provider: getHardcodedDraftWriterConfig().provider,
+      model: getHardcodedDraftWriterConfig().model,
       skipped: true
     };
   }
@@ -3302,8 +3771,8 @@ async function runDraftWriting(signalId: number): Promise<{
       sourceCount: 0,
       bodyChars: 0,
       saved: 0,
-      provider: "deterministic",
-      model: "draft-writing-deterministic-v1",
+      provider: getHardcodedDraftWriterConfig().provider,
+      model: getHardcodedDraftWriterConfig().model,
       skipped: true
     };
   }
@@ -3317,9 +3786,56 @@ async function runDraftWriting(signalId: number): Promise<{
     signal.personaId,
     signal.personaSection
   );
-
-  const draft = buildDeterministicDraftFromPlan(signal, plan, evidence);
+  let execution: DraftWriterExecutionResult;
+  let draft: DraftWritingArtifact;
+  let validation: DraftWritingValidationResult;
+  let fallbackFailure: DraftWriterFailureInfo | null = null;
+  const allowedSourceUrls = collectAllowedDraftSourceUrls(plan, evidence);
+  if (isTestSignalId(signalId)) {
+    execution = {
+      ...getHardcodedDraftWriterConfig(),
+      rawText: "",
+      parsed: buildDeterministicDraftFromPlan(signal, plan, evidence)
+    };
+    draft = sanitizeDraftWritingArtifact(normalizeDraftWritingArtifact(execution.parsed), allowedSourceUrls);
+    validateDraftWritingArtifact(draft, allowedSourceUrls);
+    validation = {
+      repaired: false,
+      repairReason: null,
+      sourceUrlCountAccepted: draft.sourceUrls.length
+    };
+  } else {
+    const resolvedWriter = await resolveDraftWriterConfig(sql, signal.personaId);
+    const prompt = buildDraftWritingPrompt(signal, plan, evidence, guidanceBundle);
+    const fallbackWriter = getHardcodedDraftWriterConfig();
+    try {
+      const result = await executeDraftWriterWithValidation(prompt, resolvedWriter, allowedSourceUrls);
+      execution = result.execution;
+      draft = result.draft;
+      validation = result.validation;
+    } catch (error: any) {
+      const shouldTryFallback =
+        resolvedWriter.source === "persona_config" &&
+        (resolvedWriter.provider !== fallbackWriter.provider || resolvedWriter.model !== fallbackWriter.model);
+      if (!shouldTryFallback) throw error;
+      fallbackFailure = {
+        provider: resolvedWriter.provider,
+        model: resolvedWriter.model,
+        source: resolvedWriter.source,
+        message: cleanText(error?.message || "draft_writer_failed", 1000)
+      };
+      const fallbackResult = await executeDraftWriterWithValidation(prompt, fallbackWriter, allowedSourceUrls);
+      execution = fallbackResult.execution;
+      draft = fallbackResult.draft;
+      validation = fallbackResult.validation;
+    }
+  }
   const saved = await persistDraftWritingArtifact(signal, draft, {
+    provider: execution.provider,
+    model: execution.model,
+    configSource: execution.source,
+    fallbackFailure,
+    validation,
     evidenceCount: evidence.length,
     sectionCount: plan.sections.length,
     promptHash: guidanceBundle.promptHash,
@@ -3333,8 +3849,8 @@ async function runDraftWriting(signalId: number): Promise<{
     sourceCount: draft.sourceUrls.length,
     bodyChars: draft.body.length,
     saved,
-    provider: "deterministic",
-    model: "draft-writing-deterministic-v1"
+    provider: execution.provider,
+    model: execution.model
   };
 }
 

@@ -163,8 +163,8 @@ const HARD_CODED_STAGE_STACK = {
   },
   draft_writing: {
     runnerType: 'llm',
-    provider: 'anthropic',
-    modelOrEndpoint: 'claude-3-5-sonnet'
+    provider: 'openai',
+    modelOrEndpoint: 'gpt-4o-mini'
   },
   final_review: {
     runnerType: 'llm',
@@ -172,6 +172,20 @@ const HARD_CODED_STAGE_STACK = {
     modelOrEndpoint: 'gpt-4o'
   }
 };
+const DRAFT_WRITING_PROVIDER_OPTIONS = ['openai', 'anthropic', 'gemini', 'grok'];
+const DRAFT_WRITING_PROVIDER_LABELS = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  gemini: 'Gemini',
+  grok: 'Grok'
+};
+const DEFAULT_DRAFT_WRITING_MODEL_BY_PROVIDER = {
+  openai: 'gpt-4o-mini',
+  anthropic: 'claude-haiku-4-5',
+  gemini: 'gemini-3.1-flash-lite-preview',
+  grok: 'grok-4-1-fast-non-reasoning'
+};
+let loadedDraftWritingModelByProvider = { ...DEFAULT_DRAFT_WRITING_MODEL_BY_PROVIDER };
 
 const BEAT_OPTIONS_BY_SECTION = {
   local: [{ value: 'general-local', label: 'General Local' }],
@@ -256,6 +270,12 @@ function getAllDefinedPersonas() {
     });
   }
   return personas;
+}
+
+function getDraftWritingModelByProvider() {
+  return loadedDraftWritingModelByProvider && typeof loadedDraftWritingModelByProvider === 'object'
+    ? loadedDraftWritingModelByProvider
+    : DEFAULT_DRAFT_WRITING_MODEL_BY_PROVIDER;
 }
 
 function buildCloudinaryOptimizedUrl(publicId) {
@@ -1688,19 +1708,62 @@ function getDefaultStageConfig() {
   };
 }
 
+function isDraftWritingStage(stageName) {
+  return String(stageName || '').trim().toLowerCase() === 'draft_writing';
+}
+
 function getStageConfig(stageConfigs, stageName) {
   const fromApi = stageConfigs && typeof stageConfigs === 'object' ? stageConfigs[stageName] : null;
   const hardcoded = HARD_CODED_STAGE_STACK[stageName] || { runnerType: 'llm', provider: 'google', modelOrEndpoint: '' };
   const config = getDefaultStageConfig();
   config.runnerType = String(hardcoded.runnerType || config.runnerType);
-  config.provider = String(hardcoded.provider || config.provider);
-  config.modelOrEndpoint = String(hardcoded.modelOrEndpoint || '');
+  config.provider = isDraftWritingStage(stageName) && fromApi && typeof fromApi === 'object'
+    ? String(fromApi.provider || hardcoded.provider || config.provider)
+    : String(hardcoded.provider || config.provider);
+  config.modelOrEndpoint = isDraftWritingStage(stageName) && fromApi && typeof fromApi === 'object'
+    ? String(fromApi.modelOrEndpoint || hardcoded.modelOrEndpoint || '')
+    : String(hardcoded.modelOrEndpoint || '');
   config.enabled = !fromApi || typeof fromApi !== 'object' ? true : fromApi.enabled !== false;
   config.promptTemplate = !fromApi || typeof fromApi !== 'object' ? '' : String(fromApi.promptTemplate || '');
   config.workflowConfig = !fromApi || typeof fromApi !== 'object'
     ? {}
     : (fromApi.workflowConfig && typeof fromApi.workflowConfig === 'object' ? fromApi.workflowConfig : {});
   return config;
+}
+
+function renderDraftWritingModelControls(config) {
+  const modelByProvider = getDraftWritingModelByProvider();
+  const provider = cleanText(config?.provider || HARD_CODED_STAGE_STACK.draft_writing?.provider || '', 80).toLowerCase() || 'openai';
+  const modelOrEndpoint = modelByProvider[provider] || modelByProvider.openai;
+  return `
+    <label>
+      Writer Provider
+      <select class="field-stage-provider" data-default-model="${escapeHtml(modelOrEndpoint)}">
+        ${DRAFT_WRITING_PROVIDER_OPTIONS.map((option) => `
+          <option value="${escapeHtml(option)}" ${provider === option ? 'selected' : ''}>${escapeHtml(DRAFT_WRITING_PROVIDER_LABELS[option] || titleCaseSlug(option))}</option>
+        `).join('')}
+      </select>
+    </label>
+    <label>
+      Writer Model
+      <input
+        type="text"
+        class="field-stage-model"
+        maxlength="160"
+        value="${escapeHtml(modelOrEndpoint)}"
+        readonly
+      >
+    </label>
+  `;
+}
+
+function syncDraftWritingModelSelection(stageEl) {
+  const modelByProvider = getDraftWritingModelByProvider();
+  const providerSelect = stageEl?.querySelector('.field-stage-provider');
+  const modelInput = stageEl?.querySelector('.field-stage-model');
+  if (!providerSelect || !modelInput) return;
+  const provider = cleanText(providerSelect.value || '', 80).toLowerCase();
+  modelInput.value = modelByProvider[provider] || modelByProvider.openai;
 }
 
 function formatFeedsForTextArea(feeds) {
@@ -1763,7 +1826,21 @@ function renderStageEditors(stageConfigs) {
                 ${(Array.isArray(explainer.details) ? explainer.details : []).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
               </ul>
             </div>
-            <p class="signal-meta workflow-wide">Model stack is globally hardcoded for v1. Stage-level model selection is disabled.</p>
+            <p class="signal-meta workflow-wide">
+              ${isDraftWritingStage(stageName)
+                ? 'Only Phase 5 writer selection is persona-curatable. All other stages remain hardcoded in production.'
+                : 'This stage remains hardcoded in production. Persona-level model selection is disabled.'}
+            </p>
+            ${isDraftWritingStage(stageName) ? renderDraftWritingModelControls(config) : `
+              <label>
+                Runner Type
+                <input type="text" value="${escapeHtml(String(config.runnerType || '').toUpperCase())}" readonly>
+              </label>
+              <label>
+                Runtime Stack
+                <input type="text" value="${escapeHtml([config.provider, config.modelOrEndpoint].filter(Boolean).join(' • '))}" readonly>
+              </label>
+            `}
             <label class="workflow-wide">
               Prompt Template
               <textarea class="field-stage-prompt" rows="3" placeholder="Instructions for this stage...">${escapeHtml(config.promptTemplate)}</textarea>
@@ -2138,6 +2215,9 @@ async function loadPersonas() {
       apiRequest('/api/admin-personas'),
       apiRequest('/api/admin-prompt-layers')
     ]);
+    loadedDraftWritingModelByProvider = data?.draftWritingModels && typeof data.draftWritingModels === 'object'
+      ? { ...DEFAULT_DRAFT_WRITING_MODEL_BY_PROVIDER, ...data.draftWritingModels }
+      : { ...DEFAULT_DRAFT_WRITING_MODEL_BY_PROVIDER };
     setPromptLayers(promptData.layers || []);
     renderGlobalPromptLayerList();
     renderPersonas(data.personas || []);
@@ -2301,8 +2381,14 @@ async function savePersona(card) {
     }
     stageConfigs[stageName] = {
       runnerType: HARD_CODED_STAGE_STACK[stageName]?.runnerType || 'llm',
-      provider: HARD_CODED_STAGE_STACK[stageName]?.provider || '',
-      modelOrEndpoint: HARD_CODED_STAGE_STACK[stageName]?.modelOrEndpoint || '',
+      provider: isDraftWritingStage(stageName)
+        ? (cleanText(stageEl.querySelector('.field-stage-provider')?.value || '', 80).toLowerCase() || HARD_CODED_STAGE_STACK[stageName]?.provider || '')
+        : (HARD_CODED_STAGE_STACK[stageName]?.provider || ''),
+      modelOrEndpoint: isDraftWritingStage(stageName)
+        ? (getDraftWritingModelByProvider()[
+            cleanText(stageEl.querySelector('.field-stage-provider')?.value || '', 80).toLowerCase()
+          ] || getDraftWritingModelByProvider().openai)
+        : (HARD_CODED_STAGE_STACK[stageName]?.modelOrEndpoint || ''),
       enabled: Boolean(stageEl.querySelector('.field-stage-enabled')?.checked),
       promptTemplate: stageEl.querySelector('.field-stage-prompt')?.value || '',
       workflowConfig
@@ -2982,6 +3068,10 @@ function onPersonaListChange(event) {
 
   const stageEl = target.closest('.workflow-stage');
   if (!stageEl) return;
+  if (target.classList.contains('field-stage-provider') && isDraftWritingStage(stageEl.dataset.stage)) {
+    syncDraftWritingModelSelection(stageEl);
+    return;
+  }
 }
 
 function onPersonaListDragOver(event) {
