@@ -58,7 +58,19 @@ function summarizeResearchDiscovery(details, signal, queue, stageCounts) {
   return 'pending';
 }
 
-function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchDiscovery }) {
+function getStoryPlanningSummary(artifacts) {
+  const items = Array.isArray(artifacts) ? artifacts : [];
+  const latest = items[0] || null;
+  if (!latest) return null;
+  const metadata = toMetadataObject(latest.metadata);
+  return {
+    planningStatus: cleanText(metadata.planningStatus || '', 40).toUpperCase(),
+    executionOutcome: cleanText(metadata.executionOutcome || '', 40).toLowerCase(),
+    isCanonical: metadata.isCanonical === true
+  };
+}
+
+function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchDiscovery, storyPlanning }) {
   const researchCount = Number(stageCounts?.research_discovery || 0);
   const evidenceCount = Number(stageCounts?.evidence_extraction || 0);
   const storyPlanningCount = Number(stageCounts?.story_planning || 0);
@@ -105,8 +117,17 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchD
     stages.evidence_extraction = 'failed';
   }
 
-  if (storyPlanningCount > 0) {
+  if (storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'READY') {
     stages.story_planning = 'completed';
+  } else if (storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'NEEDS_REPORTING') {
+    stages.story_planning = 'needs_reporting';
+  } else if (storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'REJECTED') {
+    stages.story_planning = 'rejected';
+  } else if (
+    storyPlanning?.executionOutcome &&
+    storyPlanning?.executionOutcome !== 'validated'
+  ) {
+    stages.story_planning = 'failed';
   } else if (stages.evidence_extraction === 'completed') {
     stages.story_planning = 'in_progress';
   } else if (stages.evidence_extraction === 'failed') {
@@ -117,8 +138,12 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchD
     stages.draft_writing = 'completed';
   } else if (stages.story_planning === 'completed') {
     stages.draft_writing = 'in_progress';
-  } else if (stages.story_planning === 'failed') {
-    stages.draft_writing = 'failed';
+  } else if (
+    stages.story_planning === 'failed' ||
+    stages.story_planning === 'needs_reporting' ||
+    stages.story_planning === 'rejected'
+  ) {
+    stages.draft_writing = 'pending';
   }
 
   if (stages.draft_writing === 'completed') {
@@ -145,6 +170,8 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchD
   else if (stages.draft_writing === 'in_progress') currentStage = 'draft_writing';
   else if (stages.draft_writing === 'failed') currentStage = 'draft_writing';
   else if (stages.story_planning === 'in_progress') currentStage = 'story_planning';
+  else if (stages.story_planning === 'needs_reporting') currentStage = 'story_planning';
+  else if (stages.story_planning === 'rejected') currentStage = 'story_planning';
   else if (stages.story_planning === 'failed') currentStage = 'story_planning';
   else if (stages.evidence_extraction === 'in_progress') currentStage = 'evidence_extraction';
   else if (stages.evidence_extraction === 'failed') currentStage = 'evidence_extraction';
@@ -161,7 +188,7 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchD
   return { stages, currentStage };
 }
 
-function summarizeRunStatus({ queue, stageStatuses }) {
+function summarizeRunStatus({ queue, stageStatuses, storyPlanning }) {
   const queueStatus = cleanText(queue?.status || '', 40).toLowerCase();
   if (queueStatus === 'queued' || queueStatus === 'deferred') return 'queued';
   if (queueStatus === 'rejected' || stageStatuses.quota_pacing === 'failed') return 'blocked';
@@ -174,6 +201,9 @@ function summarizeRunStatus({ queue, stageStatuses }) {
   if (stageStatuses.image_sourcing === 'timed_out') return 'phase_6_timed_out';
   if (stageStatuses.image_sourcing === 'failed') return 'phase_6_failed';
   if (stageStatuses.draft_writing === 'completed') return 'phase_5_complete';
+  if (storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'NEEDS_REPORTING') return 'phase_4_needs_reporting';
+  if (storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'REJECTED') return 'phase_4_rejected';
+  if (stageStatuses.story_planning === 'failed') return 'phase_4_failed';
   if (stageStatuses.story_planning === 'completed') return 'phase_4_complete';
   if (stageStatuses.evidence_extraction === 'completed') return 'phase_3_complete';
   if (stageStatuses.research_discovery === 'failed') return 'phase_2_failed';
@@ -412,8 +442,9 @@ module.exports = async (req, res) => {
       const stageCounts = stageCountBySignal.get(signalIdNum) || {};
       const artifactsByStage = stageArtifactsBySignal.get(signalIdNum) || {};
       const researchDiscovery = getResearchDiscoverySummary(artifactsByStage.research_discovery || []);
-      const stageInfo = summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchDiscovery });
-      const runStatus = summarizeRunStatus({ queue, stageStatuses: stageInfo.stages });
+      const storyPlanning = getStoryPlanningSummary(artifactsByStage.story_planning || []);
+      const stageInfo = summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchDiscovery, storyPlanning });
+      const runStatus = summarizeRunStatus({ queue, stageStatuses: stageInfo.stages, storyPlanning });
 
       const timestamps = [
         signal.processedAt,

@@ -189,25 +189,61 @@ type EvidenceClaim = {
 };
 
 type StoryPlanningEvidence = {
+  evidenceId: string;
   claim: string;
   sourceUrl: string;
+  sourceType: "official" | "local_news" | "wire" | "secondary" | "other";
   evidenceQuote: string;
   confidence: number;
+  publishedAt: string | null;
   whyItMatters: string;
 };
 
+type StoryPlanningStatus = "READY" | "NEEDS_REPORTING" | "REJECTED";
+type StoryPlanningExecutionOutcome =
+  | "validated"
+  | "contract_invalid"
+  | "editorial_insufficiency"
+  | "repair_failed"
+  | "provider_failure"
+  | "persistence_failed";
+type StoryPlanSectionPurpose = "lead" | "nut_graph" | "context" | "impact" | "what_next" | "uncertainty";
+type StoryPlanAssertiveness = "high" | "medium" | "low";
+
 type StoryPlanSection = {
+  sectionId: string;
   heading: string;
   summary: string;
+  purpose: StoryPlanSectionPurpose | "";
+  evidenceIds: string[];
   evidenceSourceUrls: string[];
+  assertiveness: StoryPlanAssertiveness | "";
+  tensionFlags: string[];
+  qualificationNotes: string[];
+  priority: number | null;
 };
 
 type StoryPlanArtifact = {
+  planningStatus: StoryPlanningStatus | "";
+  decisionRationale: string;
   angle: string;
   narrativeStrategy: string;
+  approvedEvidenceIds: string[];
+  approvedSourceUrls: string[];
   sections: StoryPlanSection[];
   uncertaintyNotes: string[];
   missingInformation: string[];
+  missingInformationQueries: string[];
+  editorialRisks: string[];
+  primarySourceAssessment: {
+    hasPrimarySource: boolean;
+    primaryEvidenceIds: string[];
+    notes: string[];
+  };
+  personaFitAssessment: {
+    fit: "strong" | "medium" | "weak" | "";
+    notes: string[];
+  };
 };
 
 type DraftWritingArtifact = {
@@ -2699,17 +2735,23 @@ async function loadStoryPlanningEvidence(signalId: number): Promise<StoryPlannin
   if (isTestSignalId(signalId)) {
     return [
       {
+        evidenceId: "ev_mock_1",
         claim: "Downtown lane closures begin Saturday morning and continue through Sunday night.",
         sourceUrl: "https://example.com/mock-signal-12345",
+        sourceType: "official",
         evidenceQuote: "Dayton public works said lane closures start Saturday morning.",
         confidence: 0.89,
+        publishedAt: "2026-03-10T12:00:00Z",
         whyItMatters: "Weekend drivers and businesses downtown will need detour plans."
       },
       {
+        evidenceId: "ev_mock_2",
         claim: "RTA is shifting stops for two routes near utility work zones.",
         sourceUrl: "https://example.com/mock-signal-12345-traffic",
+        sourceType: "official",
         evidenceQuote: "RTA said two routes will shift stops near utility work zones.",
         confidence: 0.84,
+        publishedAt: "2026-03-10T12:05:00Z",
         whyItMatters: "Transit riders need updated stop locations and timing expectations."
       }
     ];
@@ -2720,10 +2762,13 @@ async function loadStoryPlanningEvidence(signalId: number): Promise<StoryPlannin
   const sql = neon(databaseUrl);
   const rows = await sql`
     SELECT
+      id as "evidenceId",
       content as "claim",
       source_url as "sourceUrl",
+      COALESCE(NULLIF(trim(COALESCE(metadata->>'sourceType', '')), ''), '') as "sourceType",
       COALESCE(metadata->>'evidenceQuote', '') as "evidenceQuote",
       COALESCE(metadata->>'whyItMatters', '') as "whyItMatters",
+      published_at as "publishedAt",
       CASE
         WHEN COALESCE(metadata->>'confidence', '') ~ '^[0-9]+(\\.[0-9]+)?$'
           THEN (metadata->>'confidence')::numeric
@@ -2740,16 +2785,19 @@ async function loadStoryPlanningEvidence(signalId: number): Promise<StoryPlannin
 
   return rows
     .map((row: any) => ({
+      evidenceId: cleanText(row.evidenceId || "", 120),
       claim: cleanText(row.claim || "", 1200),
       sourceUrl: cleanText(row.sourceUrl || "", 2000),
+      sourceType: normalizeStoryPlanningEvidenceSourceType(row.sourceType),
       evidenceQuote: cleanText(row.evidenceQuote || "", 400),
       confidence: clampConfidence(row.confidence),
+      publishedAt: cleanText(row.publishedAt || "", 120) || null,
       whyItMatters: cleanText(row.whyItMatters || "", 700)
     }))
-    .filter((item: StoryPlanningEvidence) => item.claim && item.sourceUrl && item.evidenceQuote);
+    .filter((item: StoryPlanningEvidence) => item.evidenceId && item.claim && item.sourceUrl && item.evidenceQuote);
 }
 
-function normalizeUrlList(value: unknown, allowedUrls: Set<string>): string[] {
+function normalizeUrlList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const out: string[] = [];
   const seen = new Set<string>();
@@ -2757,28 +2805,107 @@ function normalizeUrlList(value: unknown, allowedUrls: Set<string>): string[] {
     const cleaned = cleanText(raw, 2000);
     if (!cleaned) continue;
     const key = cleaned.toLowerCase();
-    if (!allowedUrls.has(key) || seen.has(key)) continue;
+    if (seen.has(key)) continue;
     seen.add(key);
     out.push(cleaned);
-    if (out.length >= 4) break;
+    if (out.length >= 12) break;
   }
   return out;
+}
+
+function normalizeStoryPlanningStatus(value: unknown): StoryPlanningStatus | "" {
+  const normalized = cleanText(value, 40).toUpperCase();
+  if (normalized === "READY" || normalized === "NEEDS_REPORTING" || normalized === "REJECTED") {
+    return normalized;
+  }
+  return "";
+}
+
+function normalizeStoryPlanSectionPurpose(value: unknown, index: number): StoryPlanSectionPurpose | "" {
+  const normalized = cleanText(value, 40).toLowerCase();
+  if (
+    normalized === "lead" ||
+    normalized === "nut_graph" ||
+    normalized === "context" ||
+    normalized === "impact" ||
+    normalized === "what_next" ||
+    normalized === "uncertainty"
+  ) {
+    return normalized;
+  }
+  return "" as "";
+}
+
+function normalizeStoryPlanAssertiveness(value: unknown): StoryPlanAssertiveness | "" {
+  const normalized = cleanText(value, 20).toLowerCase();
+  if (normalized === "high" || normalized === "medium" || normalized === "low") return normalized;
+  return "";
+}
+
+function normalizeStoryPlanningEvidenceSourceType(value: unknown): StoryPlanningEvidence["sourceType"] {
+  const normalized = cleanText(value, 40).toLowerCase();
+  if (
+    normalized === "official" ||
+    normalized === "local_news" ||
+    normalized === "wire" ||
+    normalized === "secondary"
+  ) {
+    return normalized;
+  }
+  return "other";
+}
+
+function normalizeEvidenceIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    const cleaned = cleanText(raw, 120);
+    if (!cleaned || seen.has(cleaned)) continue;
+    seen.add(cleaned);
+    out.push(cleaned);
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+function normalizePersonaFit(value: unknown): StoryPlanArtifact["personaFitAssessment"]["fit"] {
+  const normalized = cleanText(value, 20).toLowerCase();
+  if (normalized === "strong" || normalized === "medium" || normalized === "weak") return normalized;
+  return "";
 }
 
 function normalizeStoryPlan(
   raw: any,
   evidence: StoryPlanningEvidence[]
 ): StoryPlanArtifact {
-  const allowedUrls = new Set(evidence.map((item) => item.sourceUrl.toLowerCase()));
   const sectionsRaw = Array.isArray(raw?.sections) ? raw.sections : [];
   const sections: StoryPlanSection[] = [];
 
-  for (const item of sectionsRaw) {
+  for (let index = 0; index < sectionsRaw.length; index += 1) {
+    const item = sectionsRaw[index];
     const heading = cleanText(item?.heading || "", 180);
     const summary = cleanText(item?.summary || "", 700);
-    if (!heading || !summary) continue;
-    const evidenceSourceUrls = normalizeUrlList(item?.evidenceSourceUrls, allowedUrls);
-    sections.push({ heading, summary, evidenceSourceUrls });
+    const evidenceSourceUrls = normalizeUrlList(item?.evidenceSourceUrls).slice(0, 8);
+    const evidenceIds = normalizeEvidenceIdList(item?.evidenceIds).slice(0, 8);
+    const priorityRaw = cleanText(item?.priority, 20);
+    const parsedPriority = Number.parseInt(priorityRaw, 10);
+    sections.push({
+      sectionId: cleanText(item?.sectionId || "", 80),
+      heading,
+      summary,
+      purpose: normalizeStoryPlanSectionPurpose(item?.purpose, index),
+      evidenceIds,
+      evidenceSourceUrls,
+      assertiveness: normalizeStoryPlanAssertiveness(item?.assertiveness),
+      tensionFlags: Array.isArray(item?.tensionFlags)
+        ? item.tensionFlags.map((entry: unknown) => cleanText(entry, 120)).filter(Boolean).slice(0, 8)
+        : [],
+      qualificationNotes: Array.isArray(item?.qualificationNotes)
+        ? item.qualificationNotes.map((entry: unknown) => cleanText(entry, 240)).filter(Boolean).slice(0, 8)
+        : [],
+      priority: Number.isInteger(parsedPriority) && parsedPriority > 0 ? parsedPriority : null
+    });
     if (sections.length >= 8) break;
   }
 
@@ -2788,71 +2915,394 @@ function normalizeStoryPlan(
   const missingInformation = Array.isArray(raw?.missingInformation)
     ? raw.missingInformation.map((item: unknown) => cleanText(item, 240)).filter(Boolean).slice(0, 8)
     : [];
+  const missingInformationQueries = Array.isArray(raw?.missingInformationQueries)
+    ? raw.missingInformationQueries.map((item: unknown) => cleanText(item, 240)).filter(Boolean).slice(0, 8)
+    : [];
+  const editorialRisks = Array.isArray(raw?.editorialRisks)
+    ? raw.editorialRisks.map((item: unknown) => cleanText(item, 120)).filter(Boolean).slice(0, 8)
+    : [];
 
-  const fallbackAngle = cleanText(raw?.angle || "", 280) || "What changed, who is affected, and why it matters now.";
-  const fallbackNarrativeStrategy =
-    cleanText(raw?.narrativeStrategy || "", 360) ||
-    "Lead with the most immediate verified impact, then provide context, timeline, and practical implications.";
-
-  const normalizedSections = sections.length
-    ? sections
-    : evidence.slice(0, 3).map((item, index) => ({
-        heading: `Section ${index + 1}`,
-        summary: cleanText(item.claim, 700),
-        evidenceSourceUrls: [item.sourceUrl]
-      }));
+  const normalizedSections = sections;
+  const approvedEvidenceIds = normalizeEvidenceIdList(raw?.approvedEvidenceIds).slice(0, 20);
+  const approvedSourceUrls = normalizeUrlList(raw?.approvedSourceUrls).slice(0, 20);
+  const primaryEvidenceIds = normalizeEvidenceIdList(raw?.primarySourceAssessment?.primaryEvidenceIds).slice(0, 20);
 
   return {
-    angle: fallbackAngle,
-    narrativeStrategy: fallbackNarrativeStrategy,
+    planningStatus: normalizeStoryPlanningStatus(raw?.planningStatus),
+    decisionRationale: cleanText(raw?.decisionRationale || "", 600),
+    angle: cleanText(raw?.angle || "", 280),
+    narrativeStrategy: cleanText(raw?.narrativeStrategy || "", 360),
+    approvedEvidenceIds,
+    approvedSourceUrls,
     sections: normalizedSections,
     uncertaintyNotes,
-    missingInformation
+    missingInformation,
+    missingInformationQueries,
+    editorialRisks,
+    primarySourceAssessment: {
+      hasPrimarySource: raw?.primarySourceAssessment?.hasPrimarySource === true,
+      primaryEvidenceIds,
+      notes: Array.isArray(raw?.primarySourceAssessment?.notes)
+        ? raw.primarySourceAssessment.notes.map((item: unknown) => cleanText(item, 240)).filter(Boolean).slice(0, 8)
+        : []
+    },
+    personaFitAssessment: {
+      fit: normalizePersonaFit(raw?.personaFitAssessment?.fit),
+      notes: Array.isArray(raw?.personaFitAssessment?.notes)
+        ? raw.personaFitAssessment.notes.map((item: unknown) => cleanText(item, 240)).filter(Boolean).slice(0, 8)
+        : []
+    }
   };
 }
 
-async function buildStoryPlanWithOpenAi(
+type StoryPlannerExecutionResult = {
+  provider: "openai" | "gemini";
+  model: string;
+  rawText: string;
+  parsed: unknown | null;
+};
+
+type StoryPlanValidationResult = {
+  repaired: boolean;
+  repairReason: string | null;
+  executionOutcome: "validated";
+  failureReasons: string[];
+};
+
+type StoryPlanPersistenceResult = {
+  saved: number;
+  version: number;
+  isCanonical: boolean;
+  planningStatus: StoryPlanningStatus | "";
+  executionOutcome: StoryPlanningExecutionOutcome;
+};
+
+type StoryPlanLoadResult = {
+  plan: StoryPlanArtifact;
+  version: number;
+  isCanonical: boolean;
+  executionOutcome: StoryPlanningExecutionOutcome | "";
+  failureReasons: string[];
+};
+
+class StoryPlanValidationError extends Error {
+  executionOutcome: Exclude<StoryPlanningExecutionOutcome, "validated" | "provider_failure" | "persistence_failed">;
+  failureReasons: string[];
+
+  constructor(
+    executionOutcome: Exclude<StoryPlanningExecutionOutcome, "validated" | "provider_failure" | "persistence_failed">,
+    failureReasons: string[]
+  ) {
+    super(failureReasons[0] || executionOutcome);
+    this.name = "StoryPlanValidationError";
+    this.executionOutcome = executionOutcome;
+    this.failureReasons = failureReasons;
+  }
+}
+
+class StoryPlanProviderError extends Error {
+  executionOutcome: "provider_failure";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "StoryPlanProviderError";
+    this.executionOutcome = "provider_failure";
+  }
+}
+
+function buildStoryPlanningPrompt(
   signal: ResearchSignalContext,
   evidence: StoryPlanningEvidence[],
   guidanceBundle: StagePromptBundle
-): Promise<StoryPlanArtifact> {
-  const apiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
-  if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
-
+): string {
   const evidenceContext = evidence
     .slice(0, 8)
     .map((item, index) =>
       [
         `Evidence ${index + 1}:`,
+        `Evidence ID: ${item.evidenceId}`,
         `Claim: ${item.claim}`,
         `Source URL: ${item.sourceUrl}`,
+        `Source Type: ${item.sourceType}`,
+        `Published At: ${item.publishedAt || "unknown"}`,
         `Quote: ${item.evidenceQuote}`,
         `Confidence: ${item.confidence}`,
         `Why it matters: ${item.whyItMatters}`
       ].join("\n")
     )
     .join("\n\n");
-  const prompt = [
+
+  return [
     guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
     guidanceBundle.promptSourceVersion
       ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}`
       : "",
-    "You are creating a structured newsroom story plan from verified evidence only.",
+    "You are the editorial planning decision engine for an autonomous newsroom pipeline.",
+    "Use only the provided evidence items.",
+    "Do not use outside knowledge.",
+    "Do not invent facts, connective narrative, chronology, or corroboration.",
+    "You must explicitly decide whether the story is READY, NEEDS_REPORTING, or REJECTED.",
     "Return strict JSON only in this schema:",
-    "{\"angle\":\"...\",\"narrativeStrategy\":\"...\",\"sections\":[{\"heading\":\"...\",\"summary\":\"...\",\"evidenceSourceUrls\":[\"...\"]}],\"uncertaintyNotes\":[\"...\"],\"missingInformation\":[\"...\"]}",
+    "{\"planningStatus\":\"READY|NEEDS_REPORTING|REJECTED\",\"decisionRationale\":\"...\",\"angle\":\"...\",\"narrativeStrategy\":\"...\",\"approvedEvidenceIds\":[\"ev_123\"],\"approvedSourceUrls\":[\"https://...\"],\"sections\":[{\"sectionId\":\"lead\",\"heading\":\"...\",\"summary\":\"...\",\"purpose\":\"lead|nut_graph|context|impact|what_next|uncertainty\",\"evidenceIds\":[\"ev_123\"],\"evidenceSourceUrls\":[\"https://...\"],\"assertiveness\":\"high|medium|low\",\"tensionFlags\":[\"...\"],\"qualificationNotes\":[\"...\"],\"priority\":1}],\"uncertaintyNotes\":[\"...\"],\"missingInformation\":[\"...\"],\"missingInformationQueries\":[\"...\"],\"editorialRisks\":[\"...\"],\"primarySourceAssessment\":{\"hasPrimarySource\":true,\"primaryEvidenceIds\":[\"ev_123\"],\"notes\":[\"...\"]},\"personaFitAssessment\":{\"fit\":\"strong|medium|weak\",\"notes\":[\"...\"]}}",
     "Rules:",
-    "- Use only evidence provided below.",
-    "- Include 3 to 6 sections.",
-    "- Keep each section summary concrete and publication-oriented.",
-    "- Every section must include at least one evidenceSourceUrls item that exactly matches provided source URLs.",
-    "- uncertaintyNotes and missingInformation may be empty arrays.",
-    "- No markdown. No additional keys.",
+    "- Cite exact evidenceIds and exact matching source URLs.",
+    "- READY requires a valid draft-ready plan grounded only in approved evidence.",
+    "- NEEDS_REPORTING means the story may be viable but evidence is not mature enough; include targeted missingInformationQueries.",
+    "- REJECTED means the story should not continue autonomously; include decisionRationale and editorialRisks.",
+    "- Do not fabricate approvedEvidenceIds or approvedSourceUrls.",
+    "- Downgrade assertiveness when tensions exist.",
+    "- No markdown. No extra keys.",
     "",
+    `Persona ID: ${signal.personaId}`,
+    `Section: ${signal.personaSection}`,
+    `Beat: ${signal.personaBeat}`,
     `Signal Title: ${signal.title}`,
     `Signal Snippet: ${signal.snippet || ""}`,
     "",
     evidenceContext
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildStoryPlanningRepairPrompt(
+  originalPrompt: string,
+  rawText: string,
+  failureReasons: string[]
+): string {
+  return [
+    "Repair the story-planning response so it matches the required JSON contract exactly.",
+    "Do not invent facts or evidence references.",
+    "If the plan is not supportable as READY, explicitly change planningStatus to NEEDS_REPORTING or REJECTED.",
+    "Return strict JSON only.",
+    `Validation failures: ${failureReasons.map((reason) => cleanText(reason, 240)).join(" | ")}`,
+    "",
+    "Original instructions:",
+    originalPrompt,
+    "",
+    "Previous model output to repair:",
+    cleanText(rawText, 24000)
   ].join("\n");
+}
+
+function shouldFallbackStoryPlanningProvider(error: unknown): boolean {
+  return error instanceof StoryPlanProviderError;
+}
+
+function parseStoryPlannerResponse(
+  rawText: string,
+  provider: "openai" | "gemini",
+  model: string
+): StoryPlannerExecutionResult {
+  return {
+    provider,
+    model,
+    rawText,
+    parsed: safeJsonParse(rawText)
+  };
+}
+
+function validateStoryPlanArtifact(plan: StoryPlanArtifact, evidence: StoryPlanningEvidence[]): void {
+  const contractFailures: string[] = [];
+  const editorialFailures: string[] = [];
+  const evidenceById = new Map(evidence.map((item) => [item.evidenceId, item]));
+  const allowedUrls = new Set(evidence.map((item) => item.sourceUrl));
+  const hasStatus = plan.planningStatus === "READY" || plan.planningStatus === "NEEDS_REPORTING" || plan.planningStatus === "REJECTED";
+
+  if (!hasStatus) contractFailures.push("planningStatus must be READY, NEEDS_REPORTING, or REJECTED");
+  if ((plan.planningStatus === "READY" || plan.planningStatus === "NEEDS_REPORTING") && !plan.angle) {
+    contractFailures.push("angle is required for READY and NEEDS_REPORTING");
+  }
+  if ((plan.planningStatus === "NEEDS_REPORTING" || plan.planningStatus === "REJECTED") && !plan.decisionRationale) {
+    contractFailures.push("decisionRationale is required for NEEDS_REPORTING and REJECTED");
+  }
+  if (plan.planningStatus === "REJECTED" && !plan.editorialRisks.length) {
+    contractFailures.push("REJECTED must include at least one editorial risk");
+  }
+  if (!plan.personaFitAssessment.fit) {
+    contractFailures.push("personaFitAssessment.fit is required");
+  }
+
+  const approvedEvidenceIdSet = new Set(plan.approvedEvidenceIds);
+  const approvedSourceUrlSet = new Set(plan.approvedSourceUrls);
+  if (plan.approvedEvidenceIds.some((id) => !evidenceById.has(id))) {
+    contractFailures.push("approvedEvidenceIds must be a subset of Phase 3 evidence IDs");
+  }
+  if (plan.approvedSourceUrls.some((url) => !allowedUrls.has(url))) {
+    contractFailures.push("approvedSourceUrls must be a subset of Phase 3 evidence source URLs");
+  }
+
+  if (plan.planningStatus === "READY") {
+    if (!plan.narrativeStrategy) contractFailures.push("READY requires narrativeStrategy");
+    if (!plan.sections.length) contractFailures.push("READY requires sections");
+    if (!plan.approvedEvidenceIds.length) contractFailures.push("READY requires approvedEvidenceIds");
+    if (!plan.approvedSourceUrls.length) contractFailures.push("READY requires approvedSourceUrls");
+    if (plan.sections.length < 3 || plan.sections.length > 6) {
+      contractFailures.push("READY must include 3 to 6 sections");
+    }
+    if (plan.approvedEvidenceIds.length < 3) {
+      editorialFailures.push("READY requires at least 3 approved evidence IDs");
+    }
+    if (plan.approvedSourceUrls.length < 2) {
+      editorialFailures.push("READY requires at least 2 approved source URLs");
+    }
+  }
+
+  const priorities = new Set<number>();
+  let leadCount = 0;
+  let nutGraphCount = 0;
+  const sectionEvidenceUniverse = new Set<string>();
+  const sectionUrlUniverse = new Set<string>();
+  const sectionIds = new Set<string>();
+
+  for (const section of plan.sections) {
+    if (!section.sectionId) contractFailures.push("sectionId is required on every section");
+    if (section.sectionId && sectionIds.has(section.sectionId)) contractFailures.push("sectionId values must be unique");
+    if (section.sectionId) sectionIds.add(section.sectionId);
+    if (!section.heading) contractFailures.push("heading is required on every section");
+    if (!section.summary) contractFailures.push("summary is required on every section");
+    if (!section.purpose) contractFailures.push("purpose is required on every section");
+    if (!section.assertiveness) contractFailures.push("assertiveness is required on every section");
+    if (!Number.isInteger(section.priority) || Number(section.priority) <= 0) {
+      contractFailures.push("priority must be a positive integer on every section");
+    } else if (priorities.has(section.priority)) {
+      contractFailures.push("section priorities must be unique");
+    } else {
+      priorities.add(section.priority);
+    }
+
+    if (section.purpose === "lead") leadCount += 1;
+    if (section.purpose === "nut_graph") nutGraphCount += 1;
+
+    if (section.tensionFlags.length > 0 && !section.qualificationNotes.length) {
+      contractFailures.push("sections with tensionFlags must include qualificationNotes");
+    }
+    if (section.tensionFlags.length > 0 && section.assertiveness !== "low") {
+      editorialFailures.push("sections with tensionFlags must use low assertiveness");
+    }
+
+    if (section.purpose !== "uncertainty" && section.evidenceIds.length === 0) {
+      contractFailures.push(`section ${section.sectionId || section.heading || "unknown"} must include evidenceIds`);
+    }
+    if (section.purpose !== "uncertainty" && section.evidenceSourceUrls.length === 0) {
+      contractFailures.push(`section ${section.sectionId || section.heading || "unknown"} must include evidenceSourceUrls`);
+    }
+    if (section.purpose === "uncertainty" && section.evidenceIds.length === 0 && section.qualificationNotes.length === 0) {
+      contractFailures.push("uncertainty sections without evidenceIds must explain the absence of confirmation");
+    }
+
+    const expectedUrls = new Set(
+      section.evidenceIds
+        .map((evidenceId) => evidenceById.get(evidenceId)?.sourceUrl || "")
+        .filter(Boolean)
+    );
+    for (const evidenceId of section.evidenceIds) {
+      if (!evidenceById.has(evidenceId)) {
+        contractFailures.push(`section ${section.sectionId || section.heading || "unknown"} references unknown evidenceId ${evidenceId}`);
+      } else {
+        sectionEvidenceUniverse.add(evidenceId);
+      }
+    }
+    for (const url of section.evidenceSourceUrls) {
+      sectionUrlUniverse.add(url);
+      if (!allowedUrls.has(url)) {
+        contractFailures.push(`section ${section.sectionId || section.heading || "unknown"} references unknown source URL`);
+      }
+      if (plan.planningStatus === "READY" && !approvedSourceUrlSet.has(url)) {
+        contractFailures.push(`section ${section.sectionId || section.heading || "unknown"} uses a source URL outside approvedSourceUrls`);
+      }
+      if (expectedUrls.size > 0 && !expectedUrls.has(url)) {
+        contractFailures.push(`section ${section.sectionId || section.heading || "unknown"} has source URLs that do not match its evidenceIds`);
+      }
+    }
+    for (const evidenceId of section.evidenceIds) {
+      if (plan.planningStatus === "READY" && !approvedEvidenceIdSet.has(evidenceId)) {
+        contractFailures.push(`section ${section.sectionId || section.heading || "unknown"} uses an evidenceId outside approvedEvidenceIds`);
+      }
+    }
+  }
+
+  if (plan.planningStatus === "READY") {
+    if (leadCount < 1) contractFailures.push("READY requires at least one lead section");
+    if (nutGraphCount < 1) contractFailures.push("READY requires at least one nut_graph section");
+    if (sectionEvidenceUniverse.size <= 1) {
+      editorialFailures.push("READY cannot anchor all sections to one evidence ID");
+    }
+    if (sectionUrlUniverse.size <= 1) {
+      editorialFailures.push("READY cannot anchor all sections to one source URL");
+    }
+  }
+
+  if (plan.planningStatus === "NEEDS_REPORTING") {
+    if (!plan.missingInformation.length) {
+      contractFailures.push("NEEDS_REPORTING requires missingInformation");
+    }
+    if (!plan.missingInformationQueries.length) {
+      contractFailures.push("NEEDS_REPORTING requires missingInformationQueries");
+    }
+  }
+
+  if (contractFailures.length) {
+    throw new StoryPlanValidationError("contract_invalid", Array.from(new Set(contractFailures)));
+  }
+  if (editorialFailures.length) {
+    throw new StoryPlanValidationError("editorial_insufficiency", Array.from(new Set(editorialFailures)));
+  }
+}
+
+async function executeStoryPlannerWithValidation(
+  prompt: string,
+  execute: (promptText: string) => Promise<StoryPlannerExecutionResult>,
+  evidence: StoryPlanningEvidence[]
+): Promise<{ execution: StoryPlannerExecutionResult; plan: StoryPlanArtifact; validation: StoryPlanValidationResult }> {
+  const firstExecution = await execute(prompt);
+  const firstPlan = normalizeStoryPlan(firstExecution.parsed, evidence);
+  try {
+    validateStoryPlanArtifact(firstPlan, evidence);
+    return {
+      execution: firstExecution,
+      plan: firstPlan,
+      validation: {
+        repaired: false,
+        repairReason: null,
+        executionOutcome: "validated",
+        failureReasons: []
+      }
+    };
+  } catch (error: any) {
+    if (!(error instanceof StoryPlanValidationError)) throw error;
+    const repairPrompt = buildStoryPlanningRepairPrompt(prompt, firstExecution.rawText, error.failureReasons);
+    const repairedExecution = await execute(repairPrompt);
+    const repairedPlan = normalizeStoryPlan(repairedExecution.parsed, evidence);
+    try {
+      validateStoryPlanArtifact(repairedPlan, evidence);
+      return {
+        execution: repairedExecution,
+        plan: repairedPlan,
+        validation: {
+          repaired: true,
+          repairReason: error.failureReasons.join(" | ").slice(0, 500),
+          executionOutcome: "validated",
+          failureReasons: []
+        }
+      };
+    } catch (repairError: any) {
+      if (repairError instanceof StoryPlanValidationError) {
+        throw new StoryPlanValidationError("repair_failed", repairError.failureReasons);
+      }
+      throw repairError;
+    }
+  }
+}
+
+async function buildStoryPlanWithOpenAi(
+  signal: ResearchSignalContext,
+  evidence: StoryPlanningEvidence[],
+  guidanceBundle: StagePromptBundle
+): Promise<StoryPlannerExecutionResult> {
+  const apiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
+  if (!apiKey) throw new StoryPlanProviderError("Missing OPENAI_API_KEY");
+  const prompt = buildStoryPlanningPrompt(signal, evidence, guidanceBundle);
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -2870,56 +3320,21 @@ async function buildStoryPlanWithOpenAi(
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`OpenAI story planning failed ${response.status}: ${body.slice(0, 240)}`);
+    throw new StoryPlanProviderError(`OpenAI story planning failed ${response.status}: ${body.slice(0, 240)}`);
   }
   const data = await response.json();
   const text = data?.choices?.[0]?.message?.content || "";
-  const parsed = safeJsonParse(text) || {};
-  return normalizeStoryPlan(parsed, evidence);
+  return parseStoryPlannerResponse(text, "openai", HARD_CODED_STORY_PLANNING_OPENAI_MODEL);
 }
 
 async function buildStoryPlanWithGemini(
   signal: ResearchSignalContext,
   evidence: StoryPlanningEvidence[],
   guidanceBundle: StagePromptBundle
-): Promise<StoryPlanArtifact> {
+): Promise<StoryPlannerExecutionResult> {
   const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-
-  const evidenceContext = evidence
-    .slice(0, 8)
-    .map((item, index) =>
-      [
-        `Evidence ${index + 1}:`,
-        `Claim: ${item.claim}`,
-        `Source URL: ${item.sourceUrl}`,
-        `Quote: ${item.evidenceQuote}`,
-        `Confidence: ${item.confidence}`,
-        `Why it matters: ${item.whyItMatters}`
-      ].join("\n")
-    )
-    .join("\n\n");
-  const prompt = [
-    guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
-    guidanceBundle.promptSourceVersion
-      ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}`
-      : "",
-    "You are creating a structured newsroom story plan from verified evidence only.",
-    "Return strict JSON only in this schema:",
-    "{\"angle\":\"...\",\"narrativeStrategy\":\"...\",\"sections\":[{\"heading\":\"...\",\"summary\":\"...\",\"evidenceSourceUrls\":[\"...\"]}],\"uncertaintyNotes\":[\"...\"],\"missingInformation\":[\"...\"]}",
-    "Rules:",
-    "- Use only evidence provided below.",
-    "- Include 3 to 6 sections.",
-    "- Keep each section summary concrete and publication-oriented.",
-    "- Every section must include at least one evidenceSourceUrls item that exactly matches provided source URLs.",
-    "- uncertaintyNotes and missingInformation may be empty arrays.",
-    "- No markdown. No additional keys.",
-    "",
-    `Signal Title: ${signal.title}`,
-    `Signal Snippet: ${signal.snippet || ""}`,
-    "",
-    evidenceContext
-  ].join("\n");
+  if (!apiKey) throw new StoryPlanProviderError("Missing GEMINI_API_KEY");
+  const prompt = buildStoryPlanningPrompt(signal, evidence, guidanceBundle);
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     HARD_CODED_STORY_PLANNING_GEMINI_MODEL
@@ -2938,76 +3353,181 @@ async function buildStoryPlanWithGemini(
   });
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Gemini story planning failed ${response.status}: ${body.slice(0, 240)}`);
+    throw new StoryPlanProviderError(`Gemini story planning failed ${response.status}: ${body.slice(0, 240)}`);
   }
   const data = await response.json();
   const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
-  const parsed = safeJsonParse(text) || {};
-  return normalizeStoryPlan(parsed, evidence);
+  return parseStoryPlannerResponse(text, "gemini", HARD_CODED_STORY_PLANNING_GEMINI_MODEL);
 }
 
 async function buildStoryPlan(
   signal: ResearchSignalContext,
   evidence: StoryPlanningEvidence[],
   guidanceBundle: StagePromptBundle
-): Promise<{ plan: StoryPlanArtifact; provider: "openai" | "gemini"; model: string }> {
+): Promise<{
+  plan: StoryPlanArtifact;
+  provider: "openai" | "gemini";
+  model: string;
+  validation: StoryPlanValidationResult;
+}> {
   const hasOpenAi = Boolean(cleanText(process.env.OPENAI_API_KEY || "", 20));
   const hasGemini = Boolean(cleanText(process.env.GEMINI_API_KEY || "", 20));
   let lastOpenAiError: unknown = null;
+  const prompt = buildStoryPlanningPrompt(signal, evidence, guidanceBundle);
   if (hasOpenAi) {
     try {
-      const plan = await buildStoryPlanWithOpenAi(signal, evidence, guidanceBundle);
+      const result = await executeStoryPlannerWithValidation(
+        prompt,
+        async (promptText: string) => {
+          const execution = await buildStoryPlanWithOpenAi(signal, evidence, guidanceBundle);
+          if (promptText === prompt) return execution;
+          const apiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
+          const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: HARD_CODED_STORY_PLANNING_OPENAI_MODEL,
+              temperature: 0.2,
+              response_format: { type: "json_object" },
+              messages: [{ role: "user", content: promptText }]
+            })
+          });
+          if (!response.ok) {
+            const body = await response.text();
+            throw new StoryPlanProviderError(`OpenAI story planning failed ${response.status}: ${body.slice(0, 240)}`);
+          }
+          const data = await response.json();
+          const text = data?.choices?.[0]?.message?.content || "";
+          return parseStoryPlannerResponse(text, "openai", HARD_CODED_STORY_PLANNING_OPENAI_MODEL);
+        },
+        evidence
+      );
       return {
-        plan,
+        plan: result.plan,
         provider: "openai",
-        model: HARD_CODED_STORY_PLANNING_OPENAI_MODEL
+        model: HARD_CODED_STORY_PLANNING_OPENAI_MODEL,
+        validation: result.validation
       };
     } catch (error) {
       lastOpenAiError = error;
-      if (!hasGemini) throw error;
+      if (!hasGemini || !shouldFallbackStoryPlanningProvider(error)) throw error;
     }
   }
   if (hasGemini) {
     try {
-      const plan = await buildStoryPlanWithGemini(signal, evidence, guidanceBundle);
+      const result = await executeStoryPlannerWithValidation(
+        prompt,
+        async (promptText: string) => {
+          if (promptText === prompt) {
+            return buildStoryPlanWithGemini(signal, evidence, guidanceBundle);
+          }
+          const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+            HARD_CODED_STORY_PLANNING_GEMINI_MODEL
+          )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: {
+                temperature: 0.2,
+                maxOutputTokens: 2200,
+                responseMimeType: "application/json"
+              }
+            })
+          });
+          if (!response.ok) {
+            const body = await response.text();
+            throw new StoryPlanProviderError(`Gemini story planning failed ${response.status}: ${body.slice(0, 240)}`);
+          }
+          const data = await response.json();
+          const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+          return parseStoryPlannerResponse(text, "gemini", HARD_CODED_STORY_PLANNING_GEMINI_MODEL);
+        },
+        evidence
+      );
       return {
-        plan,
+        plan: result.plan,
         provider: "gemini",
-        model: HARD_CODED_STORY_PLANNING_GEMINI_MODEL
+        model: HARD_CODED_STORY_PLANNING_GEMINI_MODEL,
+        validation: result.validation
       };
     } catch (geminiError) {
-      // Global rule: if Gemini 1.5 Flash fails and OpenAI is available, try gpt-4o-mini fallback.
-      if (hasOpenAi) {
-        const plan = await buildStoryPlanWithOpenAi(signal, evidence, guidanceBundle);
+      // Provider fallback is allowed; deterministic content fallback is not.
+      if (hasOpenAi && shouldFallbackStoryPlanningProvider(geminiError)) {
+        const result = await executeStoryPlannerWithValidation(
+          prompt,
+          async (promptText: string) => {
+            const apiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
+            const response = await fetch("https://api.openai.com/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${apiKey}`
+              },
+              body: JSON.stringify({
+                model: HARD_CODED_STORY_PLANNING_OPENAI_MODEL,
+                temperature: 0.2,
+                response_format: { type: "json_object" },
+                messages: [{ role: "user", content: promptText }]
+              })
+            });
+            if (!response.ok) {
+              const body = await response.text();
+              throw new StoryPlanProviderError(`OpenAI story planning failed ${response.status}: ${body.slice(0, 240)}`);
+            }
+            const data = await response.json();
+            const text = data?.choices?.[0]?.message?.content || "";
+            return parseStoryPlannerResponse(text, "openai", HARD_CODED_STORY_PLANNING_OPENAI_MODEL);
+          },
+          evidence
+        );
         return {
-          plan,
+          plan: result.plan,
           provider: "openai",
-          model: HARD_CODED_STORY_PLANNING_OPENAI_MODEL
+          model: HARD_CODED_STORY_PLANNING_OPENAI_MODEL,
+          validation: result.validation
         };
       }
       throw geminiError;
     }
   }
   if (lastOpenAiError) throw lastOpenAiError;
-  throw new Error("No story planning provider available");
+  throw new StoryPlanProviderError("No story planning provider available");
 }
 
 async function persistStoryPlanArtifact(
   signal: ResearchSignalContext,
-  plan: StoryPlanArtifact,
-  provider: "openai" | "gemini",
-  model: string,
-  evidenceCount: number
-): Promise<number> {
+  options: {
+    plan: StoryPlanArtifact;
+    provider: "openai" | "gemini";
+    model: string;
+    evidenceCount: number;
+    validation: StoryPlanValidationResult;
+    promptHash: string;
+    promptSourceVersion: string;
+    warnings: string[];
+  }
+): Promise<StoryPlanPersistenceResult> {
   if (isTestSignalId(signal.id)) {
     console.log("test-mode persistStoryPlanArtifact skip", {
       signalId: signal.id,
-      provider,
-      model,
-      evidenceCount,
-      plan
+      provider: options.provider,
+      model: options.model,
+      evidenceCount: options.evidenceCount,
+      plan: options.plan
     });
-    return 1;
+    return {
+      saved: 1,
+      version: 1,
+      isCanonical: options.plan.planningStatus === "READY",
+      planningStatus: options.plan.planningStatus,
+      executionOutcome: options.validation.executionOutcome
+    };
   }
 
   const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
@@ -3018,17 +3538,48 @@ async function persistStoryPlanArtifact(
   const engineId = randomUUID();
   const candidateId = randomUUID();
   const sourceUrl = `signal://${signal.id}/story-plan`;
+  const versionRows = await sql`
+    SELECT
+      COALESCE(
+        MAX(
+          CASE
+            WHEN COALESCE(metadata->>'version', '') ~ '^[0-9]+$'
+              THEN (metadata->>'version')::int
+            ELSE 0
+          END
+        ),
+        0
+      ) + 1 as version
+    FROM research_artifacts
+    WHERE signal_id = ${signal.id}
+      AND stage = 'story_planning'
+      AND artifact_type = 'story_plan'
+  `;
+  const version = Math.max(1, Number(versionRows?.[0]?.version || 1));
+  const isCanonical =
+    options.validation.executionOutcome === "validated" && options.plan.planningStatus === "READY";
   const metadata = {
     signalId: signal.id,
     personaId: signal.personaId,
-    provider,
-    model,
-    evidenceCount,
-    sectionCount: plan.sections.length,
-    uncertaintyCount: plan.uncertaintyNotes.length,
-    missingInformationCount: plan.missingInformation.length,
-    plan
+    provider: options.provider,
+    model: options.model,
+    version,
+    isCanonical,
+    planningStatus: options.plan.planningStatus,
+    executionOutcome: options.validation.executionOutcome,
+    failureReasons: options.validation.failureReasons,
+    repaired: options.validation.repaired,
+    repairReason: cleanText(options.validation.repairReason || "", 500) || null,
+    promptHash: cleanText(options.promptHash, 120),
+    promptSourceVersion: cleanText(options.promptSourceVersion, 120),
+    warnings: Array.isArray(options.warnings) ? options.warnings.slice(0, 20) : [],
+    evidenceCount: options.evidenceCount,
+    sectionCount: options.plan.sections.length,
+    uncertaintyCount: options.plan.uncertaintyNotes.length,
+    missingInformationCount: options.plan.missingInformation.length,
+    plan: options.plan
   };
+  const insertedId = randomUUID();
 
   const rows = await sql`
     INSERT INTO research_artifacts (
@@ -3049,7 +3600,7 @@ async function persistStoryPlanArtifact(
       created_at
     )
     SELECT
-      ${randomUUID()},
+      ${insertedId},
       ${runId},
       ${engineId},
       ${candidateId},
@@ -3059,29 +3610,170 @@ async function persistStoryPlanArtifact(
       'story_plan',
       ${sourceUrl},
       ${null},
-      ${`Story plan for signal ${signal.id}`},
+      ${`Story plan v${version} for signal ${signal.id}`},
       ${null},
-      ${plan.angle},
+      ${options.plan.angle || options.plan.decisionRationale || `Story planning result for signal ${signal.id}`},
       ${toSafeJsonObject(metadata)}::jsonb,
       NOW()
-    WHERE NOT EXISTS (
-      SELECT 1
-      FROM research_artifacts ra
-      WHERE ra.signal_id = ${signal.id}
-        AND ra.stage = 'story_planning'
-        AND ra.artifact_type = 'story_plan'
-        AND ra.source_url = ${sourceUrl}
+    RETURNING id
+  `;
+
+  if (rows.length && isCanonical) {
+    await sql`
+      UPDATE research_artifacts
+      SET metadata = jsonb_set(
+        CASE
+          WHEN jsonb_typeof(metadata) = 'object' THEN metadata
+          ELSE '{}'::jsonb
+        END,
+        '{isCanonical}',
+        CASE
+          WHEN id = ${insertedId} THEN 'true'::jsonb
+          ELSE 'false'::jsonb
+        END,
+        true
+      )
+      WHERE signal_id = ${signal.id}
+        AND stage = 'story_planning'
+        AND artifact_type = 'story_plan'
+        AND (
+          id = ${insertedId}
+          OR COALESCE(metadata->>'isCanonical', 'false') = 'true'
+        )
+    `;
+  }
+
+  return {
+    saved: rows.length,
+    version,
+    isCanonical,
+    planningStatus: options.plan.planningStatus,
+    executionOutcome: options.validation.executionOutcome
+  };
+}
+
+async function persistStoryPlanningFailureArtifact(
+  signal: ResearchSignalContext,
+  options: {
+    executionOutcome: Exclude<StoryPlanningExecutionOutcome, "validated" | "persistence_failed">;
+    failureReasons: string[];
+    evidenceCount: number;
+    promptHash: string;
+    promptSourceVersion: string;
+    warnings: string[];
+  }
+): Promise<StoryPlanPersistenceResult> {
+  if (isTestSignalId(signal.id)) {
+    console.log("test-mode persistStoryPlanningFailureArtifact skip", {
+      signalId: signal.id,
+      executionOutcome: options.executionOutcome,
+      failureReasons: options.failureReasons
+    });
+    return {
+      saved: 1,
+      version: 1,
+      isCanonical: false,
+      planningStatus: "",
+      executionOutcome: options.executionOutcome
+    };
+  }
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+
+  const versionRows = await sql`
+    SELECT
+      COALESCE(
+        MAX(
+          CASE
+            WHEN COALESCE(metadata->>'version', '') ~ '^[0-9]+$'
+              THEN (metadata->>'version')::int
+            ELSE 0
+          END
+        ),
+        0
+      ) + 1 as version
+    FROM research_artifacts
+    WHERE signal_id = ${signal.id}
+      AND stage = 'story_planning'
+      AND artifact_type = 'story_plan'
+  `;
+  const version = Math.max(1, Number(versionRows?.[0]?.version || 1));
+
+  const metadata = {
+    signalId: signal.id,
+    personaId: signal.personaId,
+    version,
+    isCanonical: false,
+    planningStatus: "",
+    executionOutcome: options.executionOutcome,
+    failureReasons: options.failureReasons,
+    promptHash: cleanText(options.promptHash, 120),
+    promptSourceVersion: cleanText(options.promptSourceVersion, 120),
+    warnings: Array.isArray(options.warnings) ? options.warnings.slice(0, 20) : [],
+    evidenceCount: options.evidenceCount,
+    plan: {}
+  };
+
+  const rows = await sql`
+    INSERT INTO research_artifacts (
+      id,
+      run_id,
+      engine_id,
+      candidate_id,
+      signal_id,
+      persona_id,
+      stage,
+      artifact_type,
+      source_url,
+      source_domain,
+      title,
+      published_at,
+      content,
+      metadata,
+      created_at
+    )
+    VALUES (
+      ${randomUUID()},
+      ${randomUUID()},
+      ${randomUUID()},
+      ${randomUUID()},
+      ${signal.id},
+      ${signal.personaId || null},
+      'story_planning',
+      'story_plan',
+      ${`signal://${signal.id}/story-plan`},
+      ${null},
+      ${`Story plan v${version} failed for signal ${signal.id}`},
+      ${null},
+      ${cleanText(options.failureReasons.join(" | "), 2000) || `Story planning ${options.executionOutcome}`},
+      ${toSafeJsonObject(metadata)}::jsonb,
+      NOW()
     )
     RETURNING id
   `;
 
-  return rows.length;
+  return {
+    saved: rows.length,
+    version,
+    isCanonical: false,
+    planningStatus: "",
+    executionOutcome: options.executionOutcome
+  };
 }
 
 async function runStoryPlanning(signalId: number): Promise<{
   evidenceCount: number;
   sectionCount: number;
   saved: number;
+  version?: number;
+  isCanonical?: boolean;
+  planningStatus?: StoryPlanningStatus | "";
+  executionOutcome?: StoryPlanningExecutionOutcome;
+  missingInformation?: string[];
+  missingInformationQueries?: string[];
+  editorialRisks?: string[];
   provider?: "openai" | "gemini";
   model?: string;
   skipped?: boolean;
@@ -3101,59 +3793,162 @@ async function runStoryPlanning(signalId: number): Promise<{
     signal.personaId,
     signal.personaSection
   );
-  const storyPlanResult = await buildStoryPlan(signal, evidence, guidanceBundle);
-  const saved = await persistStoryPlanArtifact(
-    signal,
-    storyPlanResult.plan,
-    storyPlanResult.provider,
-    storyPlanResult.model,
-    evidence.length
-  );
+  try {
+    const storyPlanResult = await buildStoryPlan(signal, evidence, guidanceBundle);
+    let persisted: StoryPlanPersistenceResult;
+    try {
+      persisted = await persistStoryPlanArtifact(signal, {
+        plan: storyPlanResult.plan,
+        provider: storyPlanResult.provider,
+        model: storyPlanResult.model,
+        evidenceCount: evidence.length,
+        validation: storyPlanResult.validation,
+        promptHash: guidanceBundle.promptHash,
+        promptSourceVersion: guidanceBundle.promptSourceVersion,
+        warnings: guidanceBundle.warnings
+      });
+    } catch (persistError: any) {
+      return {
+        evidenceCount: evidence.length,
+        sectionCount: storyPlanResult.plan.sections.length,
+        saved: 0,
+        version: 0,
+        isCanonical: false,
+        planningStatus: storyPlanResult.plan.planningStatus,
+        executionOutcome: "persistence_failed",
+        provider: storyPlanResult.provider,
+        model: storyPlanResult.model,
+        skipped: true
+      };
+    }
 
-  return {
-    evidenceCount: evidence.length,
-    sectionCount: storyPlanResult.plan.sections.length,
-    saved,
-    provider: storyPlanResult.provider,
-    model: storyPlanResult.model
-  };
+    return {
+      evidenceCount: evidence.length,
+      sectionCount: storyPlanResult.plan.sections.length,
+      saved: persisted.saved,
+      version: persisted.version,
+      isCanonical: persisted.isCanonical,
+      planningStatus: persisted.planningStatus,
+      executionOutcome: persisted.executionOutcome,
+      missingInformation: storyPlanResult.plan.missingInformation,
+      missingInformationQueries: storyPlanResult.plan.missingInformationQueries,
+      editorialRisks: storyPlanResult.plan.editorialRisks,
+      provider: storyPlanResult.provider,
+      model: storyPlanResult.model
+    };
+  } catch (error: any) {
+    const executionOutcome: Exclude<StoryPlanningExecutionOutcome, "validated" | "persistence_failed"> =
+      error instanceof StoryPlanValidationError
+        ? error.executionOutcome
+        : error instanceof StoryPlanProviderError
+          ? error.executionOutcome
+          : "provider_failure";
+    const failureReasons =
+      error instanceof StoryPlanValidationError
+        ? error.failureReasons
+        : [cleanText(error?.message || "story_planning_failed", 500)];
+    const persistedFailure = await persistStoryPlanningFailureArtifact(signal, {
+      executionOutcome,
+      failureReasons,
+      evidenceCount: evidence.length,
+      promptHash: guidanceBundle.promptHash,
+      promptSourceVersion: guidanceBundle.promptSourceVersion,
+      warnings: guidanceBundle.warnings
+    });
+    return {
+      evidenceCount: evidence.length,
+      sectionCount: 0,
+      saved: persistedFailure.saved,
+      version: persistedFailure.version,
+      isCanonical: false,
+      planningStatus: persistedFailure.planningStatus,
+      executionOutcome: persistedFailure.executionOutcome,
+      skipped: true
+    };
+  }
 }
 
-async function loadLatestStoryPlanArtifact(
+async function loadLatestStoryPlanResult(
   signalId: number,
   evidence: StoryPlanningEvidence[]
-): Promise<StoryPlanArtifact | null> {
+): Promise<StoryPlanLoadResult | null> {
   if (isTestSignalId(signalId)) {
-    return normalizeStoryPlan(
+    const testPlan = normalizeStoryPlan(
       {
-        angle: "Downtown Dayton weekend closures impact drivers and transit riders",
+        planningStatus: "READY",
+        decisionRationale: "Core event, impact, and practical next-step information are sufficiently supported.",
+        angle: "Downtown Dayton weekend closures will disrupt drivers and transit riders through Sunday night.",
         narrativeStrategy:
-          "Lead with closure timing and direct impacts, then transit adjustments and remaining uncertainty.",
+          "Lead with the closure timeline and immediate disruption, then explain transit changes, public impact, and remaining uncertainty.",
+        approvedEvidenceIds: ["ev_mock_1", "ev_mock_2"],
+        approvedSourceUrls: [
+          "https://example.com/mock-signal-12345",
+          "https://example.com/mock-signal-12345-traffic"
+        ],
         sections: [
           {
+            sectionId: "lead",
             heading: "What is changing this weekend",
-            summary: "City crews will close select downtown lanes starting Saturday morning through Sunday night.",
-            evidenceSourceUrls: ["https://example.com/mock-signal-12345"]
+            summary: "Explain when the downtown lane closures begin, how long they are expected to last, and who is affected first.",
+            purpose: "lead",
+            evidenceIds: ["ev_mock_1"],
+            evidenceSourceUrls: ["https://example.com/mock-signal-12345"],
+            assertiveness: "high",
+            tensionFlags: [],
+            qualificationNotes: [],
+            priority: 1
           },
           {
-            heading: "Transit and commute impact",
-            summary: "RTA says two routes will temporarily shift stops near utility work zones.",
-            evidenceSourceUrls: ["https://example.com/mock-signal-12345-traffic"]
-          },
-          {
-            heading: "What residents should do now",
-            summary: "Drivers and riders should check detours and service notices before heading downtown.",
+            sectionId: "nut_graph",
+            heading: "Why the closures matter beyond traffic",
+            summary: "Show why the closures matter for downtown access, weekend movement, and public planning.",
+            purpose: "nut_graph",
+            evidenceIds: ["ev_mock_1", "ev_mock_2"],
             evidenceSourceUrls: [
               "https://example.com/mock-signal-12345",
               "https://example.com/mock-signal-12345-traffic"
-            ]
+            ],
+            assertiveness: "medium",
+            tensionFlags: [],
+            qualificationNotes: [],
+            priority: 2
+          },
+          {
+            sectionId: "impact",
+            heading: "Transit riders should expect route adjustments",
+            summary: "Detail the temporary stop changes and what riders need to check before traveling downtown.",
+            purpose: "impact",
+            evidenceIds: ["ev_mock_2"],
+            evidenceSourceUrls: ["https://example.com/mock-signal-12345-traffic"],
+            assertiveness: "medium",
+            tensionFlags: [],
+            qualificationNotes: [],
+            priority: 3
           }
         ],
         uncertaintyNotes: ["Exact reopening timing may shift based on field progress."],
-        missingInformation: ["Intersection-level closure windows were not fully published."]
+        missingInformation: ["Intersection-level closure windows were not fully published."],
+        missingInformationQueries: ["Find any city-posted intersection-level closure windows for the weekend work."],
+        editorialRisks: [],
+        primarySourceAssessment: {
+          hasPrimarySource: true,
+          primaryEvidenceIds: ["ev_mock_1", "ev_mock_2"],
+          notes: ["Both core impact points are supported by official agency statements."]
+        },
+        personaFitAssessment: {
+          fit: "strong",
+          notes: ["This matches a local public-works and transit accountability brief."]
+        }
       },
       evidence
     );
+    return {
+      plan: testPlan,
+      version: 1,
+      isCanonical: true,
+      executionOutcome: "validated",
+      failureReasons: []
+    };
   }
 
   const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
@@ -3167,14 +3962,43 @@ async function loadLatestStoryPlanArtifact(
       AND stage = 'story_planning'
       AND artifact_type = 'story_plan'
       AND source_url = ${sourceUrl}
-    ORDER BY created_at DESC
+    ORDER BY
+      CASE
+        WHEN COALESCE(metadata->>'version', '') ~ '^[0-9]+$'
+          THEN (metadata->>'version')::int
+        ELSE 0
+      END DESC,
+      created_at DESC
     LIMIT 1
   `;
 
   const metadata = toSafeJsonObject(rows?.[0]?.metadata);
   const rawPlan = toSafeJsonObject(metadata.plan);
-  if (!Object.keys(rawPlan).length) return null;
-  return normalizeStoryPlan(rawPlan, evidence);
+  if (!Object.keys(metadata).length) return null;
+  return {
+    plan: normalizeStoryPlan(rawPlan, evidence),
+    version:
+      cleanText(metadata.version, 20) && Number.isFinite(Number(metadata.version))
+        ? Number(metadata.version)
+        : 0,
+    isCanonical: metadata.isCanonical === true,
+    executionOutcome: cleanText(metadata.executionOutcome, 40) as StoryPlanningExecutionOutcome | "",
+    failureReasons: Array.isArray(metadata.failureReasons)
+      ? metadata.failureReasons.map((item: unknown) => cleanText(item, 240)).filter(Boolean).slice(0, 12)
+      : []
+  };
+}
+
+async function loadLatestStoryPlanArtifact(
+  signalId: number,
+  evidence: StoryPlanningEvidence[]
+): Promise<StoryPlanArtifact | null> {
+  const latest = await loadLatestStoryPlanResult(signalId, evidence);
+  if (!latest) return null;
+  if (!latest.isCanonical) return null;
+  if (latest.executionOutcome !== "validated") return null;
+  if (latest.plan.planningStatus !== "READY") return null;
+  return latest.plan;
 }
 
 function dedupeUrls(urls: string[]): string[] {
@@ -3254,11 +4078,14 @@ function buildDraftWritingPrompt(
   evidence: StoryPlanningEvidence[],
   guidanceBundle: StagePromptBundle
 ): string {
-  const evidenceContext = evidence
+  const approvedEvidenceIds = new Set(plan.approvedEvidenceIds);
+  const approvedEvidence = evidence.filter((item) => approvedEvidenceIds.has(item.evidenceId));
+  const evidenceContext = approvedEvidence
     .slice(0, 10)
     .map((item, index) =>
       [
         `Evidence ${index + 1}:`,
+        `Evidence ID: ${cleanText(item.evidenceId, 120)}`,
         `Claim: ${cleanText(item.claim, 600)}`,
         `Source URL: ${cleanText(item.sourceUrl, 2000)}`,
         `Quote: ${cleanText(item.evidenceQuote, 1200)}`,
@@ -3273,13 +4100,16 @@ function buildDraftWritingPrompt(
       [
         `Section ${index + 1}: ${cleanText(section.heading, 220)}`,
         `Summary: ${cleanText(section.summary, 1400)}`,
-        `Evidence Source URLs: ${(section.evidenceSourceUrls || []).map((url) => cleanText(url, 500)).filter(Boolean).join(", ")}`
+        `Purpose: ${cleanText(section.purpose, 80)}`,
+        `Evidence IDs: ${(section.evidenceIds || []).map((id) => cleanText(id, 120)).filter(Boolean).join(", ")}`,
+        `Evidence Source URLs: ${(section.evidenceSourceUrls || []).map((url) => cleanText(url, 500)).filter(Boolean).join(", ")}`,
+        `Assertiveness: ${cleanText(section.assertiveness, 40)}`,
+        `Tension Flags: ${(section.tensionFlags || []).map((item) => cleanText(item, 120)).filter(Boolean).join(", ") || "none"}`,
+        `Qualification Notes: ${(section.qualificationNotes || []).map((item) => cleanText(item, 240)).filter(Boolean).join(" | ") || "none"}`
       ].join("\n")
     )
     .join("\n\n");
-  const planUrls = dedupeUrls(plan.sections.flatMap((section) => section.evidenceSourceUrls || []));
-  const fallbackUrls = dedupeUrls(evidence.map((item) => item.sourceUrl));
-  const allowedSourceUrls = (planUrls.length ? planUrls : fallbackUrls).join("\n");
+  const allowedSourceUrls = dedupeUrls(plan.approvedSourceUrls || []).join("\n");
 
   return [
     guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
@@ -3311,6 +4141,7 @@ function buildDraftWritingPrompt(
     `Narrative Strategy: ${cleanText(plan.narrativeStrategy, 1200)}`,
     `Plan Uncertainty Notes: ${plan.uncertaintyNotes.map((item) => cleanText(item, 200)).filter(Boolean).join(" | ") || "none"}`,
     `Plan Missing Information: ${plan.missingInformation.map((item) => cleanText(item, 200)).filter(Boolean).join(" | ") || "none"}`,
+    `Plan Editorial Risks: ${plan.editorialRisks.map((item) => cleanText(item, 120)).filter(Boolean).join(" | ") || "none"}`,
     "",
     "Story Plan:",
     planContext,
@@ -3347,9 +4178,7 @@ function collectAllowedDraftSourceUrls(
   plan: StoryPlanArtifact,
   evidence: StoryPlanningEvidence[]
 ): string[] {
-  const fromPlan = dedupeUrls(plan.sections.flatMap((section) => section.evidenceSourceUrls || []));
-  const fromEvidence = dedupeUrls(evidence.map((item) => item.sourceUrl));
-  return dedupeUrls([...fromPlan, ...fromEvidence]);
+  return dedupeUrls(plan.approvedSourceUrls || []);
 }
 
 function normalizeDraftWritingArtifact(parsed: any): DraftWritingArtifact {
@@ -3763,8 +4592,16 @@ async function runDraftWriting(signalId: number): Promise<{
     };
   }
 
-  const plan = await loadLatestStoryPlanArtifact(signalId, evidence);
-  if (!plan || !plan.sections.length) {
+  const latestPlanResult = await loadLatestStoryPlanResult(signalId, evidence);
+  const plan = latestPlanResult?.plan || null;
+  if (
+    !latestPlanResult ||
+    latestPlanResult.executionOutcome !== "validated" ||
+    latestPlanResult.plan.planningStatus !== "READY" ||
+    !latestPlanResult.isCanonical ||
+    !plan ||
+    !plan.sections.length
+  ) {
     return {
       evidenceCount: evidence.length,
       sectionCount: 0,
@@ -3791,6 +4628,18 @@ async function runDraftWriting(signalId: number): Promise<{
   let validation: DraftWritingValidationResult;
   let fallbackFailure: DraftWriterFailureInfo | null = null;
   const allowedSourceUrls = collectAllowedDraftSourceUrls(plan, evidence);
+  if (!allowedSourceUrls.length) {
+    return {
+      evidenceCount: evidence.length,
+      sectionCount: plan.sections.length,
+      sourceCount: 0,
+      bodyChars: 0,
+      saved: 0,
+      provider: getHardcodedDraftWriterConfig().provider,
+      model: getHardcodedDraftWriterConfig().model,
+      skipped: true
+    };
+  }
   if (isTestSignalId(signalId)) {
     execution = {
       ...getHardcodedDraftWriterConfig(),
@@ -6208,6 +7057,44 @@ export function createResearchStartFunction(inngest: Inngest) {
   );
 }
 
+export function createResearchDiscoveryRetryFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "research-discovery-retry" },
+    { event: "research.discovery.retry" },
+    async ({ event, step }: any) => {
+      const signalId = Number(event?.data?.signalId || 0);
+      if (!signalId) throw new Error("Missing signalId");
+
+      const result = await step.run("research-discovery-retry", async () => runResearchDiscovery(signalId));
+      if (result.status === "failed") {
+        return {
+          ok: false,
+          signalId,
+          ...result,
+          reason: cleanText(event?.data?.reason || "needs_reporting", 80),
+          missingInformation: Array.isArray(event?.data?.missingInformation) ? event.data.missingInformation : [],
+          queries: Array.isArray(event?.data?.queries) ? event.data.queries : []
+        };
+      }
+      await step.sendEvent("emit-evidence-extraction-start-from-retry", {
+        name: "evidence.extraction.start",
+        data: {
+          signalId,
+          trigger: "research_retry"
+        }
+      });
+      return {
+        ok: true,
+        signalId,
+        ...result,
+        reason: cleanText(event?.data?.reason || "needs_reporting", 80),
+        missingInformation: Array.isArray(event?.data?.missingInformation) ? event.data.missingInformation : [],
+        queries: Array.isArray(event?.data?.queries) ? event.data.queries : []
+      };
+    }
+  );
+}
+
 export function createEvidenceExtractionStartFunction(inngest: Inngest) {
   return inngest.createFunction(
     { id: "evidence-extraction-start" },
@@ -6241,12 +7128,26 @@ export function createStoryPlanningStartFunction(inngest: Inngest) {
       if (!signalId) throw new Error("Missing signalId");
 
       const result = await step.run("story-planning", async () => runStoryPlanning(signalId));
-      await step.sendEvent("emit-draft-writing-start", {
-        name: "draft.writing.start",
-        data: {
-          signalId
-        }
-      });
+      if (result.executionOutcome === "validated" && result.planningStatus === "READY" && result.isCanonical) {
+        await step.sendEvent("emit-draft-writing-start", {
+          name: "draft.writing.start",
+          data: {
+            signalId
+          }
+        });
+      } else if (result.executionOutcome === "validated" && result.planningStatus === "NEEDS_REPORTING") {
+        await step.sendEvent("emit-research-discovery-retry", {
+          name: "research.discovery.retry",
+          data: {
+            signalId,
+            personaId: cleanText(event?.data?.personaId || "", 255) || null,
+            reason: "needs_reporting",
+            missingInformation: Array.isArray((result as any)?.missingInformation) ? (result as any).missingInformation : [],
+            queries: Array.isArray((result as any)?.missingInformationQueries) ? (result as any).missingInformationQueries : [],
+            editorialRisks: Array.isArray((result as any)?.editorialRisks) ? (result as any).editorialRisks : []
+          }
+        });
+      }
       return {
         ok: true,
         signalId,
