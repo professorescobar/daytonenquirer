@@ -12,6 +12,11 @@ import {
   createDraftWritingStartFunction,
   createImageSourcingStartFunction
 } from "./gatekeeper-pipeline";
+import {
+  createDictionarySubstrateDispatchFunction as createDictionarySubstrateDispatchFunctionFromModule,
+  createDictionarySubstrateDispatchSchedulerFunction as createDictionarySubstrateDispatchSchedulerFunctionFromModule,
+  createDictionarySubstrateRootIngestionFunction as createDictionarySubstrateRootIngestionFunctionFromModule
+} from "./dictionary-substrate";
 import { inngest } from "./client";
 
 export const functions = [
@@ -26,5 +31,8 @@ export const functions = [
   createDraftWritingStartFunction(inngest),
   createImageSourcingStartFunction(inngest),
   createEvidenceExtractionMockFunction(inngest),
-  createResearchDiscoveryMockFunction(inngest)
+  createResearchDiscoveryMockFunction(inngest),
+  createDictionarySubstrateDispatchSchedulerFunctionFromModule(inngest),
+  createDictionarySubstrateDispatchFunctionFromModule(inngest),
+  createDictionarySubstrateRootIngestionFunctionFromModule(inngest)
 ];
