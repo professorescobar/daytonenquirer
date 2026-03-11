@@ -178,14 +178,63 @@ type EvidenceSource = {
   title: string | null;
   content: string | null;
   score: number;
+  sourceType: StoryPlanningEvidence["sourceType"];
+  publishedAt: string | null;
+  sourceDomain: string | null;
 };
 
-type EvidenceClaim = {
+type EvidenceCandidate = {
   claim: string;
   sourceUrl: string;
   evidenceQuote: string;
   confidence: number;
   whyItMatters: string;
+};
+
+type EvidenceSupportStatus = "corroborated" | "single_source" | "contested";
+type EvidenceExtractionStatus = "READY" | "NEEDS_REPORTING";
+type EvidenceExecutionOutcome =
+  | "validated"
+  | "contract_invalid"
+  | "editorial_insufficiency"
+  | "repair_failed"
+  | "provider_failure"
+  | "persistence_failed";
+
+type JudgedEvidenceItem = EvidenceCandidate & {
+  sourceType: StoryPlanningEvidence["sourceType"];
+  publishedAt: string | null;
+  sourceDomain: string | null;
+  supportStatus: EvidenceSupportStatus;
+};
+
+type EvidenceExtractionArtifact = {
+  extractionStatus: EvidenceExtractionStatus | "";
+  decisionRationale: string;
+  evidenceItems: JudgedEvidenceItem[];
+  editorialRisks: string[];
+  missingEvidence: string[];
+  followUpQueries: string[];
+};
+
+type PersistedEvidenceItem = JudgedEvidenceItem & {
+  evidenceId: string;
+};
+
+type EvidenceBundlePersistenceResult = {
+  saved: number;
+  version: number;
+  isCanonical: boolean;
+  extractionStatus: EvidenceExtractionStatus | "";
+  executionOutcome: EvidenceExecutionOutcome;
+};
+
+type EvidenceBundleLoadResult = {
+  artifact: EvidenceExtractionArtifact;
+  version: number;
+  isCanonical: boolean;
+  executionOutcome: EvidenceExecutionOutcome | "";
+  failureReasons: string[];
 };
 
 type StoryPlanningEvidence = {
@@ -2460,13 +2509,19 @@ async function loadEvidenceSources(signalId: number): Promise<EvidenceSource[]> 
         sourceUrl: "https://example.com/mock-signal-12345",
         title: "City announces weekend downtown detours",
         content: "Dayton public works said lane closures start Saturday morning and detours will be posted.",
-        score: 0.92
+        score: 0.92,
+        sourceType: "official",
+        publishedAt: "2026-03-10T12:00:00Z",
+        sourceDomain: "example.com"
       },
       {
         sourceUrl: "https://example.com/mock-signal-12345-traffic",
         title: "Transit agency updates downtown service map",
         content: "RTA said two routes will shift stops near utility work zones for safety through Sunday night.",
-        score: 0.88
+        score: 0.88,
+        sourceType: "official",
+        publishedAt: "2026-03-10T12:05:00Z",
+        sourceDomain: "example.com"
       }
     ];
   }
@@ -2477,8 +2532,11 @@ async function loadEvidenceSources(signalId: number): Promise<EvidenceSource[]> 
   const rows = await sql`
     SELECT
       source_url as "sourceUrl",
+      source_domain as "sourceDomain",
       title,
       content,
+      published_at as "publishedAt",
+      COALESCE(NULLIF(trim(COALESCE(metadata->>'appliedTrustTier', '')), ''), '') as "sourceType",
       CASE
         WHEN COALESCE(metadata->>'score', '') ~ '^[0-9]+(\\.[0-9]+)?$'
           THEN (metadata->>'score')::numeric
@@ -2496,9 +2554,12 @@ async function loadEvidenceSources(signalId: number): Promise<EvidenceSource[]> 
   return rows
     .map((row: any) => ({
       sourceUrl: cleanText(row.sourceUrl, 2000),
+      sourceDomain: cleanText(row.sourceDomain || "", 255) || parseSourceDomain(cleanText(row.sourceUrl, 2000)),
       title: cleanText(row.title || "", 600) || null,
       content: cleanText(row.content || "", 12000) || null,
-      score: Number.isFinite(Number(row.score)) ? Number(row.score) : 0
+      score: Number.isFinite(Number(row.score)) ? Number(row.score) : 0,
+      sourceType: normalizeStoryPlanningEvidenceSourceType(row.sourceType),
+      publishedAt: cleanText(row.publishedAt || "", 120) || null
     }))
     .filter((row: EvidenceSource) => row.sourceUrl);
 }
@@ -2509,15 +2570,279 @@ function clampConfidence(value: unknown): number {
   return Math.max(0, Math.min(1, num));
 }
 
-async function extractEvidenceClaimsWithGemini(
+function normalizeEvidenceExtractionStatus(value: unknown): EvidenceExtractionArtifact["extractionStatus"] {
+  const normalized = cleanText(value, 40).toUpperCase();
+  if (normalized === "READY" || normalized === "NEEDS_REPORTING") return normalized;
+  return "";
+}
+
+function normalizeStringArray(value: unknown, maxItemLength = 240, maxItems = 8): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => cleanText(item, maxItemLength)).filter(Boolean).slice(0, maxItems);
+}
+
+function tokenizeComparableText(value: string): string[] {
+  return cleanText(value, 5000)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length >= 3);
+}
+
+function buildEvidenceFingerprint(value: string): string {
+  const stopWords = new Set([
+    "the", "and", "for", "with", "that", "this", "from", "will", "have", "has", "said", "after", "before", "their",
+    "about", "into", "near", "more", "than", "when", "where", "which", "while", "over", "under", "through"
+  ]);
+  return Array.from(new Set(tokenizeComparableText(value).filter((token) => !stopWords.has(token)))).slice(0, 12).join(" ");
+}
+
+function computeTokenOverlapRatio(a: string, b: string): number {
+  const tokensA = Array.from(new Set(tokenizeComparableText(a)));
+  const tokensB = new Set(tokenizeComparableText(b));
+  if (!tokensA.length || !tokensB.size) return 0;
+  let matches = 0;
+  for (const token of tokensA) {
+    if (tokensB.has(token)) matches += 1;
+  }
+  return matches / tokensA.length;
+}
+
+function isQuoteInspectableAgainstSource(quote: string, sourceContent: string | null): boolean {
+  if (!quote || !sourceContent) return false;
+  const normalizedQuote = cleanText(quote, 5000).toLowerCase();
+  const normalizedContent = cleanText(sourceContent, 20000).toLowerCase();
+  if (!normalizedQuote || !normalizedContent) return false;
+  if (normalizedContent.includes(normalizedQuote)) return true;
+  return computeTokenOverlapRatio(quote, sourceContent) >= 0.7;
+}
+
+function hasSpecificity(value: string): boolean {
+  const vaguePatterns = [/\bissue\b/i, /\bsituation\b/i, /\bdevelopment\b/i, /\bimportant\b/i, /\bongoing story\b/i];
+  const tokenCount = tokenizeComparableText(value).length;
+  return tokenCount >= 5 && !vaguePatterns.some((pattern) => pattern.test(value));
+}
+
+function hasPlanningValue(item: EvidenceCandidate): boolean {
+  if (!item.whyItMatters) return false;
+  if (tokenizeComparableText(item.whyItMatters).length < 4) return false;
+  return /(affect|impact|change|close|start|end|route|resident|customer|student|driver|business|official|timeline|next|uncertain|investigat|cost|fee|service|safety|public)/i.test(
+    `${item.claim} ${item.whyItMatters}`
+  );
+}
+
+function classifyCoverageContribution(item: EvidenceCandidate): Set<string> {
+  const text = `${item.claim} ${item.whyItMatters}`.toLowerCase();
+  const out = new Set<string>();
+  if (
+    /(announce|close|closure|open|reopen|launch|start|begin|end|approve|reject|arrest|charge|file|vote|pass|settle|merge|cut|expand|shift|change|update|cancel|resume|suspend|investigat|report|confirm|deny)/.test(
+      text
+    )
+  ) {
+    out.add("core_event");
+  }
+  if (/(start|begin|end|through|until|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|morning|afternoon|evening|week|month|year)/.test(text)) out.add("timing");
+  if (/(affect|impact|resident|rider|commuter|student|family|business|customer|community|driver|taxpayer)/.test(text)) out.add("impact");
+  if (/(will|expected|next|plan|hearing|meeting|vote|continue|resume|follow)/.test(text)) out.add("what_next");
+  if (/(official|agency|city|police|school|company|judge|court|department|board)/.test(text)) out.add("actors");
+  if (/(unknown|uncertain|investigat|not clear|contested|conflict|contradict|unresolved)/.test(text)) out.add("uncertainty");
+  if (/\b\d[\d,\.]*\b/.test(text)) out.add("specifics");
+  return out;
+}
+
+function violatesScopeContainment(item: EvidenceCandidate): boolean {
+  const claim = item.claim.toLowerCase();
+  const quote = item.evidenceQuote.toLowerCase();
+  const causalTerms = ["because", "due to", "as a result", "caused by", "in response to"];
+  if (causalTerms.some((term) => claim.includes(term) && !quote.includes(term))) return true;
+  const absoluteTerms = ["always", "never", "all", "every", "completely", "proved"];
+  if (absoluteTerms.some((term) => claim.includes(term) && !quote.includes(term))) return true;
+  return false;
+}
+
+function violatesTemporalGrounding(item: EvidenceCandidate, source: EvidenceSource): boolean {
+  const text = `${item.claim} ${item.whyItMatters}`.toLowerCase();
+  const timeSensitive = /(today|tonight|currently|now|ongoing|still|continues|will remain|expected to)/.test(text);
+  return timeSensitive && !source.publishedAt;
+}
+
+function extractNumericTokens(value: string): string[] {
+  return cleanText(value, 1000).match(/\b\d[\d,\.]*\b/g) || [];
+}
+
+function hasNegation(value: string): boolean {
+  return /\b(no|not|never|without|denied|deny|refused)\b/i.test(value);
+}
+
+function assignSupportStatuses(items: EvidenceCandidate[]): EvidenceSupportStatus[] {
+  return items.map((item, index) => {
+    const currentFingerprint = buildEvidenceFingerprint(item.claim);
+    let corroborated = false;
+    let contested = false;
+    for (let otherIndex = 0; otherIndex < items.length; otherIndex += 1) {
+      if (otherIndex === index) continue;
+      const other = items[otherIndex];
+      if (item.sourceUrl === other.sourceUrl) continue;
+      const overlap = computeTokenOverlapRatio(item.claim, other.claim);
+      const sameTopic = overlap >= 0.55 || currentFingerprint === buildEvidenceFingerprint(other.claim);
+      if (!sameTopic) continue;
+      const currentNumbers = extractNumericTokens(item.claim);
+      const otherNumbers = extractNumericTokens(other.claim);
+      const conflictingNumbers = currentNumbers.length > 0 && otherNumbers.length > 0 && currentNumbers.join("|") !== otherNumbers.join("|");
+      const conflictingNegation = hasNegation(item.claim) !== hasNegation(other.claim);
+      if (conflictingNumbers || conflictingNegation) contested = true;
+      else corroborated = true;
+    }
+    if (contested) return "contested";
+    if (corroborated) return "corroborated";
+    return "single_source";
+  });
+}
+
+function normalizeEvidenceExtractionArtifact(raw: unknown, sourcesByUrl: Map<string, EvidenceSource>): EvidenceExtractionArtifact {
+  const out: EvidenceCandidate[] = [];
+  const seen = new Set<string>();
+  const rawItems = Array.isArray((raw as any)?.evidenceItems)
+    ? (raw as any).evidenceItems
+    : Array.isArray((raw as any)?.claims)
+      ? (raw as any).claims
+      : [];
+
+  for (const item of rawItems) {
+    const normalizedItem: EvidenceCandidate = {
+      claim: cleanText(item?.claim || "", 600),
+      sourceUrl: cleanText(item?.sourceUrl || "", 2000),
+      evidenceQuote: cleanText(item?.evidenceQuote || "", 320),
+      confidence: clampConfidence(item?.confidence),
+      whyItMatters: cleanText(item?.whyItMatters || "", 500)
+    };
+    const dedupeKey = [
+      normalizedItem.sourceUrl.toLowerCase(),
+      buildEvidenceFingerprint(normalizedItem.claim),
+      buildEvidenceFingerprint(normalizedItem.evidenceQuote)
+    ].join("|");
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    out.push(normalizedItem);
+    if (out.length >= 8) break;
+  }
+
+  const supportStatuses = assignSupportStatuses(out);
+  const evidenceItems: JudgedEvidenceItem[] = out.map((item, index) => {
+    const source = sourcesByUrl.get(item.sourceUrl.toLowerCase()) || null;
+    return {
+      ...item,
+      sourceType: source?.sourceType || "other",
+      publishedAt: source?.publishedAt || null,
+      sourceDomain: source?.sourceDomain || parseSourceDomain(item.sourceUrl),
+      supportStatus: supportStatuses[index] || "single_source"
+    };
+  });
+
+  return {
+    extractionStatus: normalizeEvidenceExtractionStatus((raw as any)?.extractionStatus),
+    decisionRationale: cleanText((raw as any)?.decisionRationale || "", 800),
+    evidenceItems,
+    editorialRisks: normalizeStringArray((raw as any)?.editorialRisks, 120, 8),
+    missingEvidence: normalizeStringArray((raw as any)?.missingEvidence, 240, 8),
+    followUpQueries: normalizeStringArray((raw as any)?.followUpQueries, 240, 8)
+  };
+}
+
+function validateEvidenceExtractionArtifact(
+  artifact: EvidenceExtractionArtifact,
+  _signal: ResearchSignalContext,
+  sources: EvidenceSource[]
+): void {
+  const contractFailures: string[] = [];
+  const editorialFailures: string[] = [];
+  const sourcesByUrl = new Map(sources.map((source) => [source.sourceUrl.toLowerCase(), source]));
+  const distinctUrls = new Set<string>();
+  const coverage = new Set<string>();
+  let planningUsefulCount = 0;
+  let nonContestedCount = 0;
+
+  if (artifact.extractionStatus !== "READY" && artifact.extractionStatus !== "NEEDS_REPORTING") {
+    contractFailures.push("extractionStatus must be READY or NEEDS_REPORTING");
+  }
+  if (!artifact.decisionRationale) {
+    contractFailures.push("decisionRationale is required");
+  }
+
+  for (const item of artifact.evidenceItems) {
+    const source = sourcesByUrl.get(item.sourceUrl.toLowerCase());
+    if (!item.claim) contractFailures.push("every evidence item must include claim");
+    if (!item.sourceUrl) contractFailures.push("every evidence item must include sourceUrl");
+    if (!item.evidenceQuote) contractFailures.push("every evidence item must include evidenceQuote");
+    if (!item.whyItMatters) contractFailures.push("every evidence item must include whyItMatters");
+    if (!source) {
+      contractFailures.push(`evidence item sourceUrl must match an approved Phase 2 source: ${item.sourceUrl || "missing"}`);
+      continue;
+    }
+    distinctUrls.add(item.sourceUrl);
+    if (item.sourceType !== source.sourceType) {
+      contractFailures.push(`sourceType must be inherited from the matched source for ${item.sourceUrl}`);
+    }
+    if ((item.publishedAt || null) !== (source.publishedAt || null)) {
+      contractFailures.push(`publishedAt must be inherited from the matched source for ${item.sourceUrl}`);
+    }
+    if (!isQuoteInspectableAgainstSource(item.evidenceQuote, source.content)) {
+      contractFailures.push(`evidenceQuote is not inspectably grounded for ${item.sourceUrl}`);
+    }
+    if (!hasSpecificity(item.claim)) {
+      editorialFailures.push(`claim is too vague to be planning-useful for ${item.sourceUrl}`);
+    }
+    if (!hasPlanningValue(item)) {
+      editorialFailures.push(`claim lacks clear story relevance for ${item.sourceUrl}`);
+    } else {
+      planningUsefulCount += 1;
+    }
+    if (violatesScopeContainment(item)) {
+      editorialFailures.push(`claim overreaches the supporting evidence for ${item.sourceUrl}`);
+    }
+    if (violatesTemporalGrounding(item, source)) {
+      editorialFailures.push(`claim is not safely time-bounded for ${item.sourceUrl}`);
+    }
+    if (item.supportStatus !== "contested") nonContestedCount += 1;
+    for (const dimension of classifyCoverageContribution(item)) coverage.add(dimension);
+  }
+
+  if (artifact.extractionStatus === "READY") {
+    if (artifact.evidenceItems.length < 3) editorialFailures.push("READY requires at least 3 evidence items");
+    if (distinctUrls.size < 2) editorialFailures.push("READY requires evidence from at least 2 distinct source URLs");
+    if (planningUsefulCount < 3) editorialFailures.push("READY requires at least 3 planning-useful evidence items");
+    if (!coverage.has("core_event")) editorialFailures.push("READY requires a clearly grounded core event/change");
+    if (![coverage.has("impact"), coverage.has("timing"), coverage.has("what_next")].some(Boolean)) {
+      editorialFailures.push("READY requires coverage beyond the core event, such as impact, timing, or what happens next");
+    }
+    if (nonContestedCount === 0) editorialFailures.push("READY cannot rely entirely on contested evidence");
+  }
+
+  if (artifact.extractionStatus === "NEEDS_REPORTING") {
+    if (!artifact.missingEvidence.length) contractFailures.push("NEEDS_REPORTING requires missingEvidence");
+    if (!artifact.followUpQueries.length) contractFailures.push("NEEDS_REPORTING requires followUpQueries");
+  } else {
+    if (artifact.followUpQueries.length) {
+      contractFailures.push("READY must not include followUpQueries");
+    }
+    if (artifact.missingEvidence.length) {
+      editorialFailures.push("READY must not retain unresolved missingEvidence");
+    }
+  }
+
+  if (contractFailures.length) {
+    throw new EvidenceExtractionValidationError("contract_invalid", Array.from(new Set(contractFailures)));
+  }
+  if (editorialFailures.length) {
+    throw new EvidenceExtractionValidationError("editorial_insufficiency", Array.from(new Set(editorialFailures)));
+  }
+}
+
+function buildEvidenceExtractionPrompt(
   signal: ResearchSignalContext,
   sources: EvidenceSource[],
   guidanceBundle: StagePromptBundle
-): Promise<EvidenceClaim[]> {
-  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-
-  const candidateModels = [...HARD_CODED_EVIDENCE_MODEL_CANDIDATES];
+): string {
   const sourceContext = sources
     .slice(0, 5)
     .map((source, index) =>
@@ -2525,38 +2850,66 @@ async function extractEvidenceClaimsWithGemini(
         `Source ${index + 1}:`,
         `URL: ${source.sourceUrl}`,
         `Title: ${source.title || ""}`,
+        `Source Type: ${source.sourceType}`,
+        `Published At: ${source.publishedAt || "unknown"}`,
         `Score: ${source.score}`,
         `Content: ${cleanText(source.content || "", 5000)}`
       ].join("\n")
     )
     .join("\n\n");
-  const prompt = [
+  return [
     guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
-    guidanceBundle.promptSourceVersion
-      ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}`
-      : "",
-    "You extract evidence claims for newsroom writing from provided sources only.",
-    "Return strict JSON only in this shape:",
-    "{\"claims\":[{\"claim\":\"...\",\"sourceUrl\":\"...\",\"evidenceQuote\":\"...\",\"confidence\":0.0,\"whyItMatters\":\"...\"}]}",
+    guidanceBundle.promptSourceVersion ? `Guidance Source Version: ${guidanceBundle.promptSourceVersion}` : "",
+    "You are the evidence adjudication engine for an autonomous newsroom pipeline.",
+    "Use only the provided sources.",
+    "Your job is to preserve only facts that are source-grounded and useful for story understanding.",
+    "Do not use outside knowledge. Do not generalize beyond the evidence. Do not invent causality, chronology, or certainty.",
+    "Return strict JSON only in this schema:",
+    "{\"extractionStatus\":\"READY|NEEDS_REPORTING\",\"decisionRationale\":\"...\",\"evidenceItems\":[{\"claim\":\"...\",\"sourceUrl\":\"...\",\"evidenceQuote\":\"...\",\"confidence\":0.0,\"whyItMatters\":\"...\"}],\"editorialRisks\":[\"...\"],\"missingEvidence\":[\"...\"],\"followUpQueries\":[\"...\"]}",
     "Rules:",
-    "- Use only provided sources.",
     "- sourceUrl must exactly match one provided URL.",
-    "- Return 2 to 5 claims max.",
-    "- Keep evidenceQuote under 280 chars.",
-    "- No markdown and no keys outside schema.",
+    "- Keep only materially distinct, planning-useful evidence items.",
+    "- Preserve inspectable source language in evidenceQuote.",
+    "- Do not overstate, broaden, or infer beyond the source.",
+    "- READY means the evidence picture is mature enough for planning.",
+    "- NEEDS_REPORTING means the story may be viable but evidence maturity is insufficient; include specific missingEvidence and followUpQueries.",
+    "- Return 2 to 8 evidenceItems max.",
+    "- No markdown. No extra keys.",
     "",
+    `Persona ID: ${signal.personaId}`,
+    `Section: ${signal.personaSection}`,
+    `Beat: ${signal.personaBeat}`,
     `Signal Title: ${signal.title}`,
     `Signal Snippet: ${signal.snippet || ""}`,
     "",
     sourceContext
-  ].join("\n");
+  ].filter(Boolean).join("\n");
+}
 
-  let text = "";
+function buildEvidenceExtractionRepairPrompt(originalPrompt: string, rawText: string, failureReasons: string[]): string {
+  return [
+    "Repair the evidence-adjudication response so it matches the required JSON contract exactly.",
+    "Do not invent facts, source URLs, or evidence quotes.",
+    "If the evidence is not strong enough for READY, explicitly change extractionStatus to NEEDS_REPORTING and provide missingEvidence plus followUpQueries.",
+    "Return strict JSON only.",
+    `Validation failures: ${failureReasons.map((reason) => cleanText(reason, 240)).join(" | ")}`,
+    "",
+    "Original instructions:",
+    originalPrompt,
+    "",
+    "Previous model output to repair:",
+    cleanText(rawText, 24000)
+  ].join("\n");
+}
+
+async function extractEvidenceClaimsWithGemini(prompt: string): Promise<StoryPlannerExecutionResult> {
+  const apiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
+  if (!apiKey) throw new EvidenceExtractionProviderError("Missing GEMINI_API_KEY");
+
+  const candidateModels = [...HARD_CODED_EVIDENCE_MODEL_CANDIDATES];
   let lastError = "Gemini evidence extraction failed";
   for (const model of candidateModels) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-      model
-    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2564,59 +2917,94 @@ async function extractEvidenceClaimsWithGemini(
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1800,
+          maxOutputTokens: 2200,
           responseMimeType: "application/json"
         }
       })
     });
     if (response.ok) {
       const data = await response.json();
-      text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
-      if (text) break;
+      const text = data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || "").join("") || "";
+      if (text) {
+        return {
+          provider: "gemini",
+          model,
+          rawText: text,
+          parsed: safeJsonParse(text)
+        };
+      }
       lastError = `Gemini evidence extraction returned empty content for model ${model}`;
       continue;
     }
     const body = await response.text();
     lastError = `Gemini evidence extraction failed for model ${model} ${response.status}: ${body.slice(0, 200)}`;
   }
-  if (!text) throw new Error(lastError);
+  throw new EvidenceExtractionProviderError(lastError);
+}
 
-  const parsed = safeJsonParse(text);
-  const claims = Array.isArray(parsed?.claims) ? parsed.claims : [];
-  return claims.map((item: any) => ({
-    claim: cleanText(item?.claim || "", 600),
-    sourceUrl: cleanText(item?.sourceUrl || "", 2000),
-    evidenceQuote: cleanText(item?.evidenceQuote || "", 280),
-    confidence: clampConfidence(item?.confidence),
-    whyItMatters: cleanText(item?.whyItMatters || "", 500)
+async function executeEvidenceExtractionWithValidation(
+  signal: ResearchSignalContext,
+  sources: EvidenceSource[],
+  guidanceBundle: StagePromptBundle
+): Promise<{ execution: StoryPlannerExecutionResult; artifact: EvidenceExtractionArtifact; validation: EvidenceExtractionValidationResult }> {
+  const prompt = buildEvidenceExtractionPrompt(signal, sources, guidanceBundle);
+  const sourcesByUrl = new Map(sources.map((source) => [source.sourceUrl.toLowerCase(), source]));
+  const firstExecution = await extractEvidenceClaimsWithGemini(prompt);
+  const firstArtifact = normalizeEvidenceExtractionArtifact(firstExecution.parsed, sourcesByUrl);
+  try {
+    validateEvidenceExtractionArtifact(firstArtifact, signal, sources);
+    return {
+      execution: firstExecution,
+      artifact: firstArtifact,
+      validation: {
+        repaired: false,
+        repairReason: null,
+        executionOutcome: "validated",
+        failureReasons: []
+      }
+    };
+  } catch (error: any) {
+    if (!(error instanceof EvidenceExtractionValidationError)) throw error;
+    const repairPrompt = buildEvidenceExtractionRepairPrompt(prompt, firstExecution.rawText, error.failureReasons);
+    const repairedExecution = await extractEvidenceClaimsWithGemini(repairPrompt);
+    const repairedArtifact = normalizeEvidenceExtractionArtifact(repairedExecution.parsed, sourcesByUrl);
+    try {
+      validateEvidenceExtractionArtifact(repairedArtifact, signal, sources);
+      return {
+        execution: repairedExecution,
+        artifact: repairedArtifact,
+        validation: {
+          repaired: true,
+          repairReason: error.failureReasons.join(" | ").slice(0, 500),
+          executionOutcome: "validated",
+          failureReasons: []
+        }
+      };
+    } catch (repairError: any) {
+      if (repairError instanceof EvidenceExtractionValidationError) {
+        throw new EvidenceExtractionValidationError("repair_failed", repairError.failureReasons);
+      }
+      throw repairError;
+    }
+  }
+}
+
+function materializePersistedEvidenceItems(items: JudgedEvidenceItem[]): PersistedEvidenceItem[] {
+  return items.map((item) => ({
+    evidenceId: randomUUID(),
+    ...item
   }));
 }
 
-function normalizeEvidenceClaims(claims: EvidenceClaim[], sourceUrls: Set<string>): EvidenceClaim[] {
-  const out: EvidenceClaim[] = [];
-  const seenSource = new Set<string>();
-
-  for (const claim of claims) {
-    const sourceUrl = cleanText(claim.sourceUrl, 2000);
-    const normalizedUrl = sourceUrl.toLowerCase();
-    if (!sourceUrl || !sourceUrls.has(normalizedUrl)) continue;
-    if (seenSource.has(normalizedUrl)) continue;
-    if (!claim.claim || !claim.evidenceQuote) continue;
-    seenSource.add(normalizedUrl);
-    out.push({
-      claim: cleanText(claim.claim, 600),
-      sourceUrl,
-      evidenceQuote: cleanText(claim.evidenceQuote, 280),
-      confidence: clampConfidence(claim.confidence),
-      whyItMatters: cleanText(claim.whyItMatters, 500)
-    });
-    if (out.length >= 5) break;
+async function persistEvidenceArtifacts(
+  signal: ResearchSignalContext,
+  claims: PersistedEvidenceItem[],
+  context: {
+    runId: string;
+    version: number;
+    isCanonical: boolean;
   }
-
-  return out;
-}
-
-async function persistEvidenceArtifacts(signal: ResearchSignalContext, claims: EvidenceClaim[]): Promise<number> {
+): Promise<number> {
   if (!claims.length) return 0;
 
   if (isTestSignalId(signal.id)) {
@@ -2632,9 +3020,7 @@ async function persistEvidenceArtifacts(signal: ResearchSignalContext, claims: E
   if (!databaseUrl) throw new Error("Missing DATABASE_URL");
   const sql = neon(databaseUrl);
 
-  const runId = randomUUID();
   const engineId = randomUUID();
-  const candidateId = randomUUID();
 
   let saved = 0;
   for (let index = 0; index < claims.length; index += 1) {
@@ -2643,9 +3029,13 @@ async function persistEvidenceArtifacts(signal: ResearchSignalContext, claims: E
       signalId: signal.id,
       personaId: signal.personaId,
       rank: index + 1,
+      version: context.version,
       confidence: claim.confidence,
       evidenceQuote: claim.evidenceQuote,
-      whyItMatters: claim.whyItMatters
+      whyItMatters: claim.whyItMatters,
+      sourceType: claim.sourceType,
+      supportStatus: claim.supportStatus,
+      evidenceBundleRunId: context.runId
     };
 
     const rows = await sql`
@@ -2666,11 +3056,11 @@ async function persistEvidenceArtifacts(signal: ResearchSignalContext, claims: E
         metadata,
         created_at
       )
-      SELECT
-        ${randomUUID()},
-        ${runId},
+      VALUES (
+        ${claim.evidenceId},
+        ${context.runId},
         ${engineId},
-        ${candidateId},
+        ${randomUUID()},
         ${signal.id},
         ${signal.personaId || null},
         'evidence_extraction',
@@ -2678,17 +3068,10 @@ async function persistEvidenceArtifacts(signal: ResearchSignalContext, claims: E
         ${claim.sourceUrl},
         ${parseSourceDomain(claim.sourceUrl)},
         ${`Evidence claim ${index + 1}`},
-        ${null},
+        ${claim.publishedAt},
         ${claim.claim},
         ${toSafeJsonObject(metadata)}::jsonb,
         NOW()
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM research_artifacts ra
-        WHERE ra.signal_id = ${signal.id}
-          AND ra.stage = 'evidence_extraction'
-          AND ra.artifact_type = 'evidence_extract'
-          AND ra.source_url = ${claim.sourceUrl}
       )
       RETURNING id
     `;
@@ -2698,42 +3081,365 @@ async function persistEvidenceArtifacts(signal: ResearchSignalContext, claims: E
   return saved;
 }
 
-async function runEvidenceExtraction(signalId: number): Promise<{
-  sourceCount: number;
-  claimCount: number;
-  saved: number;
-  skipped?: boolean;
-}> {
-  const signal = await loadResearchSignalContext(signalId);
-  const sources = await loadEvidenceSources(signalId);
-  if (!sources.length) {
-    return { sourceCount: 0, claimCount: 0, saved: 0, skipped: true };
+async function persistEvidenceBundleArtifact(
+  signal: ResearchSignalContext,
+  options: {
+    artifact: EvidenceExtractionArtifact;
+    executionOutcome: EvidenceExecutionOutcome;
+    failureReasons: string[];
+    provider?: string;
+    model?: string;
+    validation?: EvidenceExtractionValidationResult | null;
+    promptHash: string;
+    promptSourceVersion: string;
+    warnings: string[];
+    sourceCount: number;
+    persistedEvidenceItems: PersistedEvidenceItem[];
+  }
+): Promise<EvidenceBundlePersistenceResult & { runId: string; persistedEvidenceItems: PersistedEvidenceItem[] }> {
+  if (isTestSignalId(signal.id)) {
+    console.log("test-mode persistEvidenceBundleArtifact skip", {
+      signalId: signal.id,
+      extractionStatus: options.artifact.extractionStatus,
+      executionOutcome: options.executionOutcome,
+      evidenceCount: options.persistedEvidenceItems.length
+    });
+    return {
+      saved: 1,
+      version: 1,
+      isCanonical: options.executionOutcome === "validated" && options.artifact.extractionStatus === "READY",
+      extractionStatus: options.artifact.extractionStatus,
+      executionOutcome: options.executionOutcome,
+      runId: "test-evidence-bundle-run",
+      persistedEvidenceItems: options.persistedEvidenceItems
+    };
   }
 
   const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
   if (!databaseUrl) throw new Error("Missing DATABASE_URL");
   const sql = neon(databaseUrl);
+
+  const versionRows = await sql`
+    SELECT
+      COALESCE(
+        MAX(
+          CASE
+            WHEN COALESCE(metadata->>'version', '') ~ '^[0-9]+$'
+              THEN (metadata->>'version')::int
+            ELSE 0
+          END
+        ),
+        0
+      ) + 1 as version
+    FROM research_artifacts
+    WHERE signal_id = ${signal.id}
+      AND stage = 'evidence_extraction'
+      AND artifact_type = 'evidence_bundle'
+  `;
+  const version = Math.max(1, Number(versionRows?.[0]?.version || 1));
+  const isCanonical = options.executionOutcome === "validated" && options.artifact.extractionStatus === "READY";
+  const runId = randomUUID();
+  const insertedId = randomUUID();
+  const sourceUrl = `signal://${signal.id}/evidence-bundle`;
+  const metadata = {
+    signalId: signal.id,
+    personaId: signal.personaId,
+    provider: cleanText(options.provider || "", 80) || null,
+    model: cleanText(options.model || "", 160) || null,
+    version,
+    isCanonical,
+    extractionStatus: options.artifact.extractionStatus,
+    executionOutcome: options.executionOutcome,
+    failureReasons: options.failureReasons,
+    repaired: options.validation?.repaired === true,
+    repairReason: cleanText(options.validation?.repairReason || "", 500) || null,
+    promptHash: cleanText(options.promptHash, 120),
+    promptSourceVersion: cleanText(options.promptSourceVersion, 120),
+    warnings: Array.isArray(options.warnings) ? options.warnings.slice(0, 20) : [],
+    sourceCount: options.sourceCount,
+    evidenceCount: options.persistedEvidenceItems.length,
+    editorialRiskCount: options.artifact.editorialRisks.length,
+    missingEvidenceCount: options.artifact.missingEvidence.length,
+    evidenceBundle: {
+      ...options.artifact,
+      evidenceItems: options.persistedEvidenceItems
+    }
+  };
+
+  const rows = await sql`
+    INSERT INTO research_artifacts (
+      id,
+      run_id,
+      engine_id,
+      candidate_id,
+      signal_id,
+      persona_id,
+      stage,
+      artifact_type,
+      source_url,
+      source_domain,
+      title,
+      published_at,
+      content,
+      metadata,
+      created_at
+    )
+    VALUES (
+      ${insertedId},
+      ${runId},
+      ${randomUUID()},
+      ${randomUUID()},
+      ${signal.id},
+      ${signal.personaId || null},
+      'evidence_extraction',
+      'evidence_bundle',
+      ${sourceUrl},
+      ${null},
+      ${`Evidence bundle v${version} for signal ${signal.id}`},
+      ${null},
+      ${options.artifact.decisionRationale || `Evidence extraction ${options.executionOutcome}`},
+      ${toSafeJsonObject(metadata)}::jsonb,
+      NOW()
+    )
+    RETURNING id
+  `;
+
+  if (rows.length && isCanonical) {
+    await sql`
+      UPDATE research_artifacts
+      SET metadata = jsonb_set(
+        CASE
+          WHEN jsonb_typeof(metadata) = 'object' THEN metadata
+          ELSE '{}'::jsonb
+        END,
+        '{isCanonical}',
+        CASE
+          WHEN id = ${insertedId} THEN 'true'::jsonb
+          ELSE 'false'::jsonb
+        END,
+        true
+      )
+      WHERE signal_id = ${signal.id}
+        AND stage = 'evidence_extraction'
+        AND artifact_type = 'evidence_bundle'
+        AND (
+          id = ${insertedId}
+          OR COALESCE(metadata->>'isCanonical', 'false') = 'true'
+        )
+    `;
+  }
+
+  return {
+    saved: rows.length,
+    version,
+    isCanonical,
+    extractionStatus: options.artifact.extractionStatus,
+    executionOutcome: options.executionOutcome,
+    runId,
+    persistedEvidenceItems: options.persistedEvidenceItems
+  };
+}
+
+async function runEvidenceExtraction(signalId: number): Promise<{
+  sourceCount: number;
+  candidateCount: number;
+  evidenceCount: number;
+  saved: number;
+  version?: number;
+  isCanonical?: boolean;
+  extractionStatus: EvidenceExtractionArtifact["extractionStatus"];
+  executionOutcome: EvidenceExecutionOutcome;
+  decisionRationale: string;
+  editorialRisks: string[];
+  missingEvidence: string[];
+  followUpQueries: string[];
+  provider?: string;
+  model?: string;
+  repaired?: boolean;
+  failureReasons?: string[];
+  skipped?: boolean;
+}> {
+  const signal = await loadResearchSignalContext(signalId);
+  const sources = await loadEvidenceSources(signalId);
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+
+  if (!sources.length) {
+    const emptyArtifact: EvidenceExtractionArtifact = {
+      extractionStatus: "NEEDS_REPORTING",
+      decisionRationale: "Phase 3 could not adjudicate evidence because Phase 2 did not provide any approved sources.",
+      evidenceItems: [],
+      editorialRisks: ["no_approved_sources"],
+      missingEvidence: ["Need approved reporting sources before evidence adjudication can establish the story."],
+      followUpQueries: ["Find approved reporting sources that directly establish the core event or change."]
+    };
+    const persisted = await persistEvidenceBundleArtifact(signal, {
+      artifact: emptyArtifact,
+      executionOutcome: "editorial_insufficiency",
+      failureReasons: ["No approved Phase 2 sources were available for evidence adjudication"],
+      provider: undefined,
+      model: undefined,
+      validation: null,
+      promptHash: "",
+      promptSourceVersion: "",
+      warnings: [],
+      sourceCount: 0,
+      persistedEvidenceItems: []
+    });
+    return {
+      sourceCount: 0,
+      candidateCount: 0,
+      evidenceCount: 0,
+      saved: persisted.saved,
+      version: persisted.version,
+      isCanonical: persisted.isCanonical,
+      extractionStatus: emptyArtifact.extractionStatus,
+      executionOutcome: persisted.executionOutcome,
+      decisionRationale: emptyArtifact.decisionRationale,
+      editorialRisks: emptyArtifact.editorialRisks,
+      missingEvidence: emptyArtifact.missingEvidence,
+      followUpQueries: emptyArtifact.followUpQueries,
+      skipped: true
+    };
+  }
+
   const guidanceBundle = await buildStageGuidanceBundle(
     sql,
     "evidence_extraction",
     signal.personaId,
     signal.personaSection
   );
-  const rawClaims = await extractEvidenceClaimsWithGemini(signal, sources, guidanceBundle);
-  const allowedUrls = new Set(sources.map((source) => source.sourceUrl.toLowerCase()));
-  const claims = normalizeEvidenceClaims(rawClaims, allowedUrls);
-  const saved = await persistEvidenceArtifacts(signal, claims);
+  try {
+    const result = await executeEvidenceExtractionWithValidation(signal, sources, guidanceBundle);
+    const persistedEvidenceItems = materializePersistedEvidenceItems(result.artifact.evidenceItems);
+    let persistedBundle: Awaited<ReturnType<typeof persistEvidenceBundleArtifact>>;
+    let savedItems = 0;
+    try {
+      persistedBundle = await persistEvidenceBundleArtifact(signal, {
+        artifact: result.artifact,
+        executionOutcome: result.validation.executionOutcome,
+        failureReasons: result.validation.failureReasons,
+        provider: result.execution.provider,
+        model: result.execution.model,
+        validation: result.validation,
+        promptHash: guidanceBundle.promptHash,
+        promptSourceVersion: guidanceBundle.promptSourceVersion,
+        warnings: guidanceBundle.warnings,
+        sourceCount: sources.length,
+        persistedEvidenceItems
+      });
+      savedItems = await persistEvidenceArtifacts(signal, persistedBundle.persistedEvidenceItems, {
+        runId: persistedBundle.runId,
+        version: persistedBundle.version,
+        isCanonical: persistedBundle.isCanonical
+      });
+    } catch (persistError: any) {
+      return {
+        sourceCount: sources.length,
+        candidateCount: result.artifact.evidenceItems.length,
+        evidenceCount: result.artifact.evidenceItems.length,
+        saved: 0,
+        extractionStatus: result.artifact.extractionStatus,
+        executionOutcome: "persistence_failed",
+        decisionRationale: result.artifact.decisionRationale,
+        editorialRisks: result.artifact.editorialRisks,
+        missingEvidence: result.artifact.missingEvidence,
+        followUpQueries: result.artifact.followUpQueries,
+        provider: result.execution.provider,
+        model: result.execution.model,
+        repaired: result.validation.repaired,
+        failureReasons: [cleanText(persistError?.message || "evidence_persistence_failed", 500)]
+      };
+    }
+    return {
+      sourceCount: sources.length,
+      candidateCount: result.artifact.evidenceItems.length,
+      evidenceCount: result.artifact.evidenceItems.length,
+      saved: persistedBundle.saved + savedItems,
+      version: persistedBundle.version,
+      isCanonical: persistedBundle.isCanonical,
+      extractionStatus: result.artifact.extractionStatus,
+      executionOutcome: persistedBundle.executionOutcome,
+      decisionRationale: result.artifact.decisionRationale,
+      editorialRisks: result.artifact.editorialRisks,
+      missingEvidence: result.artifact.missingEvidence,
+      followUpQueries: result.artifact.followUpQueries,
+      provider: result.execution.provider,
+      model: result.execution.model,
+      repaired: result.validation.repaired
+    };
+  } catch (error: any) {
+    const executionOutcome: Exclude<EvidenceExecutionOutcome, "validated" | "persistence_failed"> =
+      error instanceof EvidenceExtractionValidationError
+        ? error.executionOutcome
+        : error instanceof EvidenceExtractionProviderError
+          ? error.executionOutcome
+          : "provider_failure";
+    const failureReasons =
+      error instanceof EvidenceExtractionValidationError
+        ? error.failureReasons
+        : [cleanText(error?.message || "evidence_extraction_failed", 500)];
+    const failedArtifact: EvidenceExtractionArtifact = {
+      extractionStatus: "",
+      decisionRationale: "",
+      evidenceItems: [],
+      editorialRisks: [],
+      missingEvidence: [],
+      followUpQueries: []
+    };
+    const persistedFailure = await persistEvidenceBundleArtifact(signal, {
+      artifact: failedArtifact,
+      executionOutcome,
+      failureReasons,
+      provider: undefined,
+      model: undefined,
+      validation: null,
+      promptHash: guidanceBundle.promptHash,
+      promptSourceVersion: guidanceBundle.promptSourceVersion,
+      warnings: guidanceBundle.warnings,
+      sourceCount: sources.length,
+      persistedEvidenceItems: []
+    });
+    return {
+      sourceCount: sources.length,
+      candidateCount: 0,
+      evidenceCount: 0,
+      saved: persistedFailure.saved,
+      version: persistedFailure.version,
+      isCanonical: persistedFailure.isCanonical,
+      extractionStatus: "",
+      executionOutcome: persistedFailure.executionOutcome,
+      decisionRationale: "",
+      editorialRisks: [],
+      missingEvidence: [],
+      followUpQueries: [],
+      failureReasons
+    };
+  }
+}
 
+function normalizePersistedEvidenceItem(raw: any): StoryPlanningEvidence | null {
+  const evidenceId = cleanText(raw?.evidenceId || "", 120);
+  const claim = cleanText(raw?.claim || "", 1200);
+  const sourceUrl = cleanText(raw?.sourceUrl || "", 2000);
+  const evidenceQuote = cleanText(raw?.evidenceQuote || "", 400);
+  if (!evidenceId || !claim || !sourceUrl || !evidenceQuote) return null;
   return {
-    sourceCount: sources.length,
-    claimCount: claims.length,
-    saved
+    evidenceId,
+    claim,
+    sourceUrl,
+    sourceType: normalizeStoryPlanningEvidenceSourceType(raw?.sourceType),
+    evidenceQuote,
+    confidence: clampConfidence(raw?.confidence),
+    publishedAt: cleanText(raw?.publishedAt || "", 120) || null,
+    whyItMatters: cleanText(raw?.whyItMatters || "", 700)
   };
 }
 
-async function loadStoryPlanningEvidence(signalId: number): Promise<StoryPlanningEvidence[]> {
+async function loadLatestEvidenceBundleResult(signalId: number): Promise<EvidenceBundleLoadResult | null> {
   if (isTestSignalId(signalId)) {
-    return [
+    const testEvidenceItems = [
       {
         evidenceId: "ev_mock_1",
         claim: "Downtown lane closures begin Saturday morning and continue through Sunday night.",
@@ -2742,7 +3448,9 @@ async function loadStoryPlanningEvidence(signalId: number): Promise<StoryPlannin
         evidenceQuote: "Dayton public works said lane closures start Saturday morning.",
         confidence: 0.89,
         publishedAt: "2026-03-10T12:00:00Z",
-        whyItMatters: "Weekend drivers and businesses downtown will need detour plans."
+        whyItMatters: "Weekend drivers and businesses downtown will need detour plans.",
+        sourceDomain: "example.com",
+        supportStatus: "single_source"
       },
       {
         evidenceId: "ev_mock_2",
@@ -2752,9 +3460,85 @@ async function loadStoryPlanningEvidence(signalId: number): Promise<StoryPlannin
         evidenceQuote: "RTA said two routes will shift stops near utility work zones.",
         confidence: 0.84,
         publishedAt: "2026-03-10T12:05:00Z",
-        whyItMatters: "Transit riders need updated stop locations and timing expectations."
+        whyItMatters: "Transit riders need updated stop locations and timing expectations.",
+        sourceDomain: "example.com",
+        supportStatus: "single_source"
       }
-    ];
+    ] as any;
+    return {
+      artifact: {
+        extractionStatus: "READY",
+        decisionRationale: "Mock evidence bundle is planning-ready.",
+        evidenceItems: testEvidenceItems,
+        editorialRisks: [],
+        missingEvidence: [],
+        followUpQueries: []
+      },
+      version: 1,
+      isCanonical: true,
+      executionOutcome: "validated",
+      failureReasons: []
+    };
+  }
+
+  const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
+  if (!databaseUrl) throw new Error("Missing DATABASE_URL");
+  const sql = neon(databaseUrl);
+  const sourceUrl = `signal://${signalId}/evidence-bundle`;
+  const rows = await sql`
+    SELECT metadata
+    FROM research_artifacts
+    WHERE signal_id = ${signalId}
+      AND stage = 'evidence_extraction'
+      AND artifact_type = 'evidence_bundle'
+      AND source_url = ${sourceUrl}
+    ORDER BY
+      CASE
+        WHEN COALESCE(metadata->>'version', '') ~ '^[0-9]+$'
+          THEN (metadata->>'version')::int
+        ELSE 0
+      END DESC,
+      created_at DESC
+    LIMIT 1
+  `;
+
+  const metadata = toSafeJsonObject(rows?.[0]?.metadata);
+  if (!Object.keys(metadata).length) return null;
+  const rawBundle = toSafeJsonObject(metadata.evidenceBundle);
+  const rawItems = Array.isArray(rawBundle.evidenceItems) ? rawBundle.evidenceItems : [];
+  const evidenceItems = rawItems
+    .map((item: any) => normalizePersistedEvidenceItem(item))
+    .filter(Boolean) as StoryPlanningEvidence[];
+  return {
+    artifact: {
+      extractionStatus: normalizeEvidenceExtractionStatus(metadata.extractionStatus || rawBundle.extractionStatus),
+      decisionRationale: cleanText(rawBundle.decisionRationale || metadata.decisionRationale || "", 800),
+      evidenceItems: evidenceItems as any,
+      editorialRisks: normalizeStringArray(rawBundle.editorialRisks, 120, 8),
+      missingEvidence: normalizeStringArray(rawBundle.missingEvidence, 240, 8),
+      followUpQueries: normalizeStringArray(rawBundle.followUpQueries, 240, 8)
+    },
+    version:
+      cleanText(metadata.version, 20) && Number.isFinite(Number(metadata.version))
+        ? Number(metadata.version)
+        : 0,
+    isCanonical: metadata.isCanonical === true,
+    executionOutcome: cleanText(metadata.executionOutcome, 40) as EvidenceExecutionOutcome | "",
+    failureReasons: Array.isArray(metadata.failureReasons)
+      ? metadata.failureReasons.map((item: unknown) => cleanText(item, 240)).filter(Boolean).slice(0, 12)
+      : []
+  };
+}
+
+async function loadStoryPlanningEvidence(signalId: number): Promise<StoryPlanningEvidence[]> {
+  const latestBundle = await loadLatestEvidenceBundleResult(signalId);
+  if (latestBundle) {
+    if (latestBundle.isCanonical && latestBundle.executionOutcome === "validated" && latestBundle.artifact.extractionStatus === "READY") {
+      return latestBundle.artifact.evidenceItems
+        .map((item: any) => normalizePersistedEvidenceItem(item))
+        .filter(Boolean) as StoryPlanningEvidence[];
+    }
+    return [];
   }
 
   const databaseUrl = cleanText(process.env.DATABASE_URL || "", 2000);
@@ -2962,6 +3746,13 @@ type StoryPlannerExecutionResult = {
   parsed: unknown | null;
 };
 
+type EvidenceExtractionValidationResult = {
+  repaired: boolean;
+  repairReason: string | null;
+  executionOutcome: "validated";
+  failureReasons: string[];
+};
+
 type StoryPlanValidationResult = {
   repaired: boolean;
   repairReason: string | null;
@@ -2984,6 +3775,31 @@ type StoryPlanLoadResult = {
   executionOutcome: StoryPlanningExecutionOutcome | "";
   failureReasons: string[];
 };
+
+class EvidenceExtractionValidationError extends Error {
+  executionOutcome: Exclude<EvidenceExecutionOutcome, "validated" | "provider_failure" | "persistence_failed">;
+  failureReasons: string[];
+
+  constructor(
+    executionOutcome: Exclude<EvidenceExecutionOutcome, "validated" | "provider_failure" | "persistence_failed">,
+    failureReasons: string[]
+  ) {
+    super(failureReasons[0] || executionOutcome);
+    this.name = "EvidenceExtractionValidationError";
+    this.executionOutcome = executionOutcome;
+    this.failureReasons = failureReasons;
+  }
+}
+
+class EvidenceExtractionProviderError extends Error {
+  executionOutcome: "provider_failure";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "EvidenceExtractionProviderError";
+    this.executionOutcome = "provider_failure";
+  }
+}
 
 class StoryPlanValidationError extends Error {
   executionOutcome: Exclude<StoryPlanningExecutionOutcome, "validated" | "provider_failure" | "persistence_failed">;
@@ -6899,8 +7715,8 @@ async function routeNextStep(
     return;
   }
   if (decision.next_step === "story_planning") {
-    await step.sendEvent("emit-story-planning-start-direct", {
-      name: "story.planning.start",
+    await step.sendEvent("emit-evidence-extraction-start-direct", {
+      name: "evidence.extraction.start",
       data: {
         signalId
       }
@@ -7104,12 +7920,27 @@ export function createEvidenceExtractionStartFunction(inngest: Inngest) {
       if (!signalId) throw new Error("Missing signalId");
 
       const result = await step.run("evidence-extraction", async () => runEvidenceExtraction(signalId));
-      await step.sendEvent("emit-story-planning-start", {
-        name: "story.planning.start",
-        data: {
-          signalId
-        }
-      });
+      if (result.executionOutcome === "validated" && result.extractionStatus === "READY" && result.isCanonical) {
+        await step.sendEvent("emit-story-planning-start", {
+          name: "story.planning.start",
+          data: {
+            signalId,
+            trigger: cleanText(event?.data?.trigger || "evidence_ready", 80)
+          }
+        });
+      } else if (result.extractionStatus === "NEEDS_REPORTING") {
+        await step.sendEvent("emit-research-discovery-retry-from-evidence", {
+          name: "research.discovery.retry",
+          data: {
+            signalId,
+            personaId: cleanText(event?.data?.personaId || "", 255) || null,
+            reason: "phase_3_needs_reporting",
+            missingInformation: Array.isArray(result?.missingEvidence) ? result.missingEvidence : [],
+            queries: Array.isArray(result?.followUpQueries) ? result.followUpQueries : [],
+            editorialRisks: Array.isArray(result?.editorialRisks) ? result.editorialRisks : []
+          }
+        });
+      }
       return {
         ok: true,
         signalId,
@@ -7293,8 +8124,8 @@ export function createManualGatekeeperRouteFunction(inngest: Inngest) {
       }
 
       if (targetStep === "story_planning") {
-        await step.sendEvent("emit-story-planning-from-manual", {
-          name: "story.planning.start",
+        await step.sendEvent("emit-evidence-extraction-from-manual", {
+          name: "evidence.extraction.start",
           data: {
             signalId,
             trigger: "admin_manual"
@@ -7304,7 +8135,7 @@ export function createManualGatekeeperRouteFunction(inngest: Inngest) {
           ok: true,
           signalId,
           routed: true,
-          targetEvent: "story.planning.start"
+          targetEvent: "evidence.extraction.start"
         };
       }
 

@@ -70,7 +70,23 @@ function getStoryPlanningSummary(artifacts) {
   };
 }
 
-function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchDiscovery, storyPlanning }) {
+function getEvidenceExtractionSummary(artifacts) {
+  const items = Array.isArray(artifacts) ? artifacts : [];
+  const latestBundle = items.find((item) => cleanText(item.artifactType, 120).toLowerCase() === 'evidence_bundle');
+  if (!latestBundle) return null;
+  const metadata = toMetadataObject(latestBundle.metadata);
+  return {
+    extractionStatus: cleanText(metadata.extractionStatus || '', 40).toUpperCase(),
+    executionOutcome: cleanText(metadata.executionOutcome || '', 40).toLowerCase(),
+    isCanonical: metadata.isCanonical === true,
+    evidenceCount: Number.isFinite(Number(metadata.evidenceCount)) ? Number(metadata.evidenceCount) : null,
+    failureReasons: Array.isArray(metadata.failureReasons) ? metadata.failureReasons.map((item) => cleanText(item, 240)).filter(Boolean) : [],
+    editorialRiskCount: Number.isFinite(Number(metadata.editorialRiskCount)) ? Number(metadata.editorialRiskCount) : null,
+    missingEvidenceCount: Number.isFinite(Number(metadata.missingEvidenceCount)) ? Number(metadata.missingEvidenceCount) : null
+  };
+}
+
+function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchDiscovery, evidenceExtraction, storyPlanning }) {
   const researchCount = Number(stageCounts?.research_discovery || 0);
   const evidenceCount = Number(stageCounts?.evidence_extraction || 0);
   const storyPlanningCount = Number(stageCounts?.story_planning || 0);
@@ -109,41 +125,53 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchD
 
   stages.research_discovery = summarizeResearchDiscovery(researchDiscovery, signal, queue, stageCounts);
 
-  if (evidenceCount > 0) {
+  if (
+    evidenceExtraction?.executionOutcome === 'validated' &&
+    evidenceExtraction?.extractionStatus === 'READY' &&
+    evidenceExtraction?.isCanonical === true
+  ) {
     stages.evidence_extraction = 'completed';
+  } else if (evidenceExtraction?.extractionStatus === 'NEEDS_REPORTING') {
+    stages.evidence_extraction = 'needs_reporting';
+  } else if (
+    evidenceExtraction?.executionOutcome &&
+    evidenceExtraction?.executionOutcome !== 'validated'
+  ) {
+    stages.evidence_extraction = 'failed';
   } else if (stages.research_discovery === 'completed' || stages.research_discovery === 'degraded') {
     stages.evidence_extraction = 'in_progress';
   } else if (stages.research_discovery === 'failed') {
     stages.evidence_extraction = 'failed';
   }
 
-  if (storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'READY') {
+  const phase3ReadyForPlanning = stages.evidence_extraction === 'completed';
+
+  if (phase3ReadyForPlanning && storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'READY') {
     stages.story_planning = 'completed';
-  } else if (storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'NEEDS_REPORTING') {
+  } else if (phase3ReadyForPlanning && storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'NEEDS_REPORTING') {
     stages.story_planning = 'needs_reporting';
-  } else if (storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'REJECTED') {
+  } else if (phase3ReadyForPlanning && storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'REJECTED') {
     stages.story_planning = 'rejected';
   } else if (
+    phase3ReadyForPlanning &&
     storyPlanning?.executionOutcome &&
     storyPlanning?.executionOutcome !== 'validated'
   ) {
     stages.story_planning = 'failed';
+  } else if (stages.evidence_extraction === 'needs_reporting') {
+    stages.story_planning = 'pending';
+  } else if (stages.evidence_extraction === 'failed') {
+    stages.story_planning = 'pending';
   } else if (stages.evidence_extraction === 'completed') {
     stages.story_planning = 'in_progress';
-  } else if (stages.evidence_extraction === 'failed') {
-    stages.story_planning = 'failed';
   }
 
-  if (draftWritingCount > 0) {
+  if (stages.story_planning !== 'completed') {
+    stages.draft_writing = 'pending';
+  } else if (draftWritingCount > 0) {
     stages.draft_writing = 'completed';
   } else if (stages.story_planning === 'completed') {
     stages.draft_writing = 'in_progress';
-  } else if (
-    stages.story_planning === 'failed' ||
-    stages.story_planning === 'needs_reporting' ||
-    stages.story_planning === 'rejected'
-  ) {
-    stages.draft_writing = 'pending';
   }
 
   if (stages.draft_writing === 'completed') {
@@ -173,6 +201,7 @@ function summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchD
   else if (stages.story_planning === 'needs_reporting') currentStage = 'story_planning';
   else if (stages.story_planning === 'rejected') currentStage = 'story_planning';
   else if (stages.story_planning === 'failed') currentStage = 'story_planning';
+  else if (stages.evidence_extraction === 'needs_reporting') currentStage = 'evidence_extraction';
   else if (stages.evidence_extraction === 'in_progress') currentStage = 'evidence_extraction';
   else if (stages.evidence_extraction === 'failed') currentStage = 'evidence_extraction';
   else if (stages.research_discovery === 'in_progress') currentStage = 'research_discovery';
@@ -205,6 +234,8 @@ function summarizeRunStatus({ queue, stageStatuses, storyPlanning }) {
   if (storyPlanning?.executionOutcome === 'validated' && storyPlanning?.planningStatus === 'REJECTED') return 'phase_4_rejected';
   if (stageStatuses.story_planning === 'failed') return 'phase_4_failed';
   if (stageStatuses.story_planning === 'completed') return 'phase_4_complete';
+  if (stageStatuses.evidence_extraction === 'needs_reporting') return 'phase_3_needs_reporting';
+  if (stageStatuses.evidence_extraction === 'failed') return 'phase_3_failed';
   if (stageStatuses.evidence_extraction === 'completed') return 'phase_3_complete';
   if (stageStatuses.research_discovery === 'failed') return 'phase_2_failed';
   if (stageStatuses.research_discovery === 'degraded') return 'phase_2_degraded';
@@ -442,8 +473,9 @@ module.exports = async (req, res) => {
       const stageCounts = stageCountBySignal.get(signalIdNum) || {};
       const artifactsByStage = stageArtifactsBySignal.get(signalIdNum) || {};
       const researchDiscovery = getResearchDiscoverySummary(artifactsByStage.research_discovery || []);
+      const evidenceExtraction = getEvidenceExtractionSummary(artifactsByStage.evidence_extraction || []);
       const storyPlanning = getStoryPlanningSummary(artifactsByStage.story_planning || []);
-      const stageInfo = summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchDiscovery, storyPlanning });
+      const stageInfo = summarizeStageStatus({ signal, queue, stageCounts, layer6Run, researchDiscovery, evidenceExtraction, storyPlanning });
       const runStatus = summarizeRunStatus({ queue, stageStatuses: stageInfo.stages, storyPlanning });
 
       const timestamps = [
@@ -500,6 +532,8 @@ module.exports = async (req, res) => {
           status: stageInfo.stages[stageName] || 'pending',
           artifactCount: stageName === 'image_sourcing'
             ? Number(layer6Run?.candidateCount || 0)
+            : stageName === 'evidence_extraction' && evidenceExtraction
+              ? Number(evidenceExtraction.evidenceCount || 0)
             : stageName === 'research_discovery' && researchDiscovery
               ? Number(stageCounts[stageName] || 0)
               : Number(stageCounts[stageName] || 0),
@@ -542,9 +576,36 @@ module.exports = async (req, res) => {
                     passSummaries: researchDiscovery.passSummaries
                   }
                 }].concat((artifactsByStage[stageName] || []).filter((item) => cleanText(item.artifactType, 120).toLowerCase() !== 'search_plan'))
+            : stageName === 'evidence_extraction' && evidenceExtraction
+              ? [{
+                  artifactType: 'evidence_bundle_summary',
+                  title: 'Evidence Extraction Summary',
+                  sourceUrl: '',
+                  content: '',
+                  createdAt: stageCounts[`${stageName}Latest`] || null,
+                  query: '',
+                  provider: '',
+                  model: '',
+                  score: null,
+                  confidence: null,
+                  rank: null,
+                  sectionCount: null,
+                  evidenceCount: evidenceExtraction.evidenceCount,
+                  evidenceQuote: '',
+                  whyItMatters: '',
+                  metadata: {
+                    extractionStatus: evidenceExtraction.extractionStatus,
+                    executionOutcome: evidenceExtraction.executionOutcome,
+                    isCanonical: evidenceExtraction.isCanonical,
+                    failureReasons: evidenceExtraction.failureReasons,
+                    editorialRiskCount: evidenceExtraction.editorialRiskCount,
+                    missingEvidenceCount: evidenceExtraction.missingEvidenceCount
+                  }
+                }].concat((artifactsByStage[stageName] || []).filter((item) => cleanText(item.artifactType, 120).toLowerCase() !== 'evidence_bundle'))
             : (artifactsByStage[stageName] || [])
         })),
         researchDiscovery,
+        evidenceExtraction,
         imageSourcing: layer6Run
           ? {
               runId: cleanText(layer6Run.id, 120),
