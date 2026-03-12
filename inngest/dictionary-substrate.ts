@@ -5,7 +5,8 @@ import {
   PHASE_C_EXTRACTION_VERSION,
   deriveCandidateKey,
   normalizeCandidatePayload,
-  type CandidateType
+  type CandidateType,
+  type ExtractionCandidatePayloadByType
 } from "./dictionary-substrate-phase-c-contract";
 
 type DispatchTrigger = "scheduled" | "manual";
@@ -15,6 +16,8 @@ type ReviewQueueSeverity = "low" | "medium" | "high" | "critical";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PHASE_C_STAGE_NAME = "phase_c_extraction_candidates";
 const PHASE_C_EXTRACTION_EVENT = "dictionary.substrate.extraction.artifact";
+const PHASE_D_STAGE_NAME = "phase_d_merge_proposals";
+const PHASE_D_MERGE_EVENT = "dictionary.substrate.merge.artifact";
 
 type RootSourceRow = {
   id: string;
@@ -63,6 +66,99 @@ type ExtractionArtifactRow = {
   metadata: Record<string, unknown>;
   contentType: string | null;
   fetchedAt: string;
+};
+
+type PhaseDCandidateRow = {
+  id: string;
+  candidateType: CandidateType;
+  status: "pending" | "extracted" | "rejected" | "needs_review" | "failed";
+  candidateKey: string;
+  candidatePayload: Record<string, unknown>;
+  extractionVersion: string;
+  rejectionReason: string | null;
+};
+
+type MergeProposalType =
+  | "create_entity"
+  | "add_alias"
+  | "create_role"
+  | "create_assertion"
+  | "create_jurisdiction"
+  | "supersede_assertion"
+  | "retire_alias"
+  | "merge_duplicate";
+
+type CanonicalEntityRow = {
+  id: string;
+  canonicalName: string;
+  entityType: string;
+  primaryJurisdictionId: string | null;
+};
+
+type CanonicalAliasRow = {
+  id: string;
+  alias: string;
+  aliasType: string;
+  entityId: string;
+  entityCanonicalName: string;
+  entityType: string;
+};
+
+type CanonicalRoleRow = {
+  id: string;
+  roleName: string;
+  roleType: string;
+  jurisdictionId: string | null;
+};
+
+type CanonicalJurisdictionRow = {
+  id: string;
+  name: string;
+  jurisdictionType: string;
+  parentJurisdictionId: string | null;
+};
+
+type CanonicalAssertionRow = {
+  id: string;
+  assertionType: string;
+  subjectEntityId: string;
+  objectEntityId: string | null;
+  roleId: string | null;
+  effectiveStartAt: string | null;
+  effectiveEndAt: string | null;
+  termEndAt: string | null;
+  validityStatus: string;
+};
+
+type EntityResolution = {
+  strategy: string;
+  matches: CanonicalEntityRow[];
+  matchedAliasId: string | null;
+};
+
+type JurisdictionResolution = {
+  strategy: string;
+  matches: CanonicalJurisdictionRow[];
+};
+
+type PhaseDPreparedProposal = {
+  extractionCandidateId: string;
+  proposalKey: string;
+  proposalType: MergeProposalType;
+  targetRecordType: "entity" | "alias" | "role" | "assertion" | "jurisdiction" | null;
+  targetRecordId: string | null;
+  proposalConfidence: number;
+  rationale: string;
+  proposalPayload: Record<string, unknown>;
+};
+
+type ValidationOutcome = "approved" | "rejected" | "needs_review" | "retryable_failure";
+
+type PhaseDPreparedValidation = {
+  mergeProposalId: string;
+  outcome: ValidationOutcome;
+  validatorName: string;
+  details: Record<string, unknown>;
 };
 
 type ExtractionExecutionCandidate = {
@@ -189,6 +285,41 @@ async function markPhaseCEventEmission(params: {
     phaseCDispatchEventName: params.phaseCDispatchEventName || null,
     phaseCDispatchArtifactId: params.phaseCDispatchArtifactId || null,
     phaseCDispatchError: params.phaseCDispatchError || null
+  };
+
+  await sql`
+    UPDATE dictionary.dictionary_pipeline_runs
+    SET
+      output_payload = ${JSON.stringify(nextOutput)}::jsonb,
+      updated_at = NOW()
+    WHERE id = ${params.runId}::uuid
+  `;
+}
+
+async function markPhaseDEventEmission(params: {
+  runId: string;
+  phaseDDispatchAttempted?: boolean;
+  phaseDEventEmitted: boolean;
+  phaseDDispatchEventName?: string | null;
+  phaseDDispatchArtifactId?: string | null;
+  phaseDDispatchError?: string | null;
+}) {
+  const sql = getSql();
+  const existingRows = await sql`
+    SELECT output_payload as "outputPayload"
+    FROM dictionary.dictionary_pipeline_runs
+    WHERE id = ${params.runId}::uuid
+    LIMIT 1
+  `;
+
+  const currentOutput = (existingRows[0]?.outputPayload || {}) as Record<string, unknown>;
+  const nextOutput = {
+    ...currentOutput,
+    phaseDDispatchAttempted: params.phaseDDispatchAttempted ?? true,
+    phaseDEventEmitted: params.phaseDEventEmitted,
+    phaseDDispatchEventName: params.phaseDDispatchEventName || null,
+    phaseDDispatchArtifactId: params.phaseDDispatchArtifactId || null,
+    phaseDDispatchError: params.phaseDDispatchError || null
   };
 
   await sql`
@@ -870,6 +1001,1365 @@ async function loadExtractionArtifactForPhaseC(
     LIMIT 1
   `;
   return (rows[0] as ExtractionArtifactRow) || null;
+}
+
+async function loadPhaseDCandidatesForArtifact(
+  artifactId: string,
+  extractionVersion: string
+): Promise<PhaseDCandidateRow[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT
+      ec.id,
+      ec.candidate_type as "candidateType",
+      ec.status,
+      ec.candidate_key as "candidateKey",
+      ec.candidate_payload as "candidatePayload",
+      ec.extraction_version as "extractionVersion",
+      ec.rejection_reason as "rejectionReason"
+    FROM dictionary.dictionary_extraction_candidates ec
+    WHERE ec.crawl_artifact_id = ${artifactId}::uuid
+      AND ec.extraction_version = ${extractionVersion}
+    ORDER BY ec.created_at ASC, ec.id ASC
+  `;
+  return rows as PhaseDCandidateRow[];
+}
+
+async function findEntitiesByCanonicalName(name: string, entityType?: string | null): Promise<CanonicalEntityRow[]> {
+  const sql = getSql();
+  const normalizedName = cleanText(name, 240);
+  const normalizedEntityType = cleanText(entityType || "", 120) || null;
+  const rows = await sql`
+    SELECT
+      e.id,
+      e.canonical_name as "canonicalName",
+      e.entity_type as "entityType",
+      e.primary_jurisdiction_id as "primaryJurisdictionId"
+    FROM dictionary.dictionary_entities e
+    WHERE lower(e.canonical_name) = lower(${normalizedName})
+      AND e.status = 'active'
+      AND (${normalizedEntityType}::text IS NULL OR lower(e.entity_type) = lower(${normalizedEntityType}))
+    ORDER BY e.updated_at DESC, e.created_at DESC, e.id ASC
+  `;
+  return rows as CanonicalEntityRow[];
+}
+
+async function findEntitiesByAlias(alias: string): Promise<CanonicalAliasRow[]> {
+  const sql = getSql();
+  const normalizedAlias = cleanText(alias, 240);
+  const rows = await sql`
+    SELECT
+      a.id,
+      a.alias,
+      a.alias_type as "aliasType",
+      e.id as "entityId",
+      e.canonical_name as "entityCanonicalName",
+      e.entity_type as "entityType"
+    FROM dictionary.dictionary_aliases a
+    JOIN dictionary.dictionary_entities e
+      ON e.id = a.entity_id
+    WHERE lower(a.alias) = lower(${normalizedAlias})
+      AND a.status = 'active'
+      AND e.status = 'active'
+    ORDER BY a.updated_at DESC, a.created_at DESC, a.id ASC
+  `;
+  return rows as CanonicalAliasRow[];
+}
+
+async function resolveEntityReference(name: string, entityType?: string | null): Promise<EntityResolution> {
+  const canonicalMatches = await findEntitiesByCanonicalName(name, entityType);
+  if (canonicalMatches.length) {
+    return {
+      strategy: canonicalMatches.length === 1 ? "exact_canonical_name" : "exact_canonical_name_ambiguous",
+      matches: canonicalMatches,
+      matchedAliasId: null
+    };
+  }
+
+  const aliasMatches = await findEntitiesByAlias(name);
+  if (!aliasMatches.length) {
+    return {
+      strategy: "no_entity_match",
+      matches: [],
+      matchedAliasId: null
+    };
+  }
+
+  const normalizedEntityType = cleanText(entityType || "", 120) || null;
+  const filteredAliasMatches = normalizedEntityType
+    ? aliasMatches.filter((row) => cleanText(row.entityType, 120).toLowerCase() === normalizedEntityType.toLowerCase())
+    : aliasMatches;
+
+  if (!filteredAliasMatches.length) {
+    return {
+      strategy: "no_entity_match",
+      matches: [],
+      matchedAliasId: null
+    };
+  }
+
+  const entityMatches = Array.from(
+    new Map(
+      filteredAliasMatches.map((row) => [
+        row.entityId,
+        {
+          id: row.entityId,
+          canonicalName: row.entityCanonicalName,
+          entityType: row.entityType,
+          primaryJurisdictionId: null
+        }
+      ])
+    ).values()
+  );
+
+  return {
+    strategy: entityMatches.length === 1 ? "exact_alias_match" : "exact_alias_match_ambiguous",
+    matches: entityMatches,
+    matchedAliasId:
+      entityMatches.length === 1
+        ? filteredAliasMatches.find((row) => row.entityId === entityMatches[0].id)?.id || null
+        : null
+  };
+}
+
+async function findJurisdictionsByName(name: string, jurisdictionType?: string | null): Promise<CanonicalJurisdictionRow[]> {
+  const sql = getSql();
+  const normalizedName = cleanText(name, 240);
+  const normalizedType = cleanText(jurisdictionType || "", 120) || null;
+  const rows = await sql`
+    SELECT
+      j.id,
+      j.name,
+      j.jurisdiction_type as "jurisdictionType",
+      j.parent_jurisdiction_id as "parentJurisdictionId"
+    FROM dictionary.dictionary_jurisdictions j
+    WHERE lower(j.name) = lower(${normalizedName})
+      AND j.status = 'active'
+      AND (${normalizedType}::text IS NULL OR lower(j.jurisdiction_type) = lower(${normalizedType}))
+    ORDER BY j.updated_at DESC, j.created_at DESC, j.id ASC
+  `;
+  return rows as CanonicalJurisdictionRow[];
+}
+
+async function resolveJurisdictionReference(name: string, jurisdictionType?: string | null): Promise<JurisdictionResolution> {
+  const matches = await findJurisdictionsByName(name, jurisdictionType);
+  return {
+    strategy: !matches.length ? "no_jurisdiction_match" : matches.length === 1 ? "exact_jurisdiction_name" : "exact_jurisdiction_name_ambiguous",
+    matches
+  };
+}
+
+async function findRolesByName(params: {
+  roleName: string;
+  roleType?: string | null;
+  jurisdictionId?: string | null;
+}): Promise<CanonicalRoleRow[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT
+      r.id,
+      r.role_name as "roleName",
+      r.role_type as "roleType",
+      r.jurisdiction_id as "jurisdictionId"
+    FROM dictionary.dictionary_roles r
+    WHERE lower(r.role_name) = lower(${cleanText(params.roleName, 240)})
+      AND (${cleanText(params.roleType || "", 120) || null}::text IS NULL OR lower(r.role_type) = lower(${cleanText(params.roleType || "", 120) || null}))
+      AND r.status = 'active'
+      AND (
+        ${params.jurisdictionId || null}::uuid IS NULL
+        OR r.jurisdiction_id = ${params.jurisdictionId || null}::uuid
+      )
+    ORDER BY r.updated_at DESC, r.created_at DESC, r.id ASC
+  `;
+  return rows as CanonicalRoleRow[];
+}
+
+async function findAssertionExactMatches(params: {
+  assertionType: string;
+  subjectEntityId: string;
+  objectEntityId?: string | null;
+  roleId?: string | null;
+  effectiveStartAt?: string | null;
+  effectiveEndAt?: string | null;
+  termEndAt?: string | null;
+}): Promise<CanonicalAssertionRow[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT
+      a.id,
+      a.assertion_type as "assertionType",
+      a.subject_entity_id as "subjectEntityId",
+      a.object_entity_id as "objectEntityId",
+      a.role_id as "roleId",
+      a.effective_start_at as "effectiveStartAt",
+      a.effective_end_at as "effectiveEndAt",
+      a.term_end_at as "termEndAt",
+      a.validity_status as "validityStatus"
+    FROM dictionary.dictionary_assertions a
+    WHERE lower(a.assertion_type) = lower(${cleanText(params.assertionType, 160)})
+      AND a.subject_entity_id = ${params.subjectEntityId}::uuid
+      AND (
+        (${params.objectEntityId || null}::uuid IS NULL AND a.object_entity_id IS NULL)
+        OR a.object_entity_id = ${params.objectEntityId || null}::uuid
+      )
+      AND (
+        (${params.roleId || null}::uuid IS NULL AND a.role_id IS NULL)
+        OR a.role_id = ${params.roleId || null}::uuid
+      )
+      AND a.effective_start_at IS NOT DISTINCT FROM ${params.effectiveStartAt || null}::timestamptz
+      AND a.effective_end_at IS NOT DISTINCT FROM ${params.effectiveEndAt || null}::timestamptz
+      AND a.term_end_at IS NOT DISTINCT FROM ${params.termEndAt || null}::timestamptz
+    ORDER BY a.updated_at DESC, a.created_at DESC, a.id ASC
+  `;
+  return rows as CanonicalAssertionRow[];
+}
+
+async function findAssertionSupersessionCandidates(params: {
+  assertionType: string;
+  subjectEntityId: string;
+  roleId?: string | null;
+}): Promise<CanonicalAssertionRow[]> {
+  if (!params.roleId) return [];
+  const sql = getSql();
+  const rows = await sql`
+    SELECT
+      a.id,
+      a.assertion_type as "assertionType",
+      a.subject_entity_id as "subjectEntityId",
+      a.object_entity_id as "objectEntityId",
+      a.role_id as "roleId",
+      a.effective_start_at as "effectiveStartAt",
+      a.effective_end_at as "effectiveEndAt",
+      a.term_end_at as "termEndAt",
+      a.validity_status as "validityStatus"
+    FROM dictionary.dictionary_assertions a
+    WHERE lower(a.assertion_type) = lower(${cleanText(params.assertionType, 160)})
+      AND a.subject_entity_id = ${params.subjectEntityId}::uuid
+      AND a.role_id = ${params.roleId}::uuid
+      AND a.superseded_by_assertion_id IS NULL
+      AND a.validity_status IN ('current', 'scheduled', 'unknown')
+    ORDER BY a.updated_at DESC, a.created_at DESC, a.id ASC
+  `;
+  return rows as CanonicalAssertionRow[];
+}
+
+function buildPhaseDProposalKey(params: {
+  artifactId: string;
+  extractionVersion: string;
+  candidateKey: string;
+  proposalType: MergeProposalType;
+  targetRecordType: string | null;
+  targetRecordId: string | null;
+  matchStrategy: string;
+}) {
+  const seed = [
+    params.artifactId,
+    params.extractionVersion,
+    params.candidateKey,
+    params.proposalType,
+    params.targetRecordType || null,
+    params.targetRecordId || null,
+    params.matchStrategy
+  ];
+  return `proposal:${createHash("sha256").update(JSON.stringify(seed)).digest("hex").slice(0, 24)}`;
+}
+
+function clampConfidence(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+}
+
+function toAlternativeRecord(recordType: string, row: any, matchedBy: string) {
+  return {
+    record_type: recordType,
+    record_id: row.id || row.entityId || null,
+    label: row.canonicalName || row.entityCanonicalName || row.name || row.roleName || null,
+    matched_by: matchedBy,
+    alias_id: row.id && recordType === "alias" ? row.id : row.matchedAliasId || null,
+    entity_type: row.entityType || null,
+    role_type: row.roleType || null,
+    jurisdiction_type: row.jurisdictionType || null,
+    jurisdiction_id: row.primaryJurisdictionId || row.jurisdictionId || row.parentJurisdictionId || null
+  };
+}
+
+function buildBaseProposalPayload(params: {
+  candidate: PhaseDCandidateRow;
+  matchStrategy: string;
+  matchedRecordType?: string | null;
+  matchedRecordId?: string | null;
+  matchedAliasId?: string | null;
+  candidateAlternatives?: Record<string, unknown>[];
+  extra?: Record<string, unknown>;
+}) {
+  const alternatives = (params.candidateAlternatives || []).slice(0, 10);
+  return {
+    candidate_key: params.candidate.candidateKey,
+    candidate_type: params.candidate.candidateType,
+    extraction_version: params.candidate.extractionVersion,
+    match_strategy: params.matchStrategy,
+    matched_record_type: params.matchedRecordType || null,
+    matched_record_id: params.matchedRecordId || null,
+    matched_alias_id: params.matchedAliasId || null,
+    ambiguity_count: alternatives.length,
+    candidate_alternatives: alternatives,
+    candidate_payload: params.candidate.candidatePayload,
+    ...(params.extra || {})
+  };
+}
+
+function isGenericReferenceLabel(value: unknown): boolean {
+  const normalized = cleanText(value, 240).toLowerCase();
+  if (!normalized) return false;
+  return [
+    "the mayor",
+    "mayor",
+    "police",
+    "city hall",
+    "downtown"
+  ].includes(normalized);
+}
+
+async function buildPhaseDProposalForCandidate(params: {
+  artifactId: string;
+  candidate: PhaseDCandidateRow;
+}): Promise<PhaseDPreparedProposal> {
+  const { artifactId, candidate } = params;
+
+  if (candidate.candidateType === "entity") {
+    const payload = normalizeCandidatePayload("entity", candidate.candidatePayload) as ExtractionCandidatePayloadByType["entity"];
+    const canonicalResolution = await resolveEntityReference(payload.canonical_name, payload.entity_kind);
+    if (canonicalResolution.matches.length === 1) {
+      const match = canonicalResolution.matches[0];
+      const matchStrategy = canonicalResolution.strategy;
+      return {
+        extractionCandidateId: candidate.id,
+        proposalKey: buildPhaseDProposalKey({
+          artifactId,
+          extractionVersion: candidate.extractionVersion,
+          candidateKey: candidate.candidateKey,
+          proposalType: "merge_duplicate",
+          targetRecordType: "entity",
+          targetRecordId: match.id,
+          matchStrategy
+        }),
+        proposalType: "merge_duplicate",
+        targetRecordType: "entity",
+        targetRecordId: match.id,
+        proposalConfidence: clampConfidence(matchStrategy === "exact_canonical_name" ? 0.99 : 0.93),
+        rationale:
+          matchStrategy === "exact_canonical_name"
+            ? `Entity candidate exactly matches canonical entity ${match.canonicalName}.`
+            : `Entity candidate exactly matches existing alias for canonical entity ${match.canonicalName}.`,
+        proposalPayload: buildBaseProposalPayload({
+          candidate,
+          matchStrategy,
+          matchedRecordType: "entity",
+          matchedRecordId: match.id,
+          matchedAliasId: canonicalResolution.matchedAliasId,
+          candidateAlternatives: [],
+          extra: {
+            resolution_basis: "entity_identity_match"
+          }
+        })
+      };
+    }
+
+    const alternatives = canonicalResolution.matches.map((row) =>
+      toAlternativeRecord("entity", row, canonicalResolution.strategy)
+    );
+    const proposalType: MergeProposalType = canonicalResolution.matches.length ? "merge_duplicate" : "create_entity";
+    const matchStrategy = canonicalResolution.matches.length ? canonicalResolution.strategy : "no_entity_match_create";
+    return {
+      extractionCandidateId: candidate.id,
+      proposalKey: buildPhaseDProposalKey({
+        artifactId,
+        extractionVersion: candidate.extractionVersion,
+        candidateKey: candidate.candidateKey,
+        proposalType,
+        targetRecordType: null,
+        targetRecordId: null,
+        matchStrategy
+      }),
+      proposalType,
+      targetRecordType: null,
+      targetRecordId: null,
+      proposalConfidence: clampConfidence(canonicalResolution.matches.length ? 0.52 : 0.72),
+      rationale: canonicalResolution.matches.length
+        ? `Entity candidate has multiple deterministic matches and requires validation review before merge selection.`
+        : `Entity candidate did not match canonical names or aliases and is proposed as a new entity.`,
+      proposalPayload: buildBaseProposalPayload({
+        candidate,
+        matchStrategy,
+        matchedAliasId: canonicalResolution.matchedAliasId,
+        candidateAlternatives: alternatives,
+        extra: {
+          resolution_basis: canonicalResolution.matches.length ? "entity_match_ambiguous" : "entity_create_no_match"
+        }
+      })
+    };
+  }
+
+  if (candidate.candidateType === "alias") {
+    const payload = normalizeCandidatePayload("alias", candidate.candidatePayload) as ExtractionCandidatePayloadByType["alias"];
+    const targetResolution = await resolveEntityReference(payload.target_canonical_name);
+    const aliasMatches = await findEntitiesByAlias(payload.alias_name);
+    const sameEntityAlias = targetResolution.matches.length === 1
+      ? aliasMatches.find((row) => row.entityId === targetResolution.matches[0].id)
+      : null;
+
+    if (targetResolution.matches.length === 1 && sameEntityAlias) {
+      return {
+        extractionCandidateId: candidate.id,
+        proposalKey: buildPhaseDProposalKey({
+          artifactId,
+          extractionVersion: candidate.extractionVersion,
+          candidateKey: candidate.candidateKey,
+          proposalType: "merge_duplicate",
+          targetRecordType: "alias",
+          targetRecordId: sameEntityAlias.id,
+          matchStrategy: "alias_exact_duplicate_same_entity"
+        }),
+        proposalType: "merge_duplicate",
+        targetRecordType: "alias",
+        targetRecordId: sameEntityAlias.id,
+        proposalConfidence: 0.98,
+        rationale: `Alias candidate exactly matches an existing alias on ${sameEntityAlias.entityCanonicalName}.`,
+        proposalPayload: buildBaseProposalPayload({
+          candidate,
+          matchStrategy: "alias_exact_duplicate_same_entity",
+          matchedRecordType: "alias",
+          matchedRecordId: sameEntityAlias.id,
+          candidateAlternatives: [],
+          extra: {
+            resolution_basis: "alias_duplicate_match",
+            target_entity_id: sameEntityAlias.entityId
+          }
+        })
+      };
+    }
+
+    const alternatives = [
+      ...targetResolution.matches.map((row) => toAlternativeRecord("entity", row, targetResolution.strategy)),
+      ...aliasMatches.map((row) => ({
+        record_type: "alias",
+        record_id: row.id,
+        label: row.alias,
+        matched_by: "existing_alias_name",
+        alias_id: row.id,
+        entity_id: row.entityId,
+        entity_canonical_name: row.entityCanonicalName,
+        entity_type: row.entityType
+      }))
+    ].slice(0, 10);
+
+    const targetEntityId = targetResolution.matches.length === 1 ? targetResolution.matches[0].id : null;
+    return {
+      extractionCandidateId: candidate.id,
+      proposalKey: buildPhaseDProposalKey({
+        artifactId,
+        extractionVersion: candidate.extractionVersion,
+        candidateKey: candidate.candidateKey,
+        proposalType: "add_alias",
+        targetRecordType: targetEntityId ? "entity" : null,
+        targetRecordId: targetEntityId,
+        matchStrategy:
+          targetResolution.matches.length === 1
+            ? aliasMatches.length
+              ? "alias_conflict_on_other_entity"
+              : "target_entity_resolved_add_alias"
+            : targetResolution.matches.length > 1
+              ? "target_entity_ambiguous"
+              : "target_entity_unresolved"
+      }),
+      proposalType: "add_alias",
+      targetRecordType: targetEntityId ? "entity" : null,
+      targetRecordId: targetEntityId,
+      proposalConfidence: clampConfidence(targetEntityId && !aliasMatches.length ? 0.9 : 0.55),
+      rationale:
+        targetEntityId && !aliasMatches.length
+          ? `Alias candidate resolves to canonical entity ${targetResolution.matches[0].canonicalName} and no duplicate alias exists.`
+          : `Alias candidate requires validation because the target entity or alias ownership is ambiguous.`,
+      proposalPayload: buildBaseProposalPayload({
+        candidate,
+        matchStrategy:
+          targetResolution.matches.length === 1
+            ? aliasMatches.length
+              ? "alias_conflict_on_other_entity"
+              : "target_entity_resolved_add_alias"
+            : targetResolution.matches.length > 1
+              ? "target_entity_ambiguous"
+              : "target_entity_unresolved",
+        matchedRecordType: targetEntityId ? "entity" : null,
+        matchedRecordId: targetEntityId,
+        candidateAlternatives: alternatives,
+        extra: {
+          resolution_basis: "alias_target_resolution",
+          target_resolution_strategy: targetResolution.strategy
+        }
+      })
+    };
+  }
+
+  if (candidate.candidateType === "role") {
+    const payload = normalizeCandidatePayload("role", candidate.candidatePayload) as ExtractionCandidatePayloadByType["role"];
+    const jurisdictionResolution = payload.jurisdiction_hint?.label
+      ? await resolveJurisdictionReference(payload.jurisdiction_hint.label)
+      : { strategy: "no_jurisdiction_hint", matches: [] as CanonicalJurisdictionRow[] };
+    const jurisdictionId = jurisdictionResolution.matches.length === 1 ? jurisdictionResolution.matches[0].id : null;
+    const roleMatches = await findRolesByName({
+      roleName: payload.role_name,
+      roleType: payload.role_kind,
+      jurisdictionId
+    });
+
+    if (roleMatches.length === 1) {
+      const match = roleMatches[0];
+      return {
+        extractionCandidateId: candidate.id,
+        proposalKey: buildPhaseDProposalKey({
+          artifactId,
+          extractionVersion: candidate.extractionVersion,
+          candidateKey: candidate.candidateKey,
+          proposalType: "merge_duplicate",
+          targetRecordType: "role",
+          targetRecordId: match.id,
+          matchStrategy: "exact_role_name_type_match"
+        }),
+        proposalType: "merge_duplicate",
+        targetRecordType: "role",
+        targetRecordId: match.id,
+        proposalConfidence: 0.96,
+        rationale: `Role candidate exactly matches canonical role ${match.roleName}.`,
+        proposalPayload: buildBaseProposalPayload({
+          candidate,
+          matchStrategy: "exact_role_name_type_match",
+          matchedRecordType: "role",
+          matchedRecordId: match.id,
+          candidateAlternatives: [],
+          extra: {
+            jurisdiction_resolution_strategy: jurisdictionResolution.strategy
+          }
+        })
+      };
+    }
+
+    const alternatives = [
+      ...roleMatches.map((row) => toAlternativeRecord("role", row, "role_name_type_lookup")),
+      ...jurisdictionResolution.matches.map((row) => toAlternativeRecord("jurisdiction", row, jurisdictionResolution.strategy))
+    ].slice(0, 10);
+
+    return {
+      extractionCandidateId: candidate.id,
+      proposalKey: buildPhaseDProposalKey({
+        artifactId,
+        extractionVersion: candidate.extractionVersion,
+        candidateKey: candidate.candidateKey,
+        proposalType: "create_role",
+        targetRecordType: null,
+        targetRecordId: null,
+        matchStrategy: roleMatches.length ? "role_match_ambiguous" : "create_role_no_match"
+      }),
+      proposalType: "create_role",
+      targetRecordType: null,
+      targetRecordId: null,
+      proposalConfidence: clampConfidence(roleMatches.length ? 0.5 : 0.74),
+      rationale: roleMatches.length
+        ? `Role candidate has multiple deterministic matches and requires validation review.`
+        : `Role candidate did not match an existing canonical role and is proposed as a new role.`,
+      proposalPayload: buildBaseProposalPayload({
+        candidate,
+        matchStrategy: roleMatches.length ? "role_match_ambiguous" : "create_role_no_match",
+        candidateAlternatives: alternatives,
+        extra: {
+          jurisdiction_resolution_strategy: jurisdictionResolution.strategy,
+          resolved_jurisdiction_id: jurisdictionId
+        }
+      })
+    };
+  }
+
+  if (candidate.candidateType === "jurisdiction") {
+    const payload = normalizeCandidatePayload("jurisdiction", candidate.candidatePayload) as ExtractionCandidatePayloadByType["jurisdiction"];
+    const parentResolution = payload.parent_jurisdiction_name
+      ? await resolveJurisdictionReference(payload.parent_jurisdiction_name)
+      : { strategy: "no_parent_jurisdiction_name", matches: [] as CanonicalJurisdictionRow[] };
+    const jurisdictionMatches = await findJurisdictionsByName(payload.canonical_name, payload.jurisdiction_type);
+    const filteredMatches = parentResolution.matches.length === 1
+      ? jurisdictionMatches.filter((row) => row.parentJurisdictionId === parentResolution.matches[0].id)
+      : jurisdictionMatches;
+
+    if (filteredMatches.length === 1) {
+      const match = filteredMatches[0];
+      return {
+        extractionCandidateId: candidate.id,
+        proposalKey: buildPhaseDProposalKey({
+          artifactId,
+          extractionVersion: candidate.extractionVersion,
+          candidateKey: candidate.candidateKey,
+          proposalType: "merge_duplicate",
+          targetRecordType: "jurisdiction",
+          targetRecordId: match.id,
+          matchStrategy: "exact_jurisdiction_name_type_match"
+        }),
+        proposalType: "merge_duplicate",
+        targetRecordType: "jurisdiction",
+        targetRecordId: match.id,
+        proposalConfidence: 0.97,
+        rationale: `Jurisdiction candidate exactly matches canonical jurisdiction ${match.name}.`,
+        proposalPayload: buildBaseProposalPayload({
+          candidate,
+          matchStrategy: "exact_jurisdiction_name_type_match",
+          matchedRecordType: "jurisdiction",
+          matchedRecordId: match.id,
+          candidateAlternatives: [],
+          extra: {
+            parent_resolution_strategy: parentResolution.strategy
+          }
+        })
+      };
+    }
+
+    const alternatives = [
+      ...filteredMatches.map((row) => toAlternativeRecord("jurisdiction", row, "jurisdiction_name_type_lookup")),
+      ...parentResolution.matches.map((row) => toAlternativeRecord("jurisdiction", row, parentResolution.strategy))
+    ].slice(0, 10);
+
+    return {
+      extractionCandidateId: candidate.id,
+      proposalKey: buildPhaseDProposalKey({
+        artifactId,
+        extractionVersion: candidate.extractionVersion,
+        candidateKey: candidate.candidateKey,
+        proposalType: "create_jurisdiction",
+        targetRecordType: null,
+        targetRecordId: null,
+        matchStrategy: filteredMatches.length ? "jurisdiction_match_ambiguous" : "create_jurisdiction_no_match"
+      }),
+      proposalType: "create_jurisdiction",
+      targetRecordType: null,
+      targetRecordId: null,
+      proposalConfidence: clampConfidence(filteredMatches.length ? 0.5 : 0.78),
+      rationale: filteredMatches.length
+        ? `Jurisdiction candidate has multiple deterministic matches and requires validation review.`
+        : `Jurisdiction candidate did not match an existing canonical jurisdiction and is proposed as a new jurisdiction.`,
+      proposalPayload: buildBaseProposalPayload({
+        candidate,
+        matchStrategy: filteredMatches.length ? "jurisdiction_match_ambiguous" : "create_jurisdiction_no_match",
+        candidateAlternatives: alternatives,
+        extra: {
+          parent_resolution_strategy: parentResolution.strategy,
+          resolved_parent_jurisdiction_id: parentResolution.matches.length === 1 ? parentResolution.matches[0].id : null
+        }
+      })
+    };
+  }
+
+  if (candidate.candidateType === "assertion") {
+    const payload = normalizeCandidatePayload("assertion", candidate.candidatePayload) as ExtractionCandidatePayloadByType["assertion"];
+    const subjectResolution = await resolveEntityReference(payload.subject_canonical_name);
+    const objectResolution = payload.object_canonical_name
+      ? await resolveEntityReference(payload.object_canonical_name)
+      : { strategy: "no_object_entity", matches: [] as CanonicalEntityRow[], matchedAliasId: null };
+    const roleMatches = payload.role_name
+      ? await findRolesByName({
+          roleName: payload.role_name
+        })
+      : [];
+
+    const subjectId = subjectResolution.matches.length === 1 ? subjectResolution.matches[0].id : null;
+    const objectId = objectResolution.matches.length === 1 ? objectResolution.matches[0].id : null;
+    const roleId = roleMatches.length === 1 ? roleMatches[0].id : null;
+
+    let exactMatches: CanonicalAssertionRow[] = [];
+    let supersessionMatches: CanonicalAssertionRow[] = [];
+    if (subjectId) {
+      exactMatches = await findAssertionExactMatches({
+        assertionType: payload.assertion_type,
+        subjectEntityId: subjectId,
+        objectEntityId: objectId,
+        roleId,
+        effectiveStartAt: payload.effective_start_at,
+        effectiveEndAt: payload.effective_end_at,
+        termEndAt: payload.term_end_at
+      });
+      if (!exactMatches.length) {
+        supersessionMatches = await findAssertionSupersessionCandidates({
+          assertionType: payload.assertion_type,
+          subjectEntityId: subjectId,
+          roleId
+        });
+      }
+    }
+
+    if (exactMatches.length === 1) {
+      const match = exactMatches[0];
+      return {
+        extractionCandidateId: candidate.id,
+        proposalKey: buildPhaseDProposalKey({
+          artifactId,
+          extractionVersion: candidate.extractionVersion,
+          candidateKey: candidate.candidateKey,
+          proposalType: "merge_duplicate",
+          targetRecordType: "assertion",
+          targetRecordId: match.id,
+          matchStrategy: "exact_assertion_match"
+        }),
+        proposalType: "merge_duplicate",
+        targetRecordType: "assertion",
+        targetRecordId: match.id,
+        proposalConfidence: 0.95,
+        rationale: `Assertion candidate exactly matches an existing canonical assertion.`,
+        proposalPayload: buildBaseProposalPayload({
+          candidate,
+          matchStrategy: "exact_assertion_match",
+          matchedRecordType: "assertion",
+          matchedRecordId: match.id,
+          candidateAlternatives: [],
+          extra: {
+            assertion_policy_hints: {
+              always_needs_review: true,
+              officeholder_like: Boolean(payload.role_name),
+              time_sensitive: Boolean(payload.is_time_sensitive),
+              supersession_capable: Boolean(payload.role_name || payload.effective_end_at || payload.term_end_at)
+            }
+          }
+        })
+      };
+    }
+
+    if (supersessionMatches.length === 1) {
+      const match = supersessionMatches[0];
+      return {
+        extractionCandidateId: candidate.id,
+        proposalKey: buildPhaseDProposalKey({
+          artifactId,
+          extractionVersion: candidate.extractionVersion,
+          candidateKey: candidate.candidateKey,
+          proposalType: "supersede_assertion",
+          targetRecordType: "assertion",
+          targetRecordId: match.id,
+          matchStrategy: "subject_role_supersession_candidate"
+        }),
+        proposalType: "supersede_assertion",
+        targetRecordType: "assertion",
+        targetRecordId: match.id,
+        proposalConfidence: 0.78,
+        rationale: `Assertion candidate appears to supersede an existing canonical assertion for the same subject/role pair.`,
+        proposalPayload: buildBaseProposalPayload({
+          candidate,
+          matchStrategy: "subject_role_supersession_candidate",
+          matchedRecordType: "assertion",
+          matchedRecordId: match.id,
+          candidateAlternatives: [],
+          extra: {
+            assertion_policy_hints: {
+              always_needs_review: true,
+              officeholder_like: Boolean(payload.role_name),
+              time_sensitive: Boolean(payload.is_time_sensitive),
+              supersession_capable: true
+            }
+          }
+        })
+      };
+    }
+
+    const alternatives = [
+      ...subjectResolution.matches.map((row) => toAlternativeRecord("entity", row, subjectResolution.strategy)),
+      ...objectResolution.matches.map((row) => toAlternativeRecord("entity", row, objectResolution.strategy)),
+      ...roleMatches.map((row) => toAlternativeRecord("role", row, "role_name_lookup")),
+      ...exactMatches.map((row) => toAlternativeRecord("assertion", row, "exact_assertion_match_candidate")),
+      ...supersessionMatches.map((row) => toAlternativeRecord("assertion", row, "supersession_candidate"))
+    ].slice(0, 10);
+
+    const matchStrategy = exactMatches.length
+      ? "assertion_match_ambiguous"
+      : supersessionMatches.length > 1
+        ? "assertion_supersession_ambiguous"
+        : "create_assertion_candidate";
+
+    return {
+      extractionCandidateId: candidate.id,
+      proposalKey: buildPhaseDProposalKey({
+        artifactId,
+        extractionVersion: candidate.extractionVersion,
+        candidateKey: candidate.candidateKey,
+        proposalType: "create_assertion",
+        targetRecordType: null,
+        targetRecordId: null,
+        matchStrategy
+      }),
+      proposalType: "create_assertion",
+      targetRecordType: null,
+      targetRecordId: null,
+      proposalConfidence: clampConfidence(subjectId && (objectId || roleId) ? 0.72 : 0.45),
+      rationale: `Assertion candidate is proposed for validation with deterministic reference resolution context attached.`,
+      proposalPayload: buildBaseProposalPayload({
+        candidate,
+        matchStrategy,
+        candidateAlternatives: alternatives,
+        extra: {
+          resolved_subject_entity_id: subjectId,
+          resolved_object_entity_id: objectId,
+          resolved_role_id: roleId,
+          subject_resolution_strategy: subjectResolution.strategy,
+          object_resolution_strategy: objectResolution.strategy,
+          assertion_policy_hints: {
+            always_needs_review: true,
+            officeholder_like: Boolean(payload.role_name),
+            time_sensitive: Boolean(payload.is_time_sensitive),
+            supersession_capable: Boolean(payload.role_name || supersessionMatches.length)
+          }
+        }
+      })
+    };
+  }
+
+  throw new Error(`Unsupported Phase D candidate type: ${candidate.candidateType}`);
+}
+
+async function persistPhaseDMergeProposals(params: {
+  substrateRunId: string;
+  proposals: PhaseDPreparedProposal[];
+}) {
+  const sql = getSql();
+  const transactionResults = await sql.transaction((tx) => {
+    const queries: any[] = [];
+
+    for (const proposal of params.proposals) {
+      queries.push(tx`
+        DELETE FROM dictionary.dictionary_merge_proposals
+        WHERE extraction_candidate_id = ${proposal.extractionCandidateId}::uuid
+          AND proposal_key <> ${proposal.proposalKey}
+      `);
+
+      queries.push(tx`
+        INSERT INTO dictionary.dictionary_merge_proposals (
+          substrate_run_id,
+          extraction_candidate_id,
+          proposal_key,
+          proposal_type,
+          target_record_type,
+          target_record_id,
+          proposal_confidence,
+          rationale,
+          proposal_payload,
+          created_at
+        )
+        VALUES (
+          ${params.substrateRunId}::uuid,
+          ${proposal.extractionCandidateId}::uuid,
+          ${proposal.proposalKey},
+          ${proposal.proposalType},
+          ${proposal.targetRecordType},
+          ${proposal.targetRecordId || null}::uuid,
+          ${proposal.proposalConfidence},
+          ${proposal.rationale},
+          ${JSON.stringify(proposal.proposalPayload)}::jsonb,
+          NOW()
+        )
+        ON CONFLICT (proposal_key)
+        DO UPDATE SET
+          substrate_run_id = EXCLUDED.substrate_run_id,
+          extraction_candidate_id = EXCLUDED.extraction_candidate_id,
+          proposal_type = EXCLUDED.proposal_type,
+          target_record_type = EXCLUDED.target_record_type,
+          target_record_id = EXCLUDED.target_record_id,
+          proposal_confidence = EXCLUDED.proposal_confidence,
+          rationale = EXCLUDED.rationale,
+          proposal_payload = EXCLUDED.proposal_payload
+        RETURNING
+          id,
+          proposal_key as "proposalKey",
+          extraction_candidate_id as "extractionCandidateId",
+          proposal_type as "proposalType"
+      `);
+    }
+
+    return queries;
+  });
+
+  const persistedRows = transactionResults
+    .filter((_: any, index: number) => index % 2 === 1)
+    .map((rows: any) => rows?.[0])
+    .filter(Boolean) as Array<{ id: string; proposalKey: string; extractionCandidateId: string; proposalType: string }>;
+
+  return {
+    persistedRows,
+    persistedCount: persistedRows.length,
+    proposalTypeCounts: persistedRows.reduce((acc: Record<string, number>, row) => {
+      acc[row.proposalType] = (acc[row.proposalType] || 0) + 1;
+      return acc;
+    }, {})
+  };
+}
+
+function summarizeValidationIssueCodes(issueCodes: string[]): string {
+  return issueCodes.length ? issueCodes.join(", ") : "validation_policy_block";
+}
+
+function buildPhaseDReviewSuggestedAction(params: {
+  itemType: "merge_ambiguity" | "validation_failure";
+  rootSource: RootSourceRow;
+  proposalType: string;
+}) {
+  if (params.itemType === "merge_ambiguity") {
+    return `Inspect Phase D merge ambiguity for ${params.rootSource.rootUrl} and choose the correct deterministic target before promotion.`;
+  }
+  return `Inspect Phase D validation failure for ${params.rootSource.rootUrl} and confirm whether the proposal should be corrected, retried, or left blocked.`;
+}
+
+async function recordPhaseDProposalReviewItem(params: {
+  itemType: "merge_ambiguity" | "validation_failure";
+  rootSource: RootSourceRow;
+  artifactId: string;
+  pipelineRunId: string;
+  proposalId: string;
+  proposalType: string;
+  lastError: string;
+}) {
+  const sql = getSql();
+  const nowIso = new Date().toISOString();
+  const existingRows = await sql`
+    SELECT id, retry_count as "retryCount"
+    FROM dictionary.dictionary_review_queue
+    WHERE item_type = ${params.itemType}
+      AND root_source_id = ${params.rootSource.id}::uuid
+      AND affected_record_type = 'merge_proposal'
+      AND affected_record_id = ${params.proposalId}::uuid
+      AND resolved_at IS NULL
+    ORDER BY last_failed_at DESC, created_at DESC
+    LIMIT 1
+  `;
+
+  const existing = existingRows[0] as { id: string; retryCount: number } | undefined;
+  const failureCount = existing ? Number(existing.retryCount || 0) + 1 : 1;
+  const severity: ReviewQueueSeverity =
+    params.itemType === "merge_ambiguity"
+      ? params.rootSource.trustTier === "authoritative"
+        ? "high"
+        : "medium"
+      : params.rootSource.trustTier === "authoritative"
+        ? "critical"
+        : "high";
+  const suggestedAction = buildPhaseDReviewSuggestedAction({
+    itemType: params.itemType,
+    rootSource: params.rootSource,
+    proposalType: params.proposalType
+  });
+
+  if (existing?.id) {
+    await sql`
+      UPDATE dictionary.dictionary_review_queue
+      SET
+        severity = ${severity},
+        crawl_artifact_id = ${params.artifactId}::uuid,
+        pipeline_run_id = ${params.pipelineRunId}::uuid,
+        retry_count = ${failureCount},
+        last_error = ${params.lastError},
+        suggested_action = ${suggestedAction},
+        last_failed_at = ${nowIso}::timestamptz,
+        updated_at = NOW()
+      WHERE id = ${existing.id}::uuid
+    `;
+    return { reviewQueueId: existing.id, severity, failureCount };
+  }
+
+  const inserted = await sql`
+    INSERT INTO dictionary.dictionary_review_queue (
+      item_type,
+      severity,
+      root_source_id,
+      crawl_artifact_id,
+      pipeline_run_id,
+      affected_record_type,
+      affected_record_id,
+      retry_count,
+      last_error,
+      suggested_action,
+      first_failed_at,
+      last_failed_at,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      ${params.itemType},
+      ${severity},
+      ${params.rootSource.id}::uuid,
+      ${params.artifactId}::uuid,
+      ${params.pipelineRunId}::uuid,
+      'merge_proposal',
+      ${params.proposalId}::uuid,
+      ${failureCount},
+      ${params.lastError},
+      ${suggestedAction},
+      ${nowIso}::timestamptz,
+      ${nowIso}::timestamptz,
+      NOW(),
+      NOW()
+    )
+    RETURNING id
+  `;
+
+  return {
+    reviewQueueId: cleanText(inserted[0]?.id || "", 80),
+    severity,
+    failureCount
+  };
+}
+
+async function resolvePhaseDProposalReviewItems(params: {
+  proposalId: string;
+  pipelineRunId: string;
+  itemTypes?: Array<"merge_ambiguity" | "validation_failure">;
+}) {
+  const sql = getSql();
+  const itemTypes = params.itemTypes || ["merge_ambiguity", "validation_failure"];
+  await sql`
+    UPDATE dictionary.dictionary_review_queue
+    SET
+      resolved_at = NOW(),
+      pipeline_run_id = ${params.pipelineRunId}::uuid,
+      updated_at = NOW()
+    WHERE affected_record_type = 'merge_proposal'
+      AND affected_record_id = ${params.proposalId}::uuid
+      AND item_type = ANY(${itemTypes}::dictionary.review_queue_item_type[])
+      AND resolved_at IS NULL
+  `;
+}
+
+function buildPhaseDValidationDecision(params: {
+  proposal: PhaseDPreparedProposal;
+  persistedProposalId: string;
+  rootSource: RootSourceRow;
+}): PhaseDPreparedValidation {
+  const validatorName = "phase_d_first_pass_validator_v1";
+  const payload = params.proposal.proposalPayload || {};
+  const ambiguityCount = Number(payload.ambiguity_count || 0);
+  const issueCodes: string[] = [];
+  let outcome: ValidationOutcome = "approved";
+
+  const candidatePayload = payload.candidate_payload as Record<string, unknown> | undefined;
+  const assertionPolicyHints =
+    payload.assertion_policy_hints && typeof payload.assertion_policy_hints === "object" && !Array.isArray(payload.assertion_policy_hints)
+      ? (payload.assertion_policy_hints as Record<string, unknown>)
+      : {};
+
+  if (ambiguityCount > 0) {
+    outcome = "needs_review";
+    issueCodes.push("ambiguity_detected");
+  }
+
+  if (params.rootSource.trustTier === "contextual" && outcome === "approved") {
+    outcome = "needs_review";
+    issueCodes.push("contextual_source_requires_review");
+  }
+
+  if (
+    params.rootSource.trustTier === "corroborative" &&
+    outcome === "approved" &&
+    ["create_entity", "create_role", "create_jurisdiction"].includes(params.proposal.proposalType)
+  ) {
+    outcome = "needs_review";
+    issueCodes.push("corroborative_create_requires_review");
+  }
+
+  if (
+    ["create_assertion", "supersede_assertion"].includes(params.proposal.proposalType) ||
+    assertionPolicyHints.always_needs_review === true
+  ) {
+    outcome = "needs_review";
+    issueCodes.push("assertion_requires_review");
+  }
+
+  if (
+    ["merge_duplicate", "supersede_assertion"].includes(params.proposal.proposalType) &&
+    (!params.proposal.targetRecordType || !params.proposal.targetRecordId)
+  ) {
+    outcome = "rejected";
+    issueCodes.push("missing_target_reference");
+  }
+
+  if (
+    params.proposal.proposalType === "add_alias" &&
+    (params.proposal.targetRecordType !== "entity" || !params.proposal.targetRecordId)
+  ) {
+    outcome = "rejected";
+    issueCodes.push("alias_target_entity_required");
+  }
+
+  if (
+    ["create_entity", "create_role", "create_jurisdiction", "create_assertion"].includes(params.proposal.proposalType) &&
+    (params.proposal.targetRecordType !== null || params.proposal.targetRecordId !== null)
+  ) {
+    outcome = "rejected";
+    issueCodes.push("unexpected_create_target");
+  }
+
+  if (params.proposal.proposalConfidence < 0.5 && outcome === "approved") {
+    outcome = "needs_review";
+    issueCodes.push("low_confidence_requires_review");
+  }
+
+  if (
+    params.proposal.proposalType === "create_entity" &&
+    candidatePayload &&
+    isGenericReferenceLabel(candidatePayload.canonical_name)
+  ) {
+    outcome = "rejected";
+    issueCodes.push("generic_entity_name_blocked");
+  }
+
+  const details = {
+    issue_codes: issueCodes,
+    proposal_type: params.proposal.proposalType,
+    proposal_key: params.proposal.proposalKey,
+    proposal_confidence: params.proposal.proposalConfidence,
+    match_strategy: payload.match_strategy || null,
+    ambiguity_count: ambiguityCount,
+    root_source_trust_tier: params.rootSource.trustTier,
+    assertion_policy_hints: assertionPolicyHints,
+    validated_at: new Date().toISOString()
+  };
+
+  return {
+    mergeProposalId: params.persistedProposalId,
+    outcome,
+    validatorName,
+    details
+  };
+}
+
+async function persistPhaseDValidationResults(params: {
+  substrateRunId: string;
+  pipelineRunId: string;
+  artifactId: string;
+  rootSource: RootSourceRow;
+  validations: PhaseDPreparedValidation[];
+  proposalTypeById: Record<string, string>;
+}) {
+  const sql = getSql();
+  const reviewQueueStates: Array<{
+    mergeProposalId: string;
+    outcome: ValidationOutcome;
+    reviewQueueId: string | null;
+    reviewItemType: "merge_ambiguity" | "validation_failure" | null;
+  }> = [];
+  const validationRows: Array<{ id: string; mergeProposalId: string; outcome: ValidationOutcome }> = [];
+  const queryKinds: Array<
+    | { kind: "deleteValidation" }
+    | { kind: "insertValidation" }
+    | { kind: "resolveReview"; mergeProposalId: string; outcome: ValidationOutcome }
+    | { kind: "upsertReview"; mergeProposalId: string; outcome: ValidationOutcome; itemType: "merge_ambiguity" | "validation_failure" }
+  > = [];
+
+  const transactionResults = await sql.transaction((tx) => {
+    const queries: any[] = [];
+
+    for (const validation of params.validations) {
+      queries.push(tx`
+        DELETE FROM dictionary.dictionary_validation_results
+        WHERE merge_proposal_id = ${validation.mergeProposalId}::uuid
+          AND validator_name IS NOT DISTINCT FROM ${validation.validatorName}
+      `);
+      queryKinds.push({ kind: "deleteValidation" });
+
+      queries.push(tx`
+        INSERT INTO dictionary.dictionary_validation_results (
+          substrate_run_id,
+          merge_proposal_id,
+          outcome,
+          validator_name,
+          details,
+          created_at
+        )
+        VALUES (
+          ${params.substrateRunId}::uuid,
+          ${validation.mergeProposalId}::uuid,
+          ${validation.outcome},
+          ${validation.validatorName},
+          ${JSON.stringify(validation.details)}::jsonb,
+          NOW()
+        )
+        RETURNING
+          id,
+          merge_proposal_id as "mergeProposalId",
+          outcome
+      `);
+      queryKinds.push({ kind: "insertValidation" });
+
+      const issueCodes = Array.isArray(validation.details.issue_codes)
+        ? (validation.details.issue_codes as string[])
+        : [];
+
+      if (validation.outcome === "approved") {
+        queries.push(tx`
+          UPDATE dictionary.dictionary_review_queue
+          SET
+            resolved_at = NOW(),
+            pipeline_run_id = ${params.pipelineRunId}::uuid,
+            updated_at = NOW()
+          WHERE affected_record_type = 'merge_proposal'
+            AND affected_record_id = ${validation.mergeProposalId}::uuid
+            AND item_type = ANY(ARRAY['merge_ambiguity', 'validation_failure']::dictionary.review_queue_item_type[])
+            AND resolved_at IS NULL
+          RETURNING id
+        `);
+        queryKinds.push({
+          kind: "resolveReview",
+          mergeProposalId: validation.mergeProposalId,
+          outcome: validation.outcome
+        });
+        continue;
+      }
+
+      const itemType: "merge_ambiguity" | "validation_failure" =
+        validation.outcome === "needs_review" && issueCodes.includes("ambiguity_detected")
+          ? "merge_ambiguity"
+          : "validation_failure";
+      const otherItemType = itemType === "merge_ambiguity" ? "validation_failure" : "merge_ambiguity";
+      const severity: ReviewQueueSeverity =
+        itemType === "merge_ambiguity"
+          ? params.rootSource.trustTier === "authoritative"
+            ? "high"
+            : "medium"
+          : params.rootSource.trustTier === "authoritative"
+            ? "critical"
+            : "high";
+      const suggestedAction = buildPhaseDReviewSuggestedAction({
+        itemType,
+        rootSource: params.rootSource,
+        proposalType: params.proposalTypeById[validation.mergeProposalId] || "unknown"
+      });
+      const lastError = summarizeValidationIssueCodes(issueCodes);
+
+      queries.push(tx`
+        WITH updated AS (
+          UPDATE dictionary.dictionary_review_queue
+          SET
+            severity = ${severity},
+            crawl_artifact_id = ${params.artifactId}::uuid,
+            pipeline_run_id = ${params.pipelineRunId}::uuid,
+            retry_count = retry_count + 1,
+            last_error = ${lastError},
+            suggested_action = ${suggestedAction},
+            last_failed_at = NOW(),
+            updated_at = NOW()
+          WHERE item_type = ${itemType}
+            AND root_source_id = ${params.rootSource.id}::uuid
+            AND affected_record_type = 'merge_proposal'
+            AND affected_record_id = ${validation.mergeProposalId}::uuid
+            AND resolved_at IS NULL
+          RETURNING id
+        ),
+        inserted AS (
+          INSERT INTO dictionary.dictionary_review_queue (
+            item_type,
+            severity,
+            root_source_id,
+            crawl_artifact_id,
+            pipeline_run_id,
+            affected_record_type,
+            affected_record_id,
+            retry_count,
+            last_error,
+            suggested_action,
+            first_failed_at,
+            last_failed_at,
+            created_at,
+            updated_at
+          )
+          SELECT
+            ${itemType},
+            ${severity},
+            ${params.rootSource.id}::uuid,
+            ${params.artifactId}::uuid,
+            ${params.pipelineRunId}::uuid,
+            'merge_proposal',
+            ${validation.mergeProposalId}::uuid,
+            1,
+            ${lastError},
+            ${suggestedAction},
+            NOW(),
+            NOW(),
+            NOW(),
+            NOW()
+          WHERE NOT EXISTS (SELECT 1 FROM updated)
+          RETURNING id
+        )
+        SELECT id FROM updated
+        UNION ALL
+        SELECT id FROM inserted
+      `);
+      queryKinds.push({
+        kind: "upsertReview",
+        mergeProposalId: validation.mergeProposalId,
+        outcome: validation.outcome,
+        itemType
+      });
+
+      queries.push(tx`
+        UPDATE dictionary.dictionary_review_queue
+        SET
+          resolved_at = NOW(),
+          pipeline_run_id = ${params.pipelineRunId}::uuid,
+          updated_at = NOW()
+        WHERE affected_record_type = 'merge_proposal'
+          AND affected_record_id = ${validation.mergeProposalId}::uuid
+          AND item_type = ${otherItemType}
+          AND resolved_at IS NULL
+        RETURNING id
+      `);
+      queryKinds.push({
+        kind: "resolveReview",
+        mergeProposalId: validation.mergeProposalId,
+        outcome: validation.outcome
+      });
+    }
+
+    return queries;
+  });
+
+  transactionResults.forEach((rows: any, index: number) => {
+    const kind = queryKinds[index];
+    if (!kind) return;
+    if (kind.kind === "insertValidation") {
+      const row = rows?.[0];
+      if (row) {
+        validationRows.push(row as { id: string; mergeProposalId: string; outcome: ValidationOutcome });
+      }
+      return;
+    }
+    if (kind.kind === "upsertReview") {
+      const row = rows?.[0];
+      reviewQueueStates.push({
+        mergeProposalId: kind.mergeProposalId,
+        outcome: kind.outcome,
+        reviewQueueId: cleanText(row?.id || "", 80) || null,
+        reviewItemType: kind.itemType
+      });
+      return;
+    }
+    if (kind.kind === "resolveReview" && kind.outcome === "approved") {
+      reviewQueueStates.push({
+        mergeProposalId: kind.mergeProposalId,
+        outcome: kind.outcome,
+        reviewQueueId: null,
+        reviewItemType: null
+      });
+    }
+  });
+
+  return {
+    persistedRows: validationRows,
+    persistedCount: validationRows.length,
+    outcomeCounts: validationRows.reduce((acc: Record<string, number>, row) => {
+      acc[row.outcome] = (acc[row.outcome] || 0) + 1;
+      return acc;
+    }, {})
+    ,
+    reviewQueueStates
+  };
 }
 
 async function persistPhaseCExtractionCandidates(params: {
@@ -1832,6 +3322,7 @@ export function createDictionarySubstrateExtractionArtifactFunction(inngest: Inn
               phaseBoundary: needsReview ? "phase_c_extraction_needs_review" : "phase_c_extraction_executed",
               extractionAttempted: true,
               extractionCompleted: true,
+              resolutionReady: !needsReview,
               extractionVersion: extraction.extractionVersion,
               provider: extraction.provider,
               model: extraction.model,
@@ -1857,10 +3348,52 @@ export function createDictionarySubstrateExtractionArtifactFunction(inngest: Inn
               }, {}),
               sampleCandidateKeys: extraction.normalizedCandidates.slice(0, 10).map((item) => item.candidateKey),
               persistedCandidateIds: persistence.persistedRows.slice(0, 20).map((row: any) => row.id),
-              candidatePersistenceSubstrateRunId: artifact.substrateRunId
+              candidatePersistenceSubstrateRunId: artifact.substrateRunId,
+              nextStage: needsReview ? null : PHASE_D_STAGE_NAME,
+              phaseDEventEmitted: false
             }
           })
         );
+
+        let phaseDEventEmitted = false;
+        let phaseDDispatchError: string | null = null;
+        if (!needsReview) {
+          try {
+            await step.sendEvent(`emit-phase-d-merge-${artifactId}`, {
+              name: PHASE_D_MERGE_EVENT,
+              data: {
+                rootSourceId,
+                artifactId,
+                extractionVersion: extraction.extractionVersion,
+                trigger,
+                parentRunId: phaseCRun.id
+              }
+            });
+            phaseDEventEmitted = true;
+            await step.run("mark-phase-d-event-emitted", async () =>
+              markPhaseDEventEmission({
+                runId: phaseCRun.id,
+                phaseDDispatchAttempted: true,
+                phaseDEventEmitted: true,
+                phaseDDispatchEventName: PHASE_D_MERGE_EVENT,
+                phaseDDispatchArtifactId: artifactId,
+                phaseDDispatchError: null
+              })
+            );
+          } catch (error: any) {
+            await step.run("mark-phase-d-event-failed", async () =>
+              markPhaseDEventEmission({
+                runId: phaseCRun.id,
+                phaseDDispatchAttempted: true,
+                phaseDEventEmitted: false,
+                phaseDDispatchEventName: PHASE_D_MERGE_EVENT,
+                phaseDDispatchArtifactId: artifactId,
+                phaseDDispatchError: cleanText(error?.message || "phase_d_dispatch_emit_failed", 2000)
+              })
+            );
+            phaseDDispatchError = cleanText(error?.message || "phase_d_dispatch_emit_failed", 2000);
+          }
+        }
 
         return {
           ok: true,
@@ -1870,6 +3403,8 @@ export function createDictionarySubstrateExtractionArtifactFunction(inngest: Inn
           runId: phaseCRun.id,
           parentRunId,
           needsReview,
+          phaseDEventEmitted,
+          phaseDDispatchError,
           reviewQueueId: reviewState?.reviewQueueId || null,
           extractionVersion: extraction.extractionVersion,
           provider: extraction.provider,
@@ -1910,6 +3445,216 @@ export function createDictionarySubstrateExtractionArtifactFunction(inngest: Inn
           parentRunId,
           needsReview: false,
           error: cleanText(error?.message || "phase_c_extraction_failed", 2000)
+        };
+      }
+    }
+  );
+}
+
+export function createDictionarySubstrateMergeArtifactFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "dictionary-substrate-merge-artifact" },
+    { event: PHASE_D_MERGE_EVENT },
+    async ({ event, step }: any) => {
+      const rootSourceId = cleanText(event?.data?.rootSourceId || "", 80);
+      const artifactId = cleanText(event?.data?.artifactId || "", 80);
+      const extractionVersion = cleanText(event?.data?.extractionVersion || "", 120);
+      const trigger = cleanText(event?.data?.trigger || "manual", 20) === "scheduled" ? "scheduled" : "manual";
+      const parentRunId = cleanText(event?.data?.parentRunId || "", 80) || null;
+
+      if (!rootSourceId) throw new Error("Missing rootSourceId");
+      if (!artifactId) throw new Error("Missing artifactId");
+      if (!extractionVersion) throw new Error("Missing extractionVersion");
+      if (!UUID_RE.test(rootSourceId)) throw new Error("Invalid rootSourceId");
+      if (!UUID_RE.test(artifactId)) throw new Error("Invalid artifactId");
+      if (parentRunId && !UUID_RE.test(parentRunId)) throw new Error("Invalid parentRunId");
+
+      const phaseDRun = await step.run("create-phase-d-run", async () =>
+        createPipelineRun({
+          parentRunId,
+          rootSourceId,
+          stageName: PHASE_D_STAGE_NAME,
+          triggerType: trigger,
+          inputPayload: {
+            rootSourceId,
+            artifactId,
+            extractionVersion,
+            trigger,
+            phaseBoundary: "phase_c_extraction_complete",
+            handoffContract: "phase_d_event_stub"
+          }
+        })
+      );
+
+      try {
+        const rootSource = await step.run("load-phase-d-root-source", async () => {
+          const row = await loadRootSourceById(rootSourceId);
+          if (!row) throw new Error(`Unknown root source ${rootSourceId}`);
+          if (!row.enabled) {
+            throw new Error(`Root source ${rootSourceId} is disabled`);
+          }
+          return row;
+        });
+
+        const artifact = await step.run("load-phase-d-artifact", async () => {
+          const row = await loadExtractionArtifactForPhaseC(rootSourceId, artifactId);
+          if (!row) throw new Error(`Unknown extraction artifact ${artifactId}`);
+          return row;
+        });
+
+        const candidates = await step.run("load-phase-d-candidates", async () =>
+          loadPhaseDCandidatesForArtifact(artifactId, extractionVersion)
+        );
+
+        const extractedCandidates = candidates.filter(
+          (candidate) => candidate.status === "extracted" && candidate.candidateType !== "diagnostic"
+        );
+        const diagnosticCandidates = candidates.filter((candidate) => candidate.candidateType === "diagnostic");
+        const rejectedCandidates = candidates.filter((candidate) => candidate.status === "rejected");
+        const proposals = await step.run("build-phase-d-proposals", async () => {
+          const built: PhaseDPreparedProposal[] = [];
+          for (const candidate of extractedCandidates) {
+            built.push(
+              await buildPhaseDProposalForCandidate({
+                artifactId,
+                candidate
+              })
+            );
+          }
+          return built;
+        });
+
+        const persistence = await step.run("persist-phase-d-proposals", async () =>
+          persistPhaseDMergeProposals({
+            substrateRunId: phaseDRun.id,
+            proposals
+          })
+        );
+        const proposalIdByKey = new Map<string, string>(
+          persistence.persistedRows.map((proposal) => [proposal.proposalKey, proposal.id])
+        );
+        const validations = await step.run("build-phase-d-validations", async () =>
+          proposals.map((proposal) => {
+            const persistedProposalId = proposalIdByKey.get(proposal.proposalKey);
+            if (!persistedProposalId) {
+              throw new Error(`Missing persisted merge proposal for proposal key ${proposal.proposalKey}`);
+            }
+            return buildPhaseDValidationDecision({
+              proposal,
+              persistedProposalId,
+              rootSource
+            });
+          })
+        );
+
+        const validationPersistence = await step.run("persist-phase-d-validations", async () =>
+          persistPhaseDValidationResults({
+            substrateRunId: phaseDRun.id,
+            pipelineRunId: phaseDRun.id,
+            artifactId,
+            rootSource,
+            validations
+            ,
+            proposalTypeById: Object.fromEntries(
+              proposals.map((proposal) => [proposalIdByKey.get(proposal.proposalKey) || "", proposal.proposalType])
+            )
+          })
+        );
+
+        const reviewOutcomeCount = validations.filter((validation) => validation.outcome !== "approved").length;
+
+        await step.run("finalize-phase-d-run", async () =>
+          finalizePipelineRun({
+            runId: phaseDRun.id,
+            status: reviewOutcomeCount > 0 ? "needs_review" : "succeeded",
+            crawlArtifactId: artifactId,
+            outputPayload: {
+              rootSourceId,
+              artifactId,
+              trigger,
+              phaseBoundary: "phase_c_extraction_complete",
+              resolutionAttempted: true,
+              resolutionCompleted: true,
+              resolutionReady: true,
+              mergeProposalGenerationImplemented: true,
+              rootSourceTrustTier: rootSource.trustTier,
+              phaseCExtractionRunId: parentRunId,
+              artifactSubstrateRunId: artifact.substrateRunId,
+              extractionVersion,
+              counts: {
+                totalCandidates: candidates.length,
+                extractedCandidateCount: extractedCandidates.length,
+                diagnosticCandidateCount: diagnosticCandidates.length,
+                rejectedCandidateCount: rejectedCandidates.length,
+                proposalCount: persistence.persistedCount,
+                validationCount: validationPersistence.persistedCount
+              },
+              candidateTypeCounts: candidates.reduce((acc: Record<string, number>, candidate) => {
+                const key = `${candidate.status}:${candidate.candidateType}`;
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+              }, {}),
+              proposalTypeCounts: persistence.proposalTypeCounts,
+              validationOutcomeCounts: validationPersistence.outcomeCounts,
+              extractedCandidateIds: extractedCandidates.slice(0, 20).map((candidate) => candidate.id),
+              extractedCandidateKeys: extractedCandidates.slice(0, 20).map((candidate) => candidate.candidateKey),
+              proposalIds: persistence.persistedRows.slice(0, 20).map((proposal) => proposal.id),
+              proposalKeys: persistence.persistedRows.slice(0, 20).map((proposal) => proposal.proposalKey),
+              validationResultIds: validationPersistence.persistedRows.slice(0, 20).map((row) => row.id),
+              reviewQueueIds: validationPersistence.reviewQueueStates
+                .map((row) => row.reviewQueueId)
+                .filter((value): value is string => Boolean(value))
+                .slice(0, 20),
+              nextStage: null
+            }
+          })
+        );
+
+        return {
+          ok: true,
+          rootSourceId,
+          artifactId,
+          extractionVersion,
+          trigger,
+          runId: phaseDRun.id,
+          parentRunId,
+          counts: {
+            totalCandidates: candidates.length,
+            extractedCandidateCount: extractedCandidates.length,
+            diagnosticCandidateCount: diagnosticCandidates.length,
+            rejectedCandidateCount: rejectedCandidates.length,
+            proposalCount: persistence.persistedCount,
+            validationCount: validationPersistence.persistedCount
+          }
+        };
+      } catch (error: any) {
+        await step.run("finalize-phase-d-run-failed", async () =>
+          finalizePipelineRun({
+            runId: phaseDRun.id,
+            status: "failed",
+            crawlArtifactId: artifactId,
+            errorPayload: {
+              rootSourceId,
+              artifactId,
+              extractionVersion,
+              trigger,
+              phaseBoundary: "phase_d_merge_proposals_failed",
+              resolutionAttempted: true,
+              resolutionCompleted: false,
+              message: cleanText(error?.message || "phase_d_merge_proposals_failed", 2000)
+            }
+          })
+        );
+
+        return {
+          ok: false,
+          rootSourceId,
+          artifactId,
+          extractionVersion,
+          trigger,
+          runId: phaseDRun.id,
+          parentRunId,
+          error: cleanText(error?.message || "phase_d_merge_proposals_failed", 2000)
         };
       }
     }
