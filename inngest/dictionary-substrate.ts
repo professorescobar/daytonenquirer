@@ -87,6 +87,18 @@ type ExtractionExecutionResult = {
   };
 };
 
+type PhaseCExtractionStepResult =
+  | {
+      ok: true;
+      extraction: ExtractionExecutionResult;
+    }
+  | {
+      ok: false;
+      failureKind: "contract_failure" | "runtime_failure";
+      message: string;
+      details?: Record<string, unknown>;
+    };
+
 type IngestionFailure = Error & {
   itemType: ReviewQueueItemType;
   crawlArtifactId?: string | null;
@@ -684,6 +696,29 @@ async function runPhaseCExtractionExecution(params: {
       diagnosticCount: normalizedCandidates.filter((item) => item.candidateType === "diagnostic").length
     }
   };
+}
+
+async function runPhaseCExtractionExecutionSafely(params: {
+  rootSource: RootSourceRow;
+  artifact: ExtractionArtifactRow;
+}): Promise<PhaseCExtractionStepResult> {
+  try {
+    const extraction = await runPhaseCExtractionExecution(params);
+    return {
+      ok: true,
+      extraction
+    };
+  } catch (error: any) {
+    return {
+      ok: false,
+      failureKind: error?.failureKind === "contract_failure" ? "contract_failure" : "runtime_failure",
+      message: cleanText(error?.message || "phase_c_extraction_failed", 2000),
+      details:
+        error?.details && typeof error.details === "object" && !Array.isArray(error.details)
+          ? (error.details as Record<string, unknown>)
+          : {}
+    };
+  }
 }
 
 function shouldEscalateZeroOutputToReview(params: {
@@ -1686,12 +1721,77 @@ export function createDictionarySubstrateExtractionArtifactFunction(inngest: Inn
         });
 
         extractionAttempted = true;
-        const extraction = await step.run("run-phase-c-extraction", async () =>
-          runPhaseCExtractionExecution({
+        const extractionResult = await step.run("run-phase-c-extraction", async () =>
+          runPhaseCExtractionExecutionSafely({
             rootSource,
             artifact
           })
         );
+        if (!extractionResult.ok) {
+          let reviewState: { reviewQueueId?: string; severity?: string; failureCount?: number } | null = null;
+          let reviewQueueWriteFailed = false;
+          let reviewQueueWriteError: string | null = null;
+
+          if (extractionResult.failureKind === "contract_failure") {
+            try {
+              reviewState = await step.run("record-phase-c-contract-review-failed", async () =>
+                recordPhaseCExtractionContractFailure({
+                  rootSource,
+                  artifactId,
+                  pipelineRunId: phaseCRun.id,
+                  lastError: extractionResult.message
+                })
+              );
+            } catch (reviewError: any) {
+              reviewQueueWriteFailed = true;
+              reviewQueueWriteError = cleanText(
+                reviewError?.message || "phase_c_review_queue_write_failed",
+                2000
+              );
+            }
+          }
+
+          await step.run("finalize-phase-c-run-failed", async () =>
+            finalizePipelineRun({
+              runId: phaseCRun.id,
+              status: extractionResult.failureKind === "contract_failure" ? "needs_review" : "failed",
+              crawlArtifactId: artifactId,
+              errorPayload: {
+                rootSourceId,
+                artifactId,
+                trigger,
+                phaseBoundary:
+                  extractionResult.failureKind === "contract_failure"
+                    ? "phase_c_extraction_contract_failure"
+                    : "phase_c_extraction_failed",
+                extractionAttempted: true,
+                extractionCompleted: false,
+                needsReview: extractionResult.failureKind === "contract_failure",
+                reviewQueueWriteFailed,
+                reviewQueueWriteError,
+                reviewQueueId: reviewState?.reviewQueueId || null,
+                reviewSeverity: reviewState?.severity || null,
+                reviewFailureCount: reviewState?.failureCount ?? null,
+                message: extractionResult.message,
+                details: extractionResult.details || {}
+              }
+            })
+          );
+
+          return {
+            ok: extractionResult.failureKind !== "contract_failure",
+            rootSourceId,
+            artifactId,
+            trigger,
+            runId: phaseCRun.id,
+            parentRunId,
+            needsReview: extractionResult.failureKind === "contract_failure",
+            reviewQueueId: reviewState?.reviewQueueId || null,
+            error: extractionResult.message
+          };
+        }
+
+        const extraction = extractionResult.extraction;
         const persistence = await step.run("persist-phase-c-candidates", async () =>
           persistPhaseCExtractionCandidates({
             artifact,
@@ -1785,56 +1885,32 @@ export function createDictionarySubstrateExtractionArtifactFunction(inngest: Inn
           }
         };
       } catch (error: any) {
-        const isContractFailure = error?.failureKind === "contract_failure";
-        let reviewState: { reviewQueueId?: string; severity?: string; failureCount?: number } | null = null;
-        let reviewQueueWriteFailed = false;
-        let reviewQueueWriteError: string | null = null;
-        if (isContractFailure) {
-          try {
-            reviewState = await step.run("record-phase-c-contract-review-failed", async () => {
-              const rootSource = await loadRootSourceById(rootSourceId);
-              if (!rootSource) {
-                throw new Error(`Unknown root source ${rootSourceId}`);
-              }
-              return recordPhaseCExtractionContractFailure({
-                rootSource,
-                artifactId,
-                pipelineRunId: phaseCRun.id,
-                lastError: cleanText(error?.message || "phase_c_extraction_contract_failure", 2000)
-              });
-            });
-          } catch (reviewError: any) {
-            reviewState = null;
-            reviewQueueWriteFailed = true;
-            reviewQueueWriteError = cleanText(
-              reviewError?.message || "phase_c_review_queue_write_failed",
-              2000
-            );
-          }
-        }
         await step.run("finalize-phase-c-run-failed", async () =>
           finalizePipelineRun({
             runId: phaseCRun.id,
-            status: isContractFailure ? "needs_review" : "failed",
+            status: "failed",
             crawlArtifactId: artifactId,
             errorPayload: {
               rootSourceId,
               artifactId,
               trigger,
-              phaseBoundary: isContractFailure ? "phase_c_extraction_contract_failure" : "phase_c_extraction_failed",
+              phaseBoundary: "phase_c_extraction_failed",
               extractionAttempted,
               extractionCompleted: false,
-              needsReview: isContractFailure,
-              reviewQueueWriteFailed,
-              reviewQueueWriteError,
-              reviewQueueId: reviewState?.reviewQueueId || null,
-              reviewSeverity: reviewState?.severity || null,
-              reviewFailureCount: reviewState?.failureCount ?? null,
               message: cleanText(error?.message || "phase_c_extraction_failed", 2000)
             }
           })
         );
-        throw error;
+        return {
+          ok: false,
+          rootSourceId,
+          artifactId,
+          trigger,
+          runId: phaseCRun.id,
+          parentRunId,
+          needsReview: false,
+          error: cleanText(error?.message || "phase_c_extraction_failed", 2000)
+        };
       }
     }
   );
