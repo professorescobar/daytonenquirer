@@ -92,7 +92,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION dictionary.phase_e_promote_artifact_run(UUID, UUID, UUID, UUID) IS
-  'Promotes the full Phase E artifact/run batch inside one statement transaction, scoped by the explicit Phase D pipeline run id stored on latest validation details.';
+  'Promotes the full Phase E artifact/run batch inside one statement transaction so canonical head mutation cannot partially commit for a failing artifact-run, scoped by the explicit Phase D pipeline run id captured on latest validation details.';
 
 CREATE OR REPLACE FUNCTION dictionary.phase_e_promote_and_publish_artifact_run(
   p_phase_e_run_id UUID,
@@ -184,123 +184,98 @@ BEGIN
     '{}'::jsonb,
     NOW()
   )
-  RETURNING id INTO new_snapshot_id;
+  RETURNING id
+  INTO new_snapshot_id;
 
-  INSERT INTO dictionary.dictionary_snapshot_records (
-    snapshot_id,
-    canonical_record_type,
-    canonical_record_id,
-    created_at
-  )
-  SELECT
-    new_snapshot_id,
-    'entity',
-    e.id,
-    NOW()
-  FROM dictionary.dictionary_entities e
-  WHERE e.status = 'active';
+  INSERT INTO dictionary.dictionary_snapshot_records (snapshot_id, record_type, record_id, created_at)
+  SELECT new_snapshot_id, 'jurisdiction', j.id, NOW()
+  FROM dictionary.dictionary_jurisdictions j;
 
-  INSERT INTO dictionary.dictionary_snapshot_records (
-    snapshot_id,
-    canonical_record_type,
-    canonical_record_id,
-    created_at
-  )
-  SELECT
-    new_snapshot_id,
-    'alias',
-    a.id,
-    NOW()
+  INSERT INTO dictionary.dictionary_snapshot_records (snapshot_id, record_type, record_id, created_at)
+  SELECT new_snapshot_id, 'entity', e.id, NOW()
+  FROM dictionary.dictionary_entities e;
+
+  INSERT INTO dictionary.dictionary_snapshot_records (snapshot_id, record_type, record_id, created_at)
+  SELECT new_snapshot_id, 'role', r.id, NOW()
+  FROM dictionary.dictionary_roles r;
+
+  INSERT INTO dictionary.dictionary_snapshot_records (snapshot_id, record_type, record_id, created_at)
+  SELECT new_snapshot_id, 'alias', a.id, NOW()
   FROM dictionary.dictionary_aliases a;
 
-  INSERT INTO dictionary.dictionary_snapshot_records (
-    snapshot_id,
-    canonical_record_type,
-    canonical_record_id,
-    created_at
-  )
-  SELECT
-    new_snapshot_id,
-    'role',
-    r.id,
-    NOW()
-  FROM dictionary.dictionary_roles r
-  WHERE r.status = 'active';
+  INSERT INTO dictionary.dictionary_snapshot_records (snapshot_id, record_type, record_id, created_at)
+  SELECT new_snapshot_id, 'assertion', a.id, NOW()
+  FROM dictionary.dictionary_assertions a;
 
-  INSERT INTO dictionary.dictionary_snapshot_records (
+  INSERT INTO dictionary.dictionary_snapshot_jurisdictions (
     snapshot_id,
-    canonical_record_type,
     canonical_record_id,
-    created_at
+    name,
+    jurisdiction_type,
+    parent_jurisdiction_id,
+    centroid_lat,
+    centroid_lng,
+    bbox,
+    geojson,
+    status,
+    last_verified_at,
+    created_at,
+    updated_at
   )
   SELECT
     new_snapshot_id,
-    'jurisdiction',
     j.id,
-    NOW()
-  FROM dictionary.dictionary_jurisdictions j
-  WHERE j.status = 'active';
-
-  INSERT INTO dictionary.dictionary_snapshot_records (
-    snapshot_id,
-    canonical_record_type,
-    canonical_record_id,
-    created_at
-  )
-  SELECT
-    new_snapshot_id,
-    'assertion',
-    a.id,
-    NOW()
-  FROM dictionary.dictionary_assertions a
-  WHERE a.status = 'active';
+    j.name,
+    j.jurisdiction_type,
+    j.parent_jurisdiction_id,
+    j.centroid_lat,
+    j.centroid_lng,
+    j.bbox,
+    j.geojson,
+    j.status,
+    j.last_verified_at,
+    j.created_at,
+    j.updated_at
+  FROM dictionary.dictionary_jurisdictions j;
 
   INSERT INTO dictionary.dictionary_snapshot_entities (
     snapshot_id,
     canonical_record_id,
-    slug,
-    canonical_name,
     entity_type,
+    canonical_name,
+    slug,
     primary_jurisdiction_id,
+    normalized_address,
+    lat,
+    lng,
+    spatial_confidence,
     status,
-    metadata,
+    description,
+    notes,
+    attributes,
+    last_verified_at,
     created_at,
     updated_at
   )
   SELECT
     new_snapshot_id,
     e.id,
-    e.slug,
-    e.canonical_name,
     e.entity_type,
+    e.canonical_name,
+    e.slug,
     e.primary_jurisdiction_id,
+    e.normalized_address,
+    e.lat,
+    e.lng,
+    e.spatial_confidence,
     e.status,
-    e.metadata,
+    e.description,
+    e.notes,
+    e.attributes,
+    e.last_verified_at,
     e.created_at,
     e.updated_at
-  FROM dictionary.dictionary_entities e
-  WHERE e.status = 'active';
-
-  INSERT INTO dictionary.dictionary_snapshot_aliases (
-    snapshot_id,
-    canonical_record_id,
-    entity_id,
-    alias,
-    alias_type,
-    confidence,
-    source,
-    created_at
-  )
-  SELECT
-    new_snapshot_id,
-    a.id,
-    a.entity_id,
-    a.alias,
-    a.alias_type,
-    a.confidence,
-    a.source,
-    a.created_at
-  FROM dictionary.dictionary_aliases a;
+  FROM dictionary.dictionary_entities e;
 
   INSERT INTO dictionary.dictionary_snapshot_roles (
     snapshot_id,
@@ -309,7 +284,9 @@ BEGIN
     role_type,
     jurisdiction_id,
     status,
-    metadata,
+    notes,
+    term_pattern,
+    last_verified_at,
     created_at,
     updated_at
   )
@@ -320,37 +297,41 @@ BEGIN
     r.role_type,
     r.jurisdiction_id,
     r.status,
-    r.metadata,
+    r.notes,
+    r.term_pattern,
+    r.last_verified_at,
     r.created_at,
     r.updated_at
-  FROM dictionary.dictionary_roles r
-  WHERE r.status = 'active';
+  FROM dictionary.dictionary_roles r;
 
-  INSERT INTO dictionary.dictionary_snapshot_jurisdictions (
+  INSERT INTO dictionary.dictionary_snapshot_aliases (
     snapshot_id,
     canonical_record_id,
-    slug,
-    name,
-    jurisdiction_type,
-    parent_jurisdiction_id,
+    entity_id,
+    alias,
+    alias_type,
     status,
-    metadata,
+    effective_start_at,
+    effective_end_at,
+    source_count,
+    last_verified_at,
     created_at,
     updated_at
   )
   SELECT
     new_snapshot_id,
-    j.id,
-    j.slug,
-    j.name,
-    j.jurisdiction_type,
-    j.parent_jurisdiction_id,
-    j.status,
-    j.metadata,
-    j.created_at,
-    j.updated_at
-  FROM dictionary.dictionary_jurisdictions j
-  WHERE j.status = 'active';
+    a.id,
+    a.entity_id,
+    a.alias,
+    a.alias_type,
+    a.status,
+    a.effective_start_at,
+    a.effective_end_at,
+    a.source_count,
+    a.last_verified_at,
+    a.created_at,
+    a.updated_at
+  FROM dictionary.dictionary_aliases a;
 
   INSERT INTO dictionary.dictionary_snapshot_assertions (
     snapshot_id,
@@ -359,17 +340,20 @@ BEGIN
     subject_entity_id,
     object_entity_id,
     role_id,
-    value_text,
-    value_json,
-    confidence,
-    status,
-    effective_at,
+    effective_start_at,
     effective_end_at,
-    valid_from,
-    valid_to,
+    term_end_at,
+    observed_at,
+    last_verified_at,
+    freshness_sla_days,
+    next_election_at,
+    next_review_at,
+    validity_status,
+    review_status,
+    assertion_confidence,
     supersedes_assertion_id,
     superseded_by_assertion_id,
-    metadata,
+    notes,
     created_at,
     updated_at
   )
@@ -380,26 +364,23 @@ BEGIN
     a.subject_entity_id,
     a.object_entity_id,
     a.role_id,
-    a.value_text,
-    a.value_json,
-    a.confidence,
-    a.status,
-    a.effective_at,
+    a.effective_start_at,
     a.effective_end_at,
-    a.valid_from,
-    a.valid_to,
+    a.term_end_at,
+    a.observed_at,
+    a.last_verified_at,
+    a.freshness_sla_days,
+    a.next_election_at,
+    a.next_review_at,
+    a.validity_status,
+    a.review_status,
+    a.assertion_confidence,
     a.supersedes_assertion_id,
     a.superseded_by_assertion_id,
-    a.metadata,
+    a.notes,
     a.created_at,
     a.updated_at
-  FROM dictionary.dictionary_assertions a
-  WHERE a.status = 'active';
-
-  UPDATE dictionary.dictionary_promotion_results
-  SET snapshot_id = new_snapshot_id
-  WHERE substrate_run_id = p_phase_e_run_id
-    AND snapshot_id IS NULL;
+  FROM dictionary.dictionary_assertions a;
 
   UPDATE dictionary.dictionary_assertions
   SET snapshot_id = new_snapshot_id
@@ -445,27 +426,21 @@ BEGIN
   IF previous_snapshot.id IS NOT NULL THEN
     UPDATE dictionary.dictionary_snapshots
     SET status = 'superseded'
-    WHERE id = previous_snapshot.id;
+    WHERE id = previous_snapshot.id
+      AND status = 'published';
   END IF;
 
-  INSERT INTO dictionary.dictionary_active_snapshot (
-    slot,
-    snapshot_id,
-    updated_at
-  )
-  VALUES (
-    'newsroom',
-    new_snapshot_id,
-    NOW()
-  )
+  INSERT INTO dictionary.dictionary_active_snapshot (slot, snapshot_id, activated_at)
+  VALUES ('newsroom', new_snapshot_id, NOW())
   ON CONFLICT (slot)
   DO UPDATE SET
     snapshot_id = EXCLUDED.snapshot_id,
-    updated_at = EXCLUDED.updated_at;
+    activated_at = EXCLUDED.activated_at;
 
-  UPDATE dictionary.dictionary_snapshots
-  SET activated_at = NOW()
-  WHERE id = new_snapshot_id;
+  UPDATE dictionary.dictionary_promotion_results
+  SET snapshot_id = new_snapshot_id
+  WHERE substrate_run_id = p_phase_e_run_id
+    AND snapshot_id IS NULL;
 
   RETURN QUERY
   SELECT
@@ -477,4 +452,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION dictionary.phase_e_promote_and_publish_artifact_run(UUID, UUID, UUID, UUID) IS
-  'Atomically promotes and publishes a Phase E artifact batch, scoped by the explicit Phase D pipeline run id captured on latest validation details.';
+  'Applies the Phase E artifact-run promotion batch and publishes the resulting immutable snapshot in one statement transaction, scoped by the explicit Phase D pipeline run id captured on latest validation details.';
