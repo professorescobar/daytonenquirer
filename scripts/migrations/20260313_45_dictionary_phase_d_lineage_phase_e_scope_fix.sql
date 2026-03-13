@@ -5,12 +5,12 @@ CREATE OR REPLACE VIEW dictionary.phase_e_latest_first_pass_validations AS
 SELECT DISTINCT ON (vr.merge_proposal_id)
   vr.id,
   vr.substrate_run_id,
-  NULLIF(vr.details->>'phase_d_pipeline_run_id', '')::uuid AS phase_d_pipeline_run_id,
   vr.merge_proposal_id,
   vr.outcome,
   vr.validator_name,
   vr.details,
-  vr.created_at
+  vr.created_at,
+  NULLIF(vr.details->>'phase_d_pipeline_run_id', '')::uuid AS phase_d_pipeline_run_id
 FROM dictionary.dictionary_validation_results vr
 WHERE vr.validator_name = 'phase_d_first_pass_validator_v1'
 ORDER BY vr.merge_proposal_id, vr.created_at DESC, vr.id DESC;
@@ -20,7 +20,6 @@ SELECT
   mp.id AS merge_proposal_id,
   mp.substrate_run_id,
   lv.substrate_run_id AS validation_substrate_run_id,
-  lv.phase_d_pipeline_run_id,
   mp.extraction_candidate_id,
   mp.proposal_key,
   mp.proposal_type,
@@ -35,7 +34,8 @@ SELECT
   ec.crawl_artifact_id,
   ec.extraction_version,
   ec.candidate_type,
-  ec.candidate_payload
+  ec.candidate_payload,
+  lv.phase_d_pipeline_run_id
 FROM dictionary.dictionary_merge_proposals mp
 JOIN dictionary.phase_e_latest_first_pass_validations lv
   ON lv.merge_proposal_id = mp.id
