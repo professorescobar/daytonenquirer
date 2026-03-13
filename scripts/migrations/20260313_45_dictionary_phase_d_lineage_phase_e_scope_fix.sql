@@ -445,10 +445,10 @@ BEGIN
     snapshot_id = EXCLUDED.snapshot_id,
     activated_at = EXCLUDED.activated_at;
 
-  UPDATE dictionary.dictionary_promotion_results
+  UPDATE dictionary.dictionary_promotion_results pr
   SET snapshot_id = new_snapshot_id
-  WHERE substrate_run_id = p_phase_e_run_id
-    AND snapshot_id IS NULL;
+  WHERE pr.substrate_run_id = p_phase_e_run_id
+    AND pr.snapshot_id IS NULL;
 
   RETURN QUERY
   SELECT
