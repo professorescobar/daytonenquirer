@@ -72,6 +72,7 @@ type ExtractionArtifactRow = {
 
 type PhaseDCandidateRow = {
   id: string;
+  substrateRunId: string;
   candidateType: CandidateType;
   status: "pending" | "extracted" | "rejected" | "needs_review" | "failed";
   candidateKey: string;
@@ -181,6 +182,7 @@ type PhaseEPromotableProposalRow = {
   mergeProposalId: string;
   substrateRunId: string;
   validationSubstrateRunId: string;
+  phaseDPipelineRunId: string | null;
   extractionCandidateId: string;
   proposalKey: string;
   proposalType: MergeProposalType;
@@ -1094,6 +1096,7 @@ async function loadPhaseDCandidatesForArtifact(
   const rows = await sql`
     SELECT
       ec.id,
+      ec.substrate_run_id as "substrateRunId",
       ec.candidate_type as "candidateType",
       ec.status,
       ec.candidate_key as "candidateKey",
@@ -1140,6 +1143,7 @@ async function loadPhaseEPromotableProposals(params: {
       merge_proposal_id as "mergeProposalId",
       substrate_run_id as "substrateRunId",
       validation_substrate_run_id as "validationSubstrateRunId",
+      phase_d_pipeline_run_id as "phaseDPipelineRunId",
       extraction_candidate_id as "extractionCandidateId",
       proposal_key as "proposalKey",
       proposal_type as "proposalType",
@@ -1158,7 +1162,7 @@ async function loadPhaseEPromotableProposals(params: {
     FROM dictionary.phase_e_promotable_merge_proposals
     WHERE root_source_id = ${params.rootSourceId}::uuid
       AND crawl_artifact_id = ${params.artifactId}::uuid
-      AND validation_substrate_run_id = ${params.phaseDRunId}::uuid
+      AND phase_d_pipeline_run_id = ${params.phaseDRunId}::uuid
     ORDER BY validation_created_at ASC, merge_proposal_id ASC
   `;
   return rows as PhaseEPromotableProposalRow[];
@@ -2014,7 +2018,8 @@ async function buildPhaseDProposalForCandidate(params: {
 }
 
 async function persistPhaseDMergeProposals(params: {
-  substrateRunId: string;
+  lineageRunId: string;
+  phaseDRunId: string;
   proposals: PhaseDPreparedProposal[];
 }) {
   const sql = getSql();
@@ -2042,7 +2047,7 @@ async function persistPhaseDMergeProposals(params: {
           created_at
         )
         VALUES (
-          ${params.substrateRunId}::uuid,
+          ${params.lineageRunId}::uuid,
           ${proposal.extractionCandidateId}::uuid,
           ${proposal.proposalKey},
           ${proposal.proposalType},
@@ -2050,7 +2055,10 @@ async function persistPhaseDMergeProposals(params: {
           ${proposal.targetRecordId || null}::uuid,
           ${proposal.proposalConfidence},
           ${proposal.rationale},
-          ${JSON.stringify(proposal.proposalPayload)}::jsonb,
+          ${JSON.stringify({
+            ...proposal.proposalPayload,
+            phase_d_pipeline_run_id: params.phaseDRunId
+          })}::jsonb,
           NOW()
         )
         ON CONFLICT (proposal_key)
@@ -2326,7 +2334,8 @@ function buildPhaseDValidationDecision(params: {
 }
 
 async function persistPhaseDValidationResults(params: {
-  substrateRunId: string;
+  lineageRunId: string;
+  phaseDRunId: string;
   pipelineRunId: string;
   artifactId: string;
   rootSource: RootSourceRow;
@@ -2369,11 +2378,14 @@ async function persistPhaseDValidationResults(params: {
           created_at
         )
         VALUES (
-          ${params.substrateRunId}::uuid,
+          ${params.lineageRunId}::uuid,
           ${validation.mergeProposalId}::uuid,
           ${validation.outcome},
           ${validation.validatorName},
-          ${JSON.stringify(validation.details)}::jsonb,
+          ${JSON.stringify({
+            ...validation.details,
+            phase_d_pipeline_run_id: params.phaseDRunId
+          })}::jsonb,
           NOW()
         )
         RETURNING
@@ -3723,7 +3735,8 @@ export function createDictionarySubstrateMergeArtifactFunction(inngest: Inngest)
 
         const persistence = await step.run("persist-phase-d-proposals", async () =>
           persistPhaseDMergeProposals({
-            substrateRunId: phaseDRun.id,
+            lineageRunId: artifact.substrateRunId,
+            phaseDRunId: phaseDRun.id,
             proposals
           })
         );
@@ -3746,7 +3759,8 @@ export function createDictionarySubstrateMergeArtifactFunction(inngest: Inngest)
 
         const validationPersistence = await step.run("persist-phase-d-validations", async () =>
           persistPhaseDValidationResults({
-            substrateRunId: phaseDRun.id,
+            lineageRunId: artifact.substrateRunId,
+            phaseDRunId: phaseDRun.id,
             pipelineRunId: phaseDRun.id,
             artifactId,
             rootSource,
