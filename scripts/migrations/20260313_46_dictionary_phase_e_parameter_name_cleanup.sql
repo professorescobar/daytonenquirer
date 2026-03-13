@@ -1,50 +1,10 @@
--- Phase D lineage + Phase E run-scope fix
+-- Phase E parameter-name cleanup
 -- Safe to run multiple times.
+-- This migration does not change behavior. It only aligns live SQL function
+-- parameter names with the actual Phase D pipeline-run lineage model.
 
-CREATE OR REPLACE VIEW dictionary.phase_e_latest_first_pass_validations AS
-SELECT DISTINCT ON (vr.merge_proposal_id)
-  vr.id,
-  vr.substrate_run_id,
-  vr.merge_proposal_id,
-  vr.outcome,
-  vr.validator_name,
-  vr.details,
-  vr.created_at,
-  NULLIF(vr.details->>'phase_d_pipeline_run_id', '')::uuid AS phase_d_pipeline_run_id
-FROM dictionary.dictionary_validation_results vr
-WHERE vr.validator_name = 'phase_d_first_pass_validator_v1'
-ORDER BY vr.merge_proposal_id, vr.created_at DESC, vr.id DESC;
-
-CREATE OR REPLACE VIEW dictionary.phase_e_promotable_merge_proposals AS
-SELECT
-  mp.id AS merge_proposal_id,
-  mp.substrate_run_id,
-  lv.substrate_run_id AS validation_substrate_run_id,
-  mp.extraction_candidate_id,
-  mp.proposal_key,
-  mp.proposal_type,
-  mp.target_record_type,
-  mp.target_record_id,
-  mp.proposal_confidence,
-  mp.rationale,
-  mp.proposal_payload,
-  lv.id AS validation_result_id,
-  lv.created_at AS validation_created_at,
-  ec.root_source_id,
-  ec.crawl_artifact_id,
-  ec.extraction_version,
-  ec.candidate_type,
-  ec.candidate_payload,
-  lv.phase_d_pipeline_run_id
-FROM dictionary.dictionary_merge_proposals mp
-JOIN dictionary.phase_e_latest_first_pass_validations lv
-  ON lv.merge_proposal_id = mp.id
- AND lv.outcome = 'approved'
-JOIN dictionary.dictionary_extraction_candidates ec
-  ON ec.id = mp.extraction_candidate_id
-LEFT JOIN dictionary.dictionary_promotion_results pr
-  ON pr.merge_proposal_id = mp.id
-WHERE pr.id IS NULL;
+DROP FUNCTION IF EXISTS dictionary.phase_e_promote_and_publish_artifact_run(UUID, UUID, UUID, UUID);
+DROP FUNCTION IF EXISTS dictionary.phase_e_promote_artifact_run(UUID, UUID, UUID, UUID);
 
 CREATE OR REPLACE FUNCTION dictionary.phase_e_promote_artifact_run(
   p_phase_e_run_id UUID,
