@@ -18,6 +18,8 @@ const PHASE_C_STAGE_NAME = "phase_c_extraction_candidates";
 const PHASE_C_EXTRACTION_EVENT = "dictionary.substrate.extraction.artifact";
 const PHASE_D_STAGE_NAME = "phase_d_merge_proposals";
 const PHASE_D_MERGE_EVENT = "dictionary.substrate.merge.artifact";
+const PHASE_E_STAGE_NAME = "phase_e_promotion_snapshot_publish";
+const PHASE_E_PROMOTION_EVENT = "dictionary.substrate.promote.artifact";
 
 type RootSourceRow = {
   id: string;
@@ -159,6 +161,52 @@ type PhaseDPreparedValidation = {
   outcome: ValidationOutcome;
   validatorName: string;
   details: Record<string, unknown>;
+};
+
+type ActiveSnapshotMetadataRow = {
+  id: string;
+  version: number;
+  status: string;
+  substrateRunId: string;
+  entityCount: number;
+  assertionCount: number;
+  aliasCount: number;
+  changeSummary: Record<string, unknown>;
+  createdAt: string;
+  publishedAt: string;
+  activatedAt: string;
+};
+
+type PhaseEPromotableProposalRow = {
+  mergeProposalId: string;
+  substrateRunId: string;
+  validationSubstrateRunId: string;
+  extractionCandidateId: string;
+  proposalKey: string;
+  proposalType: MergeProposalType;
+  targetRecordType: "entity" | "alias" | "role" | "assertion" | "jurisdiction" | null;
+  targetRecordId: string | null;
+  proposalConfidence: number | null;
+  rationale: string | null;
+  proposalPayload: Record<string, unknown>;
+  validationResultId: string;
+  validationCreatedAt: string;
+  rootSourceId: string;
+  crawlArtifactId: string;
+  extractionVersion: string;
+  candidateType: CandidateType;
+  candidatePayload: Record<string, unknown>;
+};
+
+type PhaseEPromotionExecutionResult = {
+  mergeProposalId: string;
+  validationResultId: string;
+  proposalType: MergeProposalType;
+  promotionOutcome: "promoted" | "no_op";
+  createdRecordType: "entity" | "alias" | "role" | "assertion" | "jurisdiction" | null;
+  createdRecordId: string | null;
+  affectedRecordType: "entity" | "alias" | "role" | "assertion" | "jurisdiction" | null;
+  affectedRecordId: string | null;
 };
 
 type ExtractionExecutionCandidate = {
@@ -320,6 +368,41 @@ async function markPhaseDEventEmission(params: {
     phaseDDispatchEventName: params.phaseDDispatchEventName || null,
     phaseDDispatchArtifactId: params.phaseDDispatchArtifactId || null,
     phaseDDispatchError: params.phaseDDispatchError || null
+  };
+
+  await sql`
+    UPDATE dictionary.dictionary_pipeline_runs
+    SET
+      output_payload = ${JSON.stringify(nextOutput)}::jsonb,
+      updated_at = NOW()
+    WHERE id = ${params.runId}::uuid
+  `;
+}
+
+async function markPhaseEEventEmission(params: {
+  runId: string;
+  phaseEDispatchAttempted?: boolean;
+  phaseEEventEmitted: boolean;
+  phaseEDispatchEventName?: string | null;
+  phaseEDispatchArtifactId?: string | null;
+  phaseEDispatchError?: string | null;
+}) {
+  const sql = getSql();
+  const existingRows = await sql`
+    SELECT output_payload as "outputPayload"
+    FROM dictionary.dictionary_pipeline_runs
+    WHERE id = ${params.runId}::uuid
+    LIMIT 1
+  `;
+
+  const currentOutput = (existingRows[0]?.outputPayload || {}) as Record<string, unknown>;
+  const nextOutput = {
+    ...currentOutput,
+    phaseEDispatchAttempted: params.phaseEDispatchAttempted ?? true,
+    phaseEEventEmitted: params.phaseEEventEmitted,
+    phaseEDispatchEventName: params.phaseEDispatchEventName || null,
+    phaseEDispatchArtifactId: params.phaseEDispatchArtifactId || null,
+    phaseEDispatchError: params.phaseEDispatchError || null
   };
 
   await sql`
@@ -1023,6 +1106,118 @@ async function loadPhaseDCandidatesForArtifact(
     ORDER BY ec.created_at ASC, ec.id ASC
   `;
   return rows as PhaseDCandidateRow[];
+}
+
+async function loadActiveSnapshotMetadata(): Promise<ActiveSnapshotMetadataRow | null> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT
+      id,
+      version,
+      status,
+      substrate_run_id as "substrateRunId",
+      entity_count as "entityCount",
+      assertion_count as "assertionCount",
+      alias_count as "aliasCount",
+      change_summary as "changeSummary",
+      created_at as "createdAt",
+      published_at as "publishedAt",
+      activated_at as "activatedAt"
+    FROM dictionary.active_snapshot_metadata
+    LIMIT 1
+  `;
+  return (rows[0] as ActiveSnapshotMetadataRow | undefined) || null;
+}
+
+async function loadPhaseEPromotableProposals(params: {
+  rootSourceId: string;
+  artifactId: string;
+  phaseDRunId: string;
+}): Promise<PhaseEPromotableProposalRow[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT
+      merge_proposal_id as "mergeProposalId",
+      substrate_run_id as "substrateRunId",
+      validation_substrate_run_id as "validationSubstrateRunId",
+      extraction_candidate_id as "extractionCandidateId",
+      proposal_key as "proposalKey",
+      proposal_type as "proposalType",
+      target_record_type as "targetRecordType",
+      target_record_id as "targetRecordId",
+      proposal_confidence as "proposalConfidence",
+      rationale,
+      proposal_payload as "proposalPayload",
+      validation_result_id as "validationResultId",
+      validation_created_at as "validationCreatedAt",
+      root_source_id as "rootSourceId",
+      crawl_artifact_id as "crawlArtifactId",
+      extraction_version as "extractionVersion",
+      candidate_type as "candidateType",
+      candidate_payload as "candidatePayload"
+    FROM dictionary.phase_e_promotable_merge_proposals
+    WHERE root_source_id = ${params.rootSourceId}::uuid
+      AND crawl_artifact_id = ${params.artifactId}::uuid
+      AND validation_substrate_run_id = ${params.phaseDRunId}::uuid
+    ORDER BY validation_created_at ASC, merge_proposal_id ASC
+  `;
+  return rows as PhaseEPromotableProposalRow[];
+}
+
+async function promoteAndPublishPhaseEArtifactRun(params: {
+  phaseERunId: string;
+  rootSourceId: string;
+  artifactId: string;
+  phaseDRunId: string;
+}): Promise<{
+  snapshotId: string | null;
+  snapshotVersion: number | null;
+  promotedCount: number;
+  noOpCount: number;
+}> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT
+      snapshot_id as "snapshotId",
+      snapshot_version as "snapshotVersion",
+      promoted_count as "promotedCount",
+      no_op_count as "noOpCount"
+    FROM dictionary.phase_e_promote_and_publish_artifact_run(
+      ${params.phaseERunId}::uuid,
+      ${params.rootSourceId}::uuid,
+      ${params.artifactId}::uuid,
+      ${params.phaseDRunId}::uuid
+    )
+  `;
+
+  const row = rows[0] as
+    | { snapshotId: string | null; snapshotVersion: number | null; promotedCount: number; noOpCount: number }
+    | undefined;
+  if (!row) {
+    throw new Error(`Phase E publish helper returned no result for run ${params.phaseERunId}`);
+  }
+  return row;
+}
+
+async function loadPhaseEPromotionResultsForRun(
+  phaseERunId: string
+): Promise<PhaseEPromotionExecutionResult[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT
+      merge_proposal_id as "mergeProposalId",
+      validation_result_id as "validationResultId",
+      (details->>'proposal_type')::dictionary.merge_proposal_type as "proposalType",
+      promotion_outcome as "promotionOutcome",
+      created_record_type as "createdRecordType",
+      created_record_id as "createdRecordId",
+      affected_record_type as "affectedRecordType",
+      affected_record_id as "affectedRecordId"
+    FROM dictionary.dictionary_promotion_results
+    WHERE substrate_run_id = ${phaseERunId}::uuid
+    ORDER BY created_at ASC, merge_proposal_id ASC
+  `;
+  return rows as PhaseEPromotionExecutionResult[];
 }
 
 async function findEntitiesByCanonicalName(name: string, entityType?: string | null): Promise<CanonicalEntityRow[]> {
@@ -2476,6 +2671,7 @@ async function finalizePipelineRun(params: {
   runId: string;
   status: PipelineRunStatus;
   crawlArtifactId?: string | null;
+  snapshotId?: string | null;
   outputPayload?: Record<string, unknown>;
   errorPayload?: Record<string, unknown>;
   metrics?: Record<string, unknown>;
@@ -2486,6 +2682,7 @@ async function finalizePipelineRun(params: {
     SET
       status = ${params.status},
       crawl_artifact_id = COALESCE(${params.crawlArtifactId || null}::uuid, crawl_artifact_id),
+      snapshot_id = COALESCE(${params.snapshotId || null}::uuid, snapshot_id),
       output_payload = ${JSON.stringify(params.outputPayload || {})}::jsonb,
       error_payload = ${JSON.stringify(params.errorPayload || {})}::jsonb,
       metrics = ${JSON.stringify(params.metrics || {})}::jsonb,
@@ -3562,6 +3759,7 @@ export function createDictionarySubstrateMergeArtifactFunction(inngest: Inngest)
         );
 
         const reviewOutcomeCount = validations.filter((validation) => validation.outcome !== "approved").length;
+        const approvedValidationCount = validations.filter((validation) => validation.outcome === "approved").length;
 
         await step.run("finalize-phase-d-run", async () =>
           finalizePipelineRun({
@@ -3605,10 +3803,52 @@ export function createDictionarySubstrateMergeArtifactFunction(inngest: Inngest)
                 .map((row) => row.reviewQueueId)
                 .filter((value): value is string => Boolean(value))
                 .slice(0, 20),
-              nextStage: null
+              nextStage: approvedValidationCount > 0 ? PHASE_E_STAGE_NAME : null,
+              phaseEEventEmitted: false
             }
           })
         );
+
+        let phaseEEventEmitted = false;
+        let phaseEDispatchError: string | null = null;
+        if (approvedValidationCount > 0) {
+          try {
+            await step.sendEvent(`emit-phase-e-promote-${artifactId}`, {
+              name: PHASE_E_PROMOTION_EVENT,
+              data: {
+                rootSourceId,
+                artifactId,
+                extractionVersion,
+                trigger,
+                phaseDRunId: phaseDRun.id,
+                parentRunId: phaseDRun.id
+              }
+            });
+            phaseEEventEmitted = true;
+            await step.run("mark-phase-e-event-emitted", async () =>
+              markPhaseEEventEmission({
+                runId: phaseDRun.id,
+                phaseEDispatchAttempted: true,
+                phaseEEventEmitted: true,
+                phaseEDispatchEventName: PHASE_E_PROMOTION_EVENT,
+                phaseEDispatchArtifactId: artifactId,
+                phaseEDispatchError: null
+              })
+            );
+          } catch (error: any) {
+            await step.run("mark-phase-e-event-failed", async () =>
+              markPhaseEEventEmission({
+                runId: phaseDRun.id,
+                phaseEDispatchAttempted: true,
+                phaseEEventEmitted: false,
+                phaseEDispatchEventName: PHASE_E_PROMOTION_EVENT,
+                phaseEDispatchArtifactId: artifactId,
+                phaseEDispatchError: cleanText(error?.message || "phase_e_dispatch_emit_failed", 2000)
+              })
+            );
+            phaseEDispatchError = cleanText(error?.message || "phase_e_dispatch_emit_failed", 2000);
+          }
+        }
 
         return {
           ok: true,
@@ -3624,8 +3864,11 @@ export function createDictionarySubstrateMergeArtifactFunction(inngest: Inngest)
             diagnosticCandidateCount: diagnosticCandidates.length,
             rejectedCandidateCount: rejectedCandidates.length,
             proposalCount: persistence.persistedCount,
-            validationCount: validationPersistence.persistedCount
-          }
+            validationCount: validationPersistence.persistedCount,
+            approvedValidationCount
+          },
+          phaseEEventEmitted,
+          phaseEDispatchError
         };
       } catch (error: any) {
         await step.run("finalize-phase-d-run-failed", async () =>
@@ -3655,6 +3898,214 @@ export function createDictionarySubstrateMergeArtifactFunction(inngest: Inngest)
           runId: phaseDRun.id,
           parentRunId,
           error: cleanText(error?.message || "phase_d_merge_proposals_failed", 2000)
+        };
+      }
+    }
+  );
+}
+
+export function createDictionarySubstratePromotionArtifactFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "dictionary-substrate-promotion-artifact" },
+    { event: PHASE_E_PROMOTION_EVENT },
+    async ({ event, step }: any) => {
+      const rootSourceId = cleanText(event?.data?.rootSourceId || "", 80);
+      const artifactId = cleanText(event?.data?.artifactId || "", 80);
+      const extractionVersion = cleanText(event?.data?.extractionVersion || "", 120);
+      const phaseDRunId = cleanText(event?.data?.phaseDRunId || "", 80);
+      const trigger = cleanText(event?.data?.trigger || "manual", 20) === "scheduled" ? "scheduled" : "manual";
+      const parentRunId = cleanText(event?.data?.parentRunId || "", 80) || null;
+
+      if (!rootSourceId) throw new Error("Missing rootSourceId");
+      if (!artifactId) throw new Error("Missing artifactId");
+      if (!extractionVersion) throw new Error("Missing extractionVersion");
+      if (!phaseDRunId) throw new Error("Missing phaseDRunId");
+      if (!UUID_RE.test(rootSourceId)) throw new Error("Invalid rootSourceId");
+      if (!UUID_RE.test(artifactId)) throw new Error("Invalid artifactId");
+      if (!UUID_RE.test(phaseDRunId)) throw new Error("Invalid phaseDRunId");
+      if (parentRunId && !UUID_RE.test(parentRunId)) throw new Error("Invalid parentRunId");
+
+      const phaseERun = await step.run("create-phase-e-run", async () =>
+        createPipelineRun({
+          parentRunId,
+          rootSourceId,
+          stageName: PHASE_E_STAGE_NAME,
+          triggerType: trigger,
+          inputPayload: {
+            rootSourceId,
+            artifactId,
+            extractionVersion,
+            phaseDRunId,
+            trigger,
+            phaseBoundary: "phase_d_merge_proposals_complete",
+            handoffContract: "phase_e_promote_publish_v1"
+          }
+        })
+      );
+
+      let promoteAndPublishAttempted = false;
+
+      try {
+        const rootSource = await step.run("load-phase-e-root-source", async () => {
+          const row = await loadRootSourceById(rootSourceId);
+          if (!row) throw new Error(`Unknown root source ${rootSourceId}`);
+          if (!row.enabled) {
+            throw new Error(`Root source ${rootSourceId} is disabled`);
+          }
+          return row;
+        });
+
+        const artifact = await step.run("load-phase-e-artifact", async () => {
+          const row = await loadExtractionArtifactForPhaseC(rootSourceId, artifactId);
+          if (!row) throw new Error(`Unknown extraction artifact ${artifactId}`);
+          return row;
+        });
+
+        const activeSnapshot = await step.run("load-phase-e-active-snapshot", async () =>
+          loadActiveSnapshotMetadata()
+        );
+
+        const promotableProposals = await step.run("load-phase-e-promotable-proposals", async () =>
+          loadPhaseEPromotableProposals({
+            rootSourceId,
+            artifactId,
+            phaseDRunId
+          })
+        );
+
+        promoteAndPublishAttempted = true;
+        const publishResult = await step.run("promote-and-publish-phase-e-artifact-run", async () =>
+          promoteAndPublishPhaseEArtifactRun({
+            phaseERunId: phaseERun.id,
+            rootSourceId,
+            artifactId,
+            phaseDRunId
+          })
+        );
+
+        const promotionResults = await step.run("load-phase-e-promotion-results", async () =>
+          loadPhaseEPromotionResultsForRun(phaseERun.id)
+        );
+
+        await step.run("finalize-phase-e-run", async () =>
+          finalizePipelineRun({
+            runId: phaseERun.id,
+            crawlArtifactId: artifactId,
+            snapshotId: publishResult.snapshotId,
+            status: "succeeded",
+            outputPayload: {
+              rootSourceId,
+              artifactId,
+              extractionVersion,
+              trigger,
+              phaseDRunId,
+              phaseBoundary: "phase_e_snapshot_publish_complete",
+              promotionPlanningAttempted: true,
+              promotionPlanningCompleted: true,
+              promotionReady: promotableProposals.length > 0,
+              canonicalMutationAttempted: true,
+              canonicalMutationCompleted: true,
+              snapshotPublishAttempted: true,
+              snapshotPublishCompleted: publishResult.snapshotId !== null,
+              rootSourceTrustTier: rootSource.trustTier,
+              artifactSubstrateRunId: artifact.substrateRunId,
+              priorActiveSnapshot: activeSnapshot
+                ? {
+                    id: activeSnapshot.id,
+                    version: activeSnapshot.version,
+                    publishedAt: activeSnapshot.publishedAt,
+                    activatedAt: activeSnapshot.activatedAt,
+                    counts: {
+                      entityCount: activeSnapshot.entityCount,
+                      assertionCount: activeSnapshot.assertionCount,
+                      aliasCount: activeSnapshot.aliasCount
+                    }
+                  }
+                : null,
+              publishedSnapshot: publishResult.snapshotId
+                ? {
+                    id: publishResult.snapshotId,
+                    version: publishResult.snapshotVersion
+                  }
+                : null,
+              counts: {
+                promotableProposalCount: promotableProposals.length,
+                promotedCount: publishResult.promotedCount,
+                noOpCount: publishResult.noOpCount
+              },
+              proposalTypeCounts: promotableProposals.reduce((acc: Record<string, number>, proposal) => {
+                acc[proposal.proposalType] = (acc[proposal.proposalType] || 0) + 1;
+                return acc;
+              }, {}),
+              promotionOutcomeCounts: promotionResults.reduce((acc: Record<string, number>, row) => {
+                acc[row.promotionOutcome] = (acc[row.promotionOutcome] || 0) + 1;
+                return acc;
+              }, {}),
+              promotableProposalIds: promotableProposals.slice(0, 20).map((proposal) => proposal.mergeProposalId),
+              validationResultIds: promotableProposals.slice(0, 20).map((proposal) => proposal.validationResultId),
+              proposalKeys: promotableProposals.slice(0, 20).map((proposal) => proposal.proposalKey),
+              createdRecordIds: promotionResults
+                .map((row) => row.createdRecordId)
+                .filter((value): value is string => Boolean(value))
+                .slice(0, 20),
+              affectedRecordIds: promotionResults
+                .map((row) => row.affectedRecordId)
+                .filter((value): value is string => Boolean(value))
+                .slice(0, 20),
+              nextStage: null
+            }
+          })
+        );
+
+        return {
+          ok: true,
+          rootSourceId,
+          artifactId,
+          extractionVersion,
+          trigger,
+          runId: phaseERun.id,
+          parentRunId,
+          phaseDRunId,
+          promotableProposalCount: promotableProposals.length,
+          promotedCount: publishResult.promotedCount,
+          noOpCount: publishResult.noOpCount,
+          activeSnapshotVersion: activeSnapshot?.version || null,
+          publishedSnapshotVersion: publishResult.snapshotVersion
+        };
+      } catch (error: any) {
+        await step.run("finalize-phase-e-run-failed", async () =>
+          finalizePipelineRun({
+            runId: phaseERun.id,
+            status: "failed",
+            crawlArtifactId: artifactId,
+            errorPayload: {
+              rootSourceId,
+              artifactId,
+              extractionVersion,
+              phaseDRunId,
+              trigger,
+              phaseBoundary: "phase_e_snapshot_publish_failed",
+              promotionPlanningAttempted: true,
+              promotionPlanningCompleted: true,
+              canonicalMutationAttempted: promoteAndPublishAttempted,
+              canonicalMutationCompleted: false,
+              snapshotPublishAttempted: promoteAndPublishAttempted,
+              snapshotPublishCompleted: false,
+              message: cleanText(error?.message || "phase_e_snapshot_publish_failed", 2000)
+            }
+          })
+        );
+
+        return {
+          ok: false,
+          rootSourceId,
+          artifactId,
+          extractionVersion,
+          trigger,
+          runId: phaseERun.id,
+          parentRunId,
+          phaseDRunId,
+          error: cleanText(error?.message || "phase_e_snapshot_publish_failed", 2000)
         };
       }
     }

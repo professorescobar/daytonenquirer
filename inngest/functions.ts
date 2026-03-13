@@ -17,6 +17,7 @@ import {
   createDictionarySubstrateDispatchSchedulerFunction as createDictionarySubstrateDispatchSchedulerFunctionFromModule,
   createDictionarySubstrateExtractionArtifactFunction as createDictionarySubstrateExtractionArtifactFunctionFromModule,
   createDictionarySubstrateMergeArtifactFunction as createDictionarySubstrateMergeArtifactFunctionFromModule,
+  createDictionarySubstratePromotionArtifactFunction as createDictionarySubstratePromotionArtifactFunctionFromModule,
   createDictionarySubstrateRootIngestionFunction as createDictionarySubstrateRootIngestionFunctionFromModule
 } from "./dictionary-substrate";
 import { inngest } from "./client";
@@ -38,5 +39,6 @@ export const functions = [
   createDictionarySubstrateDispatchFunctionFromModule(inngest),
   createDictionarySubstrateRootIngestionFunctionFromModule(inngest),
   createDictionarySubstrateExtractionArtifactFunctionFromModule(inngest),
-  createDictionarySubstrateMergeArtifactFunctionFromModule(inngest)
+  createDictionarySubstrateMergeArtifactFunctionFromModule(inngest),
+  createDictionarySubstratePromotionArtifactFunctionFromModule(inngest)
 ];
