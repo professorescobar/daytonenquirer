@@ -11,7 +11,14 @@ import {
 
 type DispatchTrigger = "scheduled" | "manual";
 type PipelineRunStatus = "running" | "succeeded" | "failed" | "needs_review";
-type ReviewQueueItemType = "fetch_failure" | "artifact_parse_failure" | "extraction_contract_failure";
+type ReviewQueueItemType =
+  | "fetch_failure"
+  | "artifact_parse_failure"
+  | "extraction_contract_failure"
+  | "merge_ambiguity"
+  | "validation_failure"
+  | "freshness_overdue"
+  | "expired_high_impact_assertion";
 type ReviewQueueSeverity = "low" | "medium" | "high" | "critical";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PHASE_C_STAGE_NAME = "phase_c_extraction_candidates";
@@ -20,6 +27,10 @@ const PHASE_D_STAGE_NAME = "phase_d_merge_proposals";
 const PHASE_D_MERGE_EVENT = "dictionary.substrate.merge.artifact";
 const PHASE_E_STAGE_NAME = "phase_e_promotion_snapshot_publish";
 const PHASE_E_PROMOTION_EVENT = "dictionary.substrate.promote.artifact";
+const PHASE_F_STAGE_NAME = "phase_f_freshness_review";
+const PHASE_F_SCAN_EVENT = "dictionary.substrate.freshness.scan";
+const PHASE_F_REFRESH_LIMIT_DEFAULT = 10;
+const PHASE_F_REFRESH_COOLDOWN_HOURS_DEFAULT = 24;
 
 type RootSourceRow = {
   id: string;
@@ -209,6 +220,71 @@ type PhaseEPromotionExecutionResult = {
   createdRecordId: string | null;
   affectedRecordType: "entity" | "alias" | "role" | "assertion" | "jurisdiction" | null;
   affectedRecordId: string | null;
+};
+
+type PhaseFAssertionReviewRow = {
+  assertionId: string;
+  rootSourceId: string | null;
+  crawlArtifactId: string | null;
+  sourceUrl: string | null;
+  sourceDomain: string | null;
+  trustTier: RootSourceRow["trustTier"] | null;
+  failureThreshold: number | null;
+  blockingFailureRetryCount: number;
+  blockingItemTypes: string[];
+  subjectEntityId: string;
+  objectEntityId: string | null;
+  roleId: string | null;
+  assertionType: string;
+  validityStatus: string;
+  reviewStatus: string;
+  computedValidityStatus: string;
+  computedReviewStatus: string;
+  lastVerifiedAt: string | null;
+  freshnessSlaDays: number | null;
+  nextReviewAt: string | null;
+  reviewDueAt: string | null;
+  pendingRefreshAt: string | null;
+  effectiveEndAt: string | null;
+  termEndAt: string | null;
+  supersededByAssertionId: string | null;
+  latestProvenanceCapturedAt: string | null;
+  isHighImpact: boolean;
+  isPendingRefresh: boolean;
+  isOverdue: boolean;
+  isBlocked: boolean;
+  expiresWithoutSuccessor: boolean;
+  overdueBy: string | null;
+};
+
+type PhaseFRootSourceAttentionRow = {
+  rootSourceId: string;
+  sourceName: string;
+  sourceType: string;
+  sourceDomain: string;
+  rootUrl: string;
+  trustTier: RootSourceRow["trustTier"];
+  crawlCadenceDays: number | null;
+  freshnessSlaDays: number | null;
+  failureThreshold: number;
+  lastSuccessfulCrawlAt: string | null;
+  daysSinceLastSuccess: number | null;
+  dueByCadence: boolean;
+  overdueByFreshnessSla: boolean;
+  openBlockingFailureCount: number;
+  blockingFailureRetryCount: number;
+  blockingItemTypes: string[];
+  openExtractionFailureCount: number;
+  extractionFailureRetryCount: number;
+  isBlocked: boolean;
+  attentionReason: string;
+  shouldDispatchRefresh: boolean;
+};
+
+type PhaseFDispatchCandidateRow = PhaseFRootSourceAttentionRow & {
+  recentIngestionRunId: string | null;
+  recentIngestionRunStatus: string | null;
+  recentIngestionCreatedAt: string | null;
 };
 
 type ExtractionExecutionCandidate = {
@@ -416,6 +492,55 @@ async function markPhaseEEventEmission(params: {
   `;
 }
 
+async function markPhaseFRefreshDispatch(params: {
+  runId: string;
+  phaseFRefreshDispatchAttempted?: boolean;
+  phaseFRefreshDispatchCompleted?: boolean;
+  refreshDispatchLimit?: number | null;
+  refreshDispatchCooldownHours?: number | null;
+  refreshDispatchRequested?: boolean | null;
+  refreshDispatchCandidateCount?: number | null;
+  refreshDispatchSelectedCount?: number | null;
+  refreshDispatchSkippedRecentCount?: number | null;
+  refreshDispatchEmittedCount?: number | null;
+  refreshDispatchRootSourceIds?: string[];
+  refreshDispatchRecentRootSourceIds?: string[];
+  refreshDispatchError?: string | null;
+}) {
+  const sql = getSql();
+  const existingRows = await sql`
+    SELECT output_payload as "outputPayload"
+    FROM dictionary.dictionary_pipeline_runs
+    WHERE id = ${params.runId}::uuid
+    LIMIT 1
+  `;
+
+  const currentOutput = (existingRows[0]?.outputPayload || {}) as Record<string, unknown>;
+  const nextOutput = {
+    ...currentOutput,
+    phaseFRefreshDispatchAttempted: params.phaseFRefreshDispatchAttempted ?? true,
+    phaseFRefreshDispatchCompleted: params.phaseFRefreshDispatchCompleted ?? false,
+    refreshDispatchRequested: params.refreshDispatchRequested ?? false,
+    refreshDispatchLimit: params.refreshDispatchLimit ?? null,
+    refreshDispatchCooldownHours: params.refreshDispatchCooldownHours ?? null,
+    refreshDispatchCandidateCount: params.refreshDispatchCandidateCount ?? null,
+    refreshDispatchSelectedCount: params.refreshDispatchSelectedCount ?? null,
+    refreshDispatchSkippedRecentCount: params.refreshDispatchSkippedRecentCount ?? null,
+    refreshDispatchEmittedCount: params.refreshDispatchEmittedCount ?? null,
+    refreshDispatchRootSourceIds: params.refreshDispatchRootSourceIds || [],
+    refreshDispatchRecentRootSourceIds: params.refreshDispatchRecentRootSourceIds || [],
+    refreshDispatchError: params.refreshDispatchError || null
+  };
+
+  await sql`
+    UPDATE dictionary.dictionary_pipeline_runs
+    SET
+      output_payload = ${JSON.stringify(nextOutput)}::jsonb,
+      updated_at = NOW()
+    WHERE id = ${params.runId}::uuid
+  `;
+}
+
 function cleanText(value: unknown, max = 1000): string {
   return String(value || "").trim().slice(0, max);
 }
@@ -429,6 +554,15 @@ function parsePositiveInt(value: unknown, fallback: number, min: number, max: nu
   const parsed = Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(Math.max(parsed, min), max);
+}
+
+function parseBoolean(value: unknown, fallback = false): boolean {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
 }
 
 function getSql() {
@@ -1222,6 +1356,164 @@ async function loadPhaseEPromotionResultsForRun(
     ORDER BY created_at ASC, merge_proposal_id ASC
   `;
   return rows as PhaseEPromotionExecutionResult[];
+}
+
+async function loadPhaseFAssertionsDueForReview(
+  asOf: string,
+  sqlClient?: any
+): Promise<PhaseFAssertionReviewRow[]> {
+  const sql = sqlClient || getSql();
+  const rows = await sql`
+    SELECT
+      assertion_id as "assertionId",
+      root_source_id as "rootSourceId",
+      crawl_artifact_id as "crawlArtifactId",
+      source_url as "sourceUrl",
+      source_domain as "sourceDomain",
+      trust_tier as "trustTier",
+      failure_threshold as "failureThreshold",
+      blocking_failure_retry_count as "blockingFailureRetryCount",
+      blocking_item_types as "blockingItemTypes",
+      subject_entity_id as "subjectEntityId",
+      object_entity_id as "objectEntityId",
+      role_id as "roleId",
+      assertion_type as "assertionType",
+      validity_status as "validityStatus",
+      review_status as "reviewStatus",
+      computed_validity_status as "computedValidityStatus",
+      computed_review_status as "computedReviewStatus",
+      last_verified_at as "lastVerifiedAt",
+      freshness_sla_days as "freshnessSlaDays",
+      next_review_at as "nextReviewAt",
+      review_due_at as "reviewDueAt",
+      pending_refresh_at as "pendingRefreshAt",
+      effective_end_at as "effectiveEndAt",
+      term_end_at as "termEndAt",
+      superseded_by_assertion_id as "supersededByAssertionId",
+      latest_provenance_captured_at as "latestProvenanceCapturedAt",
+      is_high_impact as "isHighImpact",
+      is_pending_refresh as "isPendingRefresh",
+      is_overdue as "isOverdue",
+      is_blocked as "isBlocked",
+      expires_without_successor as "expiresWithoutSuccessor",
+      overdue_by as "overdueBy"
+    FROM dictionary.phase_f_assertions_due_for_review(${asOf}::timestamptz)
+  `;
+  return rows as PhaseFAssertionReviewRow[];
+}
+
+async function loadPhaseFRootSourcesRequiringAttention(
+  asOf: string,
+  sqlClient?: any
+): Promise<PhaseFRootSourceAttentionRow[]> {
+  const sql = sqlClient || getSql();
+  const rows = await sql`
+    SELECT
+      root_source_id as "rootSourceId",
+      source_name as "sourceName",
+      source_type as "sourceType",
+      source_domain as "sourceDomain",
+      root_url as "rootUrl",
+      trust_tier as "trustTier",
+      crawl_cadence_days as "crawlCadenceDays",
+      freshness_sla_days as "freshnessSlaDays",
+      failure_threshold as "failureThreshold",
+      last_successful_crawl_at as "lastSuccessfulCrawlAt",
+      days_since_last_success as "daysSinceLastSuccess",
+      due_by_cadence as "dueByCadence",
+      overdue_by_freshness_sla as "overdueByFreshnessSla",
+      open_blocking_failure_count as "openBlockingFailureCount",
+      blocking_failure_retry_count as "blockingFailureRetryCount",
+      blocking_item_types as "blockingItemTypes",
+      open_extraction_failure_count as "openExtractionFailureCount",
+      extraction_failure_retry_count as "extractionFailureRetryCount",
+      is_blocked as "isBlocked",
+      attention_reason as "attentionReason",
+      should_dispatch_refresh as "shouldDispatchRefresh"
+    FROM dictionary.phase_f_root_sources_requiring_attention(${asOf}::timestamptz)
+  `;
+  return rows as PhaseFRootSourceAttentionRow[];
+}
+
+async function loadPhaseFRefreshDispatchCandidates(params: {
+  asOf: string;
+  limit: number;
+  cooldownHours: number;
+}): Promise<{
+  candidates: PhaseFDispatchCandidateRow[];
+  skippedRecentRootSourceIds: string[];
+}> {
+  const sql = getSql();
+  const rows = await sql`
+    WITH attention AS (
+      SELECT *
+      FROM dictionary.phase_f_root_sources_requiring_attention(${params.asOf}::timestamptz)
+      WHERE should_dispatch_refresh = true
+    ),
+    recent_runs AS (
+      SELECT DISTINCT ON (pr.root_source_id)
+        pr.root_source_id,
+        pr.id,
+        pr.status,
+        pr.created_at
+      FROM dictionary.dictionary_pipeline_runs pr
+      JOIN attention a
+        ON a.root_source_id = pr.root_source_id
+      WHERE lower(pr.stage_name) = 'phase_b_root_ingestion'
+        AND pr.created_at >= ${params.asOf}::timestamptz - make_interval(hours => ${params.cooldownHours})
+      ORDER BY pr.root_source_id, pr.created_at DESC, pr.id DESC
+    )
+    SELECT
+      a.root_source_id as "rootSourceId",
+      a.source_name as "sourceName",
+      a.source_type as "sourceType",
+      a.source_domain as "sourceDomain",
+      a.root_url as "rootUrl",
+      a.trust_tier as "trustTier",
+      a.crawl_cadence_days as "crawlCadenceDays",
+      a.freshness_sla_days as "freshnessSlaDays",
+      a.failure_threshold as "failureThreshold",
+      a.last_successful_crawl_at as "lastSuccessfulCrawlAt",
+      a.days_since_last_success as "daysSinceLastSuccess",
+      a.due_by_cadence as "dueByCadence",
+      a.overdue_by_freshness_sla as "overdueByFreshnessSla",
+      a.open_blocking_failure_count as "openBlockingFailureCount",
+      a.blocking_failure_retry_count as "blockingFailureRetryCount",
+      a.blocking_item_types as "blockingItemTypes",
+      a.open_extraction_failure_count as "openExtractionFailureCount",
+      a.extraction_failure_retry_count as "extractionFailureRetryCount",
+      a.is_blocked as "isBlocked",
+      a.attention_reason as "attentionReason",
+      a.should_dispatch_refresh as "shouldDispatchRefresh",
+      rr.id as "recentIngestionRunId",
+      rr.status as "recentIngestionRunStatus",
+      rr.created_at as "recentIngestionCreatedAt"
+    FROM attention a
+    LEFT JOIN recent_runs rr
+      ON rr.root_source_id = a.root_source_id
+    ORDER BY
+      a.overdue_by_freshness_sla DESC,
+      CASE a.trust_tier
+        WHEN 'authoritative' THEN 0
+        WHEN 'corroborative' THEN 1
+        ELSE 2
+      END,
+      a.days_since_last_success DESC NULLS FIRST,
+      a.source_name ASC
+  `;
+
+  const allRows = rows as PhaseFDispatchCandidateRow[];
+  const skippedRecentRootSourceIds = allRows
+    .filter((row) => Boolean(row.recentIngestionRunId))
+    .map((row) => row.rootSourceId);
+  const candidates = allRows
+    .filter((row) => !row.recentIngestionRunId)
+    .slice(0, params.limit);
+
+  return {
+    candidates,
+    skippedRecentRootSourceIds
+  };
 }
 
 async function findEntitiesByCanonicalName(name: string, entityType?: string | null): Promise<CanonicalEntityRow[]> {
@@ -2945,6 +3237,432 @@ async function resolveOpenPhaseCExtractionFailures(rootSourceId: string, pipelin
   `;
 }
 
+function derivePhaseFRootFreshnessSeverity(
+  rootSource: PhaseFRootSourceAttentionRow
+): ReviewQueueSeverity {
+  if (rootSource.isBlocked) {
+    return rootSource.trustTier === "authoritative" ? "critical" : "high";
+  }
+  return rootSource.trustTier === "authoritative" ? "high" : "medium";
+}
+
+function derivePhaseFAssertionFreshnessSeverity(
+  assertion: PhaseFAssertionReviewRow
+): ReviewQueueSeverity {
+  if (assertion.isBlocked && (assertion.isHighImpact || assertion.trustTier === "authoritative")) {
+    return "critical";
+  }
+  if (assertion.isHighImpact || assertion.isBlocked || assertion.trustTier === "authoritative") {
+    return "high";
+  }
+  return "medium";
+}
+
+function derivePhaseFExpiredAssertionSeverity(
+  assertion: PhaseFAssertionReviewRow
+): ReviewQueueSeverity {
+  if (assertion.trustTier === "authoritative") return "critical";
+  return "high";
+}
+
+function buildPhaseFRootFreshnessSuggestedAction(rootSource: PhaseFRootSourceAttentionRow): string {
+  if (rootSource.isBlocked) {
+    return `Inspect unresolved source failures for ${rootSource.rootUrl} before attempting another freshness refresh.`;
+  }
+  return `Refresh overdue root source ${rootSource.rootUrl} through the existing substrate ingestion flow and verify the source still yields handoff-ready content.`;
+}
+
+function buildPhaseFAssertionFreshnessSuggestedAction(assertion: PhaseFAssertionReviewRow): string {
+  const sourceLabel = assertion.sourceDomain || assertion.sourceUrl || "the linked source";
+  if (assertion.isBlocked) {
+    return `Inspect unresolved source failures blocking revalidation for assertion ${assertion.assertionId} from ${sourceLabel}.`;
+  }
+  if (assertion.isHighImpact) {
+    return `Revalidate overdue high-impact assertion ${assertion.assertionId} against ${sourceLabel} and confirm whether a successor change should be promoted later.`;
+  }
+  return `Revalidate overdue assertion ${assertion.assertionId} against ${sourceLabel} and confirm the canonical review state.`;
+}
+
+function buildPhaseFExpiredHighImpactSuggestedAction(assertion: PhaseFAssertionReviewRow): string {
+  return `Review expired high-impact assertion ${assertion.assertionId} and determine whether a successor assertion should be promoted or the record should remain expired without replacement.`;
+}
+
+function buildPhaseFReviewItemUpsertQuery(tx: any, params: {
+  itemType: "freshness_overdue" | "expired_high_impact_assertion";
+  severity: ReviewQueueSeverity;
+  rootSourceId?: string | null;
+  crawlArtifactId?: string | null;
+  pipelineRunId: string;
+  affectedRecordType: "root_source" | "assertion";
+  affectedRecordId: string;
+  lastError: string;
+  suggestedAction: string;
+}) {
+  return tx`
+    WITH updated AS (
+      UPDATE dictionary.dictionary_review_queue
+      SET
+        severity = ${params.severity},
+        root_source_id = COALESCE(${params.rootSourceId || null}::uuid, root_source_id),
+        crawl_artifact_id = COALESCE(${params.crawlArtifactId || null}::uuid, crawl_artifact_id),
+        pipeline_run_id = ${params.pipelineRunId}::uuid,
+        last_error = ${params.lastError},
+        suggested_action = ${params.suggestedAction},
+        last_failed_at = NOW(),
+        updated_at = NOW()
+      WHERE item_type = ${params.itemType}
+        AND affected_record_type = ${params.affectedRecordType}
+        AND affected_record_id = ${params.affectedRecordId}::uuid
+        AND resolved_at IS NULL
+      RETURNING id, 'updated'::text as action
+    ),
+    inserted AS (
+      INSERT INTO dictionary.dictionary_review_queue (
+        item_type,
+        severity,
+        root_source_id,
+        crawl_artifact_id,
+        pipeline_run_id,
+        affected_record_type,
+        affected_record_id,
+        retry_count,
+        last_error,
+        suggested_action,
+        first_failed_at,
+        last_failed_at,
+        created_at,
+        updated_at
+      )
+      SELECT
+        ${params.itemType},
+        ${params.severity},
+        ${params.rootSourceId || null}::uuid,
+        ${params.crawlArtifactId || null}::uuid,
+        ${params.pipelineRunId}::uuid,
+        ${params.affectedRecordType},
+        ${params.affectedRecordId}::uuid,
+        0,
+        ${params.lastError},
+        ${params.suggestedAction},
+        NOW(),
+        NOW(),
+        NOW(),
+        NOW()
+      WHERE NOT EXISTS (SELECT 1 FROM updated)
+      RETURNING id, 'inserted'::text as action
+    )
+    SELECT id, action FROM updated
+    UNION ALL
+    SELECT id, action FROM inserted
+  `;
+}
+
+function buildPhaseFReviewItemResolveQuery(tx: any, params: {
+  pipelineRunId: string;
+  itemType: "freshness_overdue" | "expired_high_impact_assertion";
+  affectedRecordType: "root_source" | "assertion";
+  keepRecordIds: string[];
+}) {
+  if (!params.keepRecordIds.length) {
+    return tx`
+      UPDATE dictionary.dictionary_review_queue
+      SET
+        resolved_at = NOW(),
+        pipeline_run_id = ${params.pipelineRunId}::uuid,
+        updated_at = NOW()
+      WHERE item_type = ${params.itemType}
+        AND affected_record_type = ${params.affectedRecordType}
+        AND resolved_at IS NULL
+      RETURNING id
+    `;
+  }
+
+  return tx`
+    UPDATE dictionary.dictionary_review_queue
+    SET
+      resolved_at = NOW(),
+      pipeline_run_id = ${params.pipelineRunId}::uuid,
+      updated_at = NOW()
+    WHERE item_type = ${params.itemType}
+      AND affected_record_type = ${params.affectedRecordType}
+      AND resolved_at IS NULL
+      AND NOT (affected_record_id = ANY(${params.keepRecordIds}::uuid[]))
+    RETURNING id
+  `;
+}
+
+function buildPhaseFAssertionStateUpdateQuery(tx: any, params: {
+  assertionId: string;
+  computedValidityStatus: string;
+  computedReviewStatus: string;
+}) {
+  return tx`
+    UPDATE dictionary.dictionary_assertions
+    SET
+      validity_status = ${params.computedValidityStatus}::dictionary.assertion_validity_status,
+      review_status = ${params.computedReviewStatus}::dictionary.assertion_review_status,
+      updated_at = NOW()
+    WHERE id = ${params.assertionId}::uuid
+      AND (
+        validity_status IS DISTINCT FROM ${params.computedValidityStatus}::dictionary.assertion_validity_status
+        OR review_status IS DISTINCT FROM ${params.computedReviewStatus}::dictionary.assertion_review_status
+      )
+    RETURNING id
+  `;
+}
+
+async function runPhaseFFreshnessScan(input: {
+  trigger: DispatchTrigger;
+  parentRunId?: string | null;
+}) {
+  const phaseFRun = await createPipelineRun({
+    parentRunId: input.parentRunId || null,
+    stageName: PHASE_F_STAGE_NAME,
+    triggerType: input.trigger,
+    inputPayload: {
+      trigger: input.trigger,
+      phaseBoundary: "phase_f_canonical_head_maintenance_only",
+      reviewStateBoundary: "canonical_head_only_no_snapshot_publish"
+    }
+  });
+
+  try {
+    const asOf = new Date().toISOString();
+    const assertions = await loadPhaseFAssertionsDueForReview(asOf);
+    const rootSources = await loadPhaseFRootSourcesRequiringAttention(asOf);
+    const sql = getSql();
+    let assertionStateWriteCount = 0;
+    let rootFreshnessItemWriteCount = 0;
+    let assertionFreshnessItemWriteCount = 0;
+    let expiredHighImpactItemWriteCount = 0;
+
+    const overdueRootSourceIds: string[] = [];
+    const overdueAssertionIds: string[] = [];
+    const expiredHighImpactAssertionIds: string[] = [];
+
+    const transactionResults = await sql.transaction((tx: any) => {
+      const queries: any[] = [];
+
+      for (const rootSource of rootSources) {
+        if (!rootSource.overdueByFreshnessSla) continue;
+        overdueRootSourceIds.push(rootSource.rootSourceId);
+        queries.push(
+          buildPhaseFReviewItemUpsertQuery(tx, {
+            itemType: "freshness_overdue",
+            severity: derivePhaseFRootFreshnessSeverity(rootSource),
+            rootSourceId: rootSource.rootSourceId,
+            pipelineRunId: phaseFRun.id,
+            affectedRecordType: "root_source",
+            affectedRecordId: rootSource.rootSourceId,
+            lastError: rootSource.isBlocked
+              ? "root_source_freshness_overdue_blocked_by_source_failures"
+              : "root_source_freshness_sla_exceeded",
+            suggestedAction: buildPhaseFRootFreshnessSuggestedAction(rootSource)
+          })
+        );
+        rootFreshnessItemWriteCount += 1;
+      }
+
+      queries.push(
+        buildPhaseFReviewItemResolveQuery(tx, {
+          pipelineRunId: phaseFRun.id,
+          itemType: "freshness_overdue",
+          affectedRecordType: "root_source",
+          keepRecordIds: overdueRootSourceIds
+        })
+      );
+
+      for (const assertion of assertions) {
+        queries.push(
+          buildPhaseFAssertionStateUpdateQuery(tx, {
+            assertionId: assertion.assertionId,
+            computedValidityStatus: assertion.computedValidityStatus,
+            computedReviewStatus: assertion.computedReviewStatus
+          })
+        );
+
+        if (assertion.isOverdue) {
+          overdueAssertionIds.push(assertion.assertionId);
+          queries.push(
+            buildPhaseFReviewItemUpsertQuery(tx, {
+              itemType: "freshness_overdue",
+              severity: derivePhaseFAssertionFreshnessSeverity(assertion),
+              rootSourceId: assertion.rootSourceId,
+              crawlArtifactId: assertion.crawlArtifactId,
+              pipelineRunId: phaseFRun.id,
+              affectedRecordType: "assertion",
+              affectedRecordId: assertion.assertionId,
+              lastError: assertion.isBlocked
+                ? "assertion_review_overdue_blocked_by_source_failures"
+                : "assertion_review_overdue",
+              suggestedAction: buildPhaseFAssertionFreshnessSuggestedAction(assertion)
+            })
+          );
+          assertionFreshnessItemWriteCount += 1;
+        }
+
+        if (assertion.expiresWithoutSuccessor) {
+          expiredHighImpactAssertionIds.push(assertion.assertionId);
+          queries.push(
+            buildPhaseFReviewItemUpsertQuery(tx, {
+              itemType: "expired_high_impact_assertion",
+              severity: derivePhaseFExpiredAssertionSeverity(assertion),
+              rootSourceId: assertion.rootSourceId,
+              crawlArtifactId: assertion.crawlArtifactId,
+              pipelineRunId: phaseFRun.id,
+              affectedRecordType: "assertion",
+              affectedRecordId: assertion.assertionId,
+              lastError: "high_impact_assertion_expired_without_successor",
+              suggestedAction: buildPhaseFExpiredHighImpactSuggestedAction(assertion)
+            })
+          );
+          expiredHighImpactItemWriteCount += 1;
+        }
+      }
+
+      queries.push(
+        buildPhaseFReviewItemResolveQuery(tx, {
+          pipelineRunId: phaseFRun.id,
+          itemType: "freshness_overdue",
+          affectedRecordType: "assertion",
+          keepRecordIds: overdueAssertionIds
+        })
+      );
+
+      queries.push(
+        buildPhaseFReviewItemResolveQuery(tx, {
+          pipelineRunId: phaseFRun.id,
+          itemType: "expired_high_impact_assertion",
+          affectedRecordType: "assertion",
+          keepRecordIds: expiredHighImpactAssertionIds
+        })
+      );
+
+      return queries;
+    });
+
+    let resultIndex = 0;
+    resultIndex += rootFreshnessItemWriteCount;
+    const resolvedRootFreshnessCount = (transactionResults[resultIndex++] || []).length;
+
+    for (let index = 0; index < assertions.length; index += 1) {
+      const rows = transactionResults[resultIndex++] || [];
+      if (rows.length) assertionStateWriteCount += 1;
+
+      if (assertions[index].isOverdue) {
+        resultIndex += 1;
+      }
+      if (assertions[index].expiresWithoutSuccessor) {
+        resultIndex += 1;
+      }
+    }
+
+    const resolvedAssertionFreshnessCount = (transactionResults[resultIndex++] || []).length;
+    const resolvedExpiredHighImpactCount = (transactionResults[resultIndex++] || []).length;
+
+    const syncSummary = {
+      assertions,
+      rootSources,
+      overdueRootSourceIds,
+      overdueAssertionIds,
+      expiredHighImpactAssertionIds,
+      assertionStateWriteCount,
+      rootFreshnessItemWriteCount,
+      assertionFreshnessItemWriteCount,
+      expiredHighImpactItemWriteCount,
+      resolvedRootFreshnessCount,
+      resolvedAssertionFreshnessCount,
+      resolvedExpiredHighImpactCount
+    };
+
+    const needsReview =
+      syncSummary.overdueRootSourceIds.length > 0 ||
+      syncSummary.overdueAssertionIds.length > 0 ||
+      syncSummary.expiredHighImpactAssertionIds.length > 0;
+
+    await finalizePipelineRun({
+      runId: phaseFRun.id,
+      status: needsReview ? "needs_review" : "succeeded",
+      outputPayload: {
+        trigger: input.trigger,
+        asOf,
+        phaseBoundary: "phase_f_canonical_head_maintenance_only",
+        snapshotMutationAttempted: false,
+        transactionalSync: true,
+        counts: {
+          evaluatedAssertionCount: syncSummary.assertions.length,
+          attentionRootSourceCount: syncSummary.rootSources.length,
+          overdueRootSourceCount: syncSummary.overdueRootSourceIds.length,
+          overdueAssertionCount: syncSummary.overdueAssertionIds.length,
+          blockedAssertionCount: syncSummary.assertions.filter((row) => row.isBlocked).length,
+          pendingRefreshAssertionCount: syncSummary.assertions.filter((row) => row.isPendingRefresh).length,
+          expiredHighImpactAssertionCount: syncSummary.expiredHighImpactAssertionIds.length,
+          assertionStateWriteCount: syncSummary.assertionStateWriteCount,
+          rootFreshnessItemWriteCount: syncSummary.rootFreshnessItemWriteCount,
+          assertionFreshnessItemWriteCount: syncSummary.assertionFreshnessItemWriteCount,
+          expiredHighImpactItemWriteCount: syncSummary.expiredHighImpactItemWriteCount,
+          resolvedRootFreshnessCount: syncSummary.resolvedRootFreshnessCount,
+          resolvedAssertionFreshnessCount: syncSummary.resolvedAssertionFreshnessCount,
+          resolvedExpiredHighImpactCount: syncSummary.resolvedExpiredHighImpactCount
+        },
+        overdueRootSourceIds: syncSummary.overdueRootSourceIds.slice(0, 20),
+        overdueAssertionIds: syncSummary.overdueAssertionIds.slice(0, 20),
+        expiredHighImpactAssertionIds: syncSummary.expiredHighImpactAssertionIds.slice(0, 20)
+      },
+      metrics: {
+        overdueRootSourceCount: syncSummary.overdueRootSourceIds.length,
+        overdueAssertionCount: syncSummary.overdueAssertionIds.length,
+        expiredHighImpactAssertionCount: syncSummary.expiredHighImpactAssertionIds.length,
+        assertionStateWriteCount: syncSummary.assertionStateWriteCount
+      }
+    });
+
+    return {
+      ok: true,
+      runId: phaseFRun.id,
+      trigger: input.trigger,
+      asOf,
+      needsReview,
+      overdueRootSourceCount: syncSummary.overdueRootSourceIds.length,
+      overdueAssertionCount: syncSummary.overdueAssertionIds.length,
+      expiredHighImpactAssertionCount: syncSummary.expiredHighImpactAssertionIds.length,
+      assertionStateWriteCount: syncSummary.assertionStateWriteCount
+    };
+  } catch (error: any) {
+    await finalizePipelineRun({
+      runId: phaseFRun.id,
+      status: "failed",
+      errorPayload: {
+        trigger: input.trigger,
+        phaseBoundary: "phase_f_freshness_scan_failed",
+        message: cleanText(error?.message || "phase_f_freshness_scan_failed", 2000)
+      }
+    });
+    throw error;
+  }
+}
+
+async function markPhaseFRefreshDispatchAttempts(params: {
+  pipelineRunId: string;
+  rootSourceIds: string[];
+}) {
+  if (!params.rootSourceIds.length) return 0;
+  const sql = getSql();
+  const rows = await sql`
+    UPDATE dictionary.dictionary_review_queue
+    SET
+      retry_count = retry_count + 1,
+      pipeline_run_id = ${params.pipelineRunId}::uuid,
+      updated_at = NOW()
+    WHERE item_type = 'freshness_overdue'
+      AND affected_record_type = 'root_source'
+      AND affected_record_id = ANY(${params.rootSourceIds}::uuid[])
+      AND resolved_at IS NULL
+    RETURNING id
+  `;
+  return rows.length;
+}
+
 async function persistCrawlArtifact(rootSource: RootSourceRow, runId: string, artifact: FetchArtifactResult) {
   const sql = getSql();
   const rows = await sql`
@@ -3913,6 +4631,193 @@ export function createDictionarySubstrateMergeArtifactFunction(inngest: Inngest)
           parentRunId,
           error: cleanText(error?.message || "phase_d_merge_proposals_failed", 2000)
         };
+      }
+    }
+  );
+}
+
+export function createDictionarySubstrateFreshnessSchedulerFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "dictionary-substrate-freshness-scheduler", concurrency: { limit: 1 } },
+    { cron: "0 16 * * 1" },
+    async ({ step }: any) => {
+      await step.sendEvent("emit-dictionary-substrate-freshness-scan", {
+        name: PHASE_F_SCAN_EVENT,
+        data: {
+          trigger: "scheduled",
+          dispatchRefreshes: true,
+          refreshLimit: PHASE_F_REFRESH_LIMIT_DEFAULT,
+          refreshCooldownHours: PHASE_F_REFRESH_COOLDOWN_HOURS_DEFAULT
+        }
+      });
+
+      return {
+        ok: true,
+        trigger: "scheduled",
+        scheduledAt: new Date().toISOString(),
+        dispatchRefreshes: true,
+        refreshLimit: PHASE_F_REFRESH_LIMIT_DEFAULT,
+        refreshCooldownHours: PHASE_F_REFRESH_COOLDOWN_HOURS_DEFAULT
+      };
+    }
+  );
+}
+
+export function createDictionarySubstrateFreshnessScanFunction(inngest: Inngest) {
+  return inngest.createFunction(
+    { id: "dictionary-substrate-freshness-scan", concurrency: { limit: 1 } },
+    { event: PHASE_F_SCAN_EVENT },
+    async ({ event, step }: any) => {
+      const trigger = cleanText(event?.data?.trigger || "manual", 20) === "scheduled" ? "scheduled" : "manual";
+      const parentRunId = cleanText(event?.data?.parentRunId || "", 80) || null;
+      const dispatchRefreshes = parseBoolean(event?.data?.dispatchRefreshes, trigger === "scheduled");
+      const refreshLimit = parsePositiveInt(
+        event?.data?.refreshLimit,
+        PHASE_F_REFRESH_LIMIT_DEFAULT,
+        1,
+        50
+      );
+      const refreshCooldownHours = parsePositiveInt(
+        event?.data?.refreshCooldownHours,
+        PHASE_F_REFRESH_COOLDOWN_HOURS_DEFAULT,
+        1,
+        168
+      );
+
+      if (parentRunId && !UUID_RE.test(parentRunId)) {
+        throw new Error("Invalid parentRunId");
+      }
+
+      const result = await step.run("phase-f-freshness-scan", async () =>
+        runPhaseFFreshnessScan({
+          trigger,
+          parentRunId
+        })
+      );
+
+      if (!dispatchRefreshes) {
+        await step.run("mark-phase-f-refresh-dispatch-skipped", async () =>
+          markPhaseFRefreshDispatch({
+            runId: result.runId,
+            phaseFRefreshDispatchAttempted: false,
+            phaseFRefreshDispatchCompleted: false,
+            refreshDispatchRequested: false,
+            refreshDispatchLimit: refreshLimit,
+            refreshDispatchCooldownHours: refreshCooldownHours,
+            refreshDispatchCandidateCount: 0,
+            refreshDispatchSelectedCount: 0,
+            refreshDispatchSkippedRecentCount: 0,
+            refreshDispatchEmittedCount: 0,
+            refreshDispatchRootSourceIds: [],
+            refreshDispatchRecentRootSourceIds: []
+          })
+        );
+        return {
+          ...result,
+          refreshDispatchRequested: false,
+          refreshDispatchEmittedCount: 0
+        };
+      }
+
+      const emittedRootSourceIds: string[] = [];
+      let retryCountAdvanced = 0;
+      let dispatchCandidates: {
+        candidates: PhaseFDispatchCandidateRow[];
+        skippedRecentRootSourceIds: string[];
+      } = {
+        candidates: [],
+        skippedRecentRootSourceIds: []
+      };
+      try {
+        dispatchCandidates = await step.run("load-phase-f-refresh-dispatch-candidates", async () =>
+          loadPhaseFRefreshDispatchCandidates({
+            asOf: result.asOf,
+            limit: refreshLimit,
+            cooldownHours: refreshCooldownHours
+          })
+        );
+
+        for (const candidate of dispatchCandidates.candidates) {
+          await step.sendEvent(`emit-phase-f-root-refresh-${candidate.rootSourceId}`, {
+            name: "dictionary.substrate.ingestion.root",
+            data: {
+              rootSourceId: candidate.rootSourceId,
+              trigger,
+              parentRunId: result.runId
+            }
+          });
+          emittedRootSourceIds.push(candidate.rootSourceId);
+        }
+
+        retryCountAdvanced = await step.run("mark-phase-f-refresh-attempts", async () =>
+          markPhaseFRefreshDispatchAttempts({
+            pipelineRunId: result.runId,
+            rootSourceIds: emittedRootSourceIds
+          })
+        );
+
+        await step.run("mark-phase-f-refresh-dispatch", async () =>
+          markPhaseFRefreshDispatch({
+            runId: result.runId,
+            phaseFRefreshDispatchAttempted: true,
+            phaseFRefreshDispatchCompleted: true,
+            refreshDispatchRequested: true,
+            refreshDispatchLimit: refreshLimit,
+            refreshDispatchCooldownHours: refreshCooldownHours,
+            refreshDispatchCandidateCount:
+              dispatchCandidates.candidates.length + dispatchCandidates.skippedRecentRootSourceIds.length,
+            refreshDispatchSelectedCount: dispatchCandidates.candidates.length,
+            refreshDispatchSkippedRecentCount: dispatchCandidates.skippedRecentRootSourceIds.length,
+            refreshDispatchEmittedCount: emittedRootSourceIds.length,
+            refreshDispatchRootSourceIds: emittedRootSourceIds,
+            refreshDispatchRecentRootSourceIds: dispatchCandidates.skippedRecentRootSourceIds
+          })
+        );
+
+        return {
+          ...result,
+          refreshDispatchRequested: true,
+          refreshDispatchCandidateCount:
+            dispatchCandidates.candidates.length + dispatchCandidates.skippedRecentRootSourceIds.length,
+          refreshDispatchSelectedCount: dispatchCandidates.candidates.length,
+          refreshDispatchSkippedRecentCount: dispatchCandidates.skippedRecentRootSourceIds.length,
+          refreshDispatchEmittedCount: emittedRootSourceIds.length,
+          refreshDispatchRootSourceIds: emittedRootSourceIds,
+          refreshDispatchRecentRootSourceIds: dispatchCandidates.skippedRecentRootSourceIds,
+          refreshRetryCountAdvanced: retryCountAdvanced
+        };
+      } catch (error: any) {
+        if (emittedRootSourceIds.length > 0 && retryCountAdvanced === 0) {
+          retryCountAdvanced = await step.run("mark-phase-f-refresh-attempts-partial", async () =>
+            markPhaseFRefreshDispatchAttempts({
+              pipelineRunId: result.runId,
+              rootSourceIds: emittedRootSourceIds
+            })
+          );
+        }
+
+        await step.run("mark-phase-f-refresh-dispatch-failed", async () =>
+          markPhaseFRefreshDispatch({
+            runId: result.runId,
+            phaseFRefreshDispatchAttempted: true,
+            phaseFRefreshDispatchCompleted: false,
+            refreshDispatchRequested: true,
+            refreshDispatchLimit: refreshLimit,
+            refreshDispatchCooldownHours: refreshCooldownHours,
+            refreshDispatchCandidateCount:
+              dispatchCandidates.candidates.length + dispatchCandidates.skippedRecentRootSourceIds.length,
+            refreshDispatchSelectedCount: dispatchCandidates.candidates.length,
+            refreshDispatchSkippedRecentCount: dispatchCandidates.skippedRecentRootSourceIds.length,
+            refreshDispatchEmittedCount: emittedRootSourceIds.length,
+            refreshDispatchRootSourceIds: emittedRootSourceIds,
+            refreshDispatchRecentRootSourceIds: dispatchCandidates.skippedRecentRootSourceIds,
+            refreshDispatchError: cleanText(
+              error?.message || "phase_f_refresh_dispatch_failed",
+              2000
+            )
+          })
+        );
+        throw error;
       }
     }
   );

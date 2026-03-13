@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Published Editor | The Dayton Enquirer</title>
+  <title>Dictionary Freshness | The Dayton Enquirer</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/admin.css" />
   <script>
@@ -49,7 +49,7 @@
   </header>
 
   <main class="container admin-page">
-    <section id="article-lock" class="admin-panel admin-lock">
+    <section id="dictionary-lock" class="admin-panel admin-lock">
       <h2>Admin Access Required</h2>
       <p class="hint">Enter your admin UI password to unlock this page.</p>
       <div class="admin-grid single">
@@ -59,85 +59,79 @@
         </label>
       </div>
       <div class="admin-actions">
-        <button id="unlock-admin-btn" class="btn btn-primary">Unlock Editor</button>
+        <button id="unlock-admin-btn" class="btn btn-primary">Unlock Dictionary</button>
       </div>
     </section>
 
-    <section id="article-app" hidden>
+    <section id="dictionary-app" hidden>
       <section class="admin-panel">
-        <h2>Published Articles Editor</h2>
-        <p class="hint">Edit existing published articles directly.</p>
+        <h2>Dictionary Freshness Review</h2>
+        <p class="hint">Monitor open Phase F review work, attention roots, and recent freshness runs.</p>
         <div class="admin-grid">
           <label>
             Admin Token
             <input id="admin-token" type="password" placeholder="Paste ADMIN_API_TOKEN" />
           </label>
-        <label>
-          Section Filter
-            <select id="article-section-filter">
-              <option value="all" selected>all</option>
-              <option value="local">local</option>
-              <option value="national">national</option>
-              <option value="world">world</option>
-              <option value="business">business</option>
-              <option value="sports">sports</option>
-              <option value="health">health</option>
-              <option value="entertainment">entertainment</option>
-              <option value="technology">technology</option>
-            </select>
-        </label>
-        <label>
-          <span class="list-limit-label">List Limit (<span id="article-total-count">-</span> total)</span>
-          <input id="article-list-limit" type="number" min="25" max="5000" step="25" value="50" />
-        </label>
-        <label>
-          Image Status Filter
-          <select id="article-image-status-filter">
-            <option value="all" selected>all</option>
-            <option value="with_image">with_image</option>
-            <option value="text_only">text_only</option>
-          </select>
-        </label>
-      </div>
+          <label>
+            Review Item Limit
+            <input id="review-limit" type="number" min="1" max="100" value="25" />
+          </label>
+          <label>
+            Attention Root Limit
+            <input id="root-limit" type="number" min="1" max="50" value="10" />
+          </label>
+        </div>
         <div class="admin-actions">
           <button id="save-token-btn" class="btn">Save Token</button>
-          <button id="load-articles-btn" class="btn btn-primary">Load Published Articles</button>
-          <button id="show-all-btn" class="btn">Show All</button>
+          <button id="load-dictionary-btn" class="btn">Refresh View</button>
         </div>
-        <div class="admin-grid single">
+        <div id="dictionary-message" class="message" hidden></div>
+        <div id="dictionary-summary" class="usage-grid usage-grid-three"></div>
+      </section>
+
+      <section class="admin-panel">
+        <h3>Manual Freshness Scan</h3>
+        <p class="hint">Run the approved Phase F scan manually. Refresh dispatch stays root-source scoped and bounded.</p>
+        <div class="admin-grid">
           <label>
-            Search (headline or pub date)
-            <input id="article-search" type="text" placeholder="Ex: summit or 2/20/2026 or 10:52 PM" />
+            Dispatch Root Refreshes
+            <select id="dispatch-refreshes">
+              <option value="true" selected>Yes</option>
+              <option value="false">No</option>
+            </select>
           </label>
+          <label>
+            Refresh Limit
+            <input id="refresh-limit" type="number" min="1" max="50" value="10" />
+          </label>
+          <label>
+            Cooldown Hours
+            <input id="refresh-cooldown-hours" type="number" min="1" max="168" value="24" />
+          </label>
+        </div>
+        <div class="admin-actions">
+          <button id="run-freshness-scan-btn" class="btn btn-primary">Run Freshness Scan</button>
         </div>
       </section>
 
       <section class="admin-panel">
-        <div id="admin-message" class="message" hidden></div>
-        <div id="article-list" class="draft-list"></div>
+        <h3>Open Review Queue</h3>
+        <div id="dictionary-review-items" class="dictionary-review-list"></div>
       </section>
 
-      <div id="article-remove-modal" class="admin-modal" hidden>
-        <div class="admin-modal-backdrop"></div>
-        <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="article-remove-title">
-          <h4 id="article-remove-title">Permanently Delete Published Article</h4>
-          <p class="hint">This action permanently deletes the article and cannot be undone.</p>
-          <label>
-            Confirmation
-            <input id="article-remove-confirm-input" type="text" placeholder="Type DELETE to confirm" />
-          </label>
-          <div class="admin-actions">
-            <button id="article-remove-confirm-btn" class="btn btn-danger">Permanently Delete</button>
-            <button id="article-remove-cancel-btn" class="btn">Cancel</button>
-          </div>
-        </div>
-      </div>
+      <section class="admin-panel">
+        <h3>Attention Roots</h3>
+        <div id="dictionary-attention-roots" class="dictionary-review-list"></div>
+      </section>
+
+      <section class="admin-panel">
+        <h3>Recent Phase F Runs</h3>
+        <div id="dictionary-recent-runs" class="dictionary-review-list"></div>
+      </section>
     </section>
   </main>
 
   <script src="/theme.js"></script>
-
-
-  <script src="/admin-articles.js"></script>
+  <script src="/admin-dictionary.js"></script>
 </body>
 </html>
