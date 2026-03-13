@@ -400,9 +400,17 @@ BEGIN
       AND affected_record_id IS NOT NULL
   );
 
-  SELECT COUNT(*) INTO entity_total FROM dictionary.dictionary_snapshot_entities WHERE snapshot_id = new_snapshot_id;
-  SELECT COUNT(*) INTO assertion_total FROM dictionary.dictionary_snapshot_assertions WHERE snapshot_id = new_snapshot_id;
-  SELECT COUNT(*) INTO alias_total FROM dictionary.dictionary_snapshot_aliases WHERE snapshot_id = new_snapshot_id;
+  SELECT COUNT(*) INTO entity_total
+  FROM dictionary.dictionary_snapshot_entities se
+  WHERE se.snapshot_id = new_snapshot_id;
+
+  SELECT COUNT(*) INTO assertion_total
+  FROM dictionary.dictionary_snapshot_assertions sa
+  WHERE sa.snapshot_id = new_snapshot_id;
+
+  SELECT COUNT(*) INTO alias_total
+  FROM dictionary.dictionary_snapshot_aliases sal
+  WHERE sal.snapshot_id = new_snapshot_id;
 
   UPDATE dictionary.dictionary_snapshots
   SET
