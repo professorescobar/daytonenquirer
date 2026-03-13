@@ -50,7 +50,7 @@ CREATE OR REPLACE FUNCTION dictionary.phase_e_promote_artifact_run(
   p_phase_e_run_id UUID,
   p_root_source_id UUID,
   p_crawl_artifact_id UUID,
-  p_phase_d_pipeline_run_id UUID
+  p_validation_substrate_run_id UUID
 )
 RETURNS TABLE (
   merge_proposal_id UUID,
@@ -76,7 +76,7 @@ BEGIN
       ON mp.id = p.merge_proposal_id
     WHERE p.root_source_id = p_root_source_id
       AND p.crawl_artifact_id = p_crawl_artifact_id
-      AND p.phase_d_pipeline_run_id = p_phase_d_pipeline_run_id
+      AND p.phase_d_pipeline_run_id = p_validation_substrate_run_id
     ORDER BY p.validation_created_at ASC, p.merge_proposal_id ASC
     FOR UPDATE OF mp
   LOOP
@@ -92,13 +92,13 @@ END;
 $$;
 
 COMMENT ON FUNCTION dictionary.phase_e_promote_artifact_run(UUID, UUID, UUID, UUID) IS
-  'Promotes the full Phase E artifact/run batch inside one statement transaction so canonical head mutation cannot partially commit for a failing artifact-run, scoped by the explicit Phase D pipeline run id captured on latest validation details.';
+  'Promotes the full Phase E artifact/run batch inside one statement transaction so canonical head mutation cannot partially commit for a failing artifact-run, with the fourth argument interpreted as the Phase D pipeline run id captured on latest validation details.';
 
 CREATE OR REPLACE FUNCTION dictionary.phase_e_promote_and_publish_artifact_run(
   p_phase_e_run_id UUID,
   p_root_source_id UUID,
   p_crawl_artifact_id UUID,
-  p_phase_d_pipeline_run_id UUID
+  p_validation_substrate_run_id UUID
 )
 RETURNS TABLE (
   snapshot_id UUID,
@@ -140,7 +140,7 @@ BEGIN
       p_phase_e_run_id,
       p_root_source_id,
       p_crawl_artifact_id,
-      p_phase_d_pipeline_run_id
+      p_validation_substrate_run_id
     )
   LOOP
     IF promotion_row.promotion_outcome = 'promoted' THEN
@@ -414,7 +414,7 @@ BEGIN
       'phase_e_run_id', p_phase_e_run_id,
       'root_source_id', p_root_source_id,
       'crawl_artifact_id', p_crawl_artifact_id,
-      'phase_d_pipeline_run_id', p_phase_d_pipeline_run_id,
+      'phase_d_pipeline_run_id', p_validation_substrate_run_id,
       'previous_snapshot_id', previous_snapshot.id,
       'previous_snapshot_version', previous_snapshot.version,
       'promoted_count', promoted_total,
@@ -452,4 +452,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION dictionary.phase_e_promote_and_publish_artifact_run(UUID, UUID, UUID, UUID) IS
-  'Applies the Phase E artifact-run promotion batch and publishes the resulting immutable snapshot in one statement transaction, scoped by the explicit Phase D pipeline run id captured on latest validation details.';
+  'Applies the Phase E artifact-run promotion batch and publishes the resulting immutable snapshot in one statement transaction, with the fourth argument interpreted as the Phase D pipeline run id captured on latest validation details.';
