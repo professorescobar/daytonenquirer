@@ -179,10 +179,15 @@ function requireEnumValue<T extends readonly string[]>(
 }
 
 function normalizeStringArray(value: unknown, fieldName: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`${fieldName} must be an array`);
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === "string" || typeof value === "number"
+      ? [value]
+      : null;
+  if (!values) {
+    throw new Error(`${fieldName} must be an array or string`);
   }
-  const normalized = value.map((item) => cleanText(item, 240)).filter(Boolean);
+  const normalized = values.map((item) => cleanText(item, 240)).filter(Boolean);
   if (!normalized.length) {
     throw new Error(`${fieldName} must contain at least one value`);
   }
