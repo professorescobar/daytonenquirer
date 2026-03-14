@@ -27,6 +27,119 @@ type SignalRecord = {
   metadata: Record<string, unknown>;
   createdAt: string;
   isAutoPromoteEnabled: boolean;
+  dictionaryContext: Layer1DictionaryContext;
+  normalizationContext: Layer1NormalizationContext;
+  localityContext: Layer1LocalityContext;
+};
+
+type ActiveDictionarySnapshot = {
+  id: string;
+  version: number;
+  publishedAt: string;
+  activatedAt: string;
+};
+
+type Layer1DictionaryEntityMatch = {
+  entityId: string;
+  canonicalName: string;
+  entityType: string;
+  slug: string;
+  matchSource: "canonical_name" | "alias";
+  matchedText: string;
+  aliasType: string | null;
+  primaryJurisdictionId: string | null;
+  normalizedAddress: string | null;
+  lat: number | null;
+  lng: number | null;
+  spatialConfidence: number | null;
+};
+
+type Layer1DictionaryJurisdiction = {
+  id: string;
+  name: string;
+  jurisdictionType: string;
+  parentJurisdictionId: string | null;
+  centroidLat: number | null;
+  centroidLng: number | null;
+  bbox: Record<string, unknown> | null;
+  geojson: Record<string, unknown> | null;
+};
+
+type Layer1EligibleAssertion = {
+  id: string;
+  assertionType: string;
+  subjectEntityId: string;
+  objectEntityId: string | null;
+  roleId: string | null;
+  validityStatus: "current";
+  reviewStatus: "verified" | "pending_refresh";
+  effectiveStartAt: string | null;
+  effectiveEndAt: string | null;
+  termEndAt: string | null;
+  observedAt: string | null;
+  lastVerifiedAt: string | null;
+  nextReviewAt: string | null;
+  assertionConfidence: number | null;
+};
+
+type Layer1DictionaryContext = {
+  snapshot: ActiveDictionarySnapshot | null;
+  entityMatches: Layer1DictionaryEntityMatch[];
+  jurisdictions: Layer1DictionaryJurisdiction[];
+  eligibleAssertions: Layer1EligibleAssertion[];
+};
+
+type Layer1NormalizedEntity = {
+  entityId: string;
+  canonicalName: string;
+  entityType: string;
+  slug: string;
+  matchedBy: Array<"canonical_name" | "alias">;
+  matchedTexts: string[];
+  aliasTexts: string[];
+  aliasTypes: string[];
+  primaryJurisdictionId: string | null;
+  primaryJurisdictionName: string | null;
+  normalizedAddress: string | null;
+  lat: number | null;
+  lng: number | null;
+  spatialConfidence: number | null;
+  eligibleAssertionIds: string[];
+};
+
+type Layer1AssertionSummary = {
+  assertionId: string;
+  assertionType: string;
+  subjectEntityId: string;
+  subjectCanonicalName: string | null;
+  objectEntityId: string | null;
+  objectCanonicalName: string | null;
+  roleId: string | null;
+  reviewStatus: "verified" | "pending_refresh";
+  lastVerifiedAt: string | null;
+  nextReviewAt: string | null;
+};
+
+type Layer1NormalizationContext = {
+  snapshotId: string | null;
+  snapshotVersion: number | null;
+  normalizedEntities: Layer1NormalizedEntity[];
+  normalizedEntityIds: string[];
+  canonicalNames: string[];
+  canonicalSlugs: string[];
+  aliasTexts: string[];
+  jurisdictionIds: string[];
+  jurisdictionNames: string[];
+  assertionSummaries: Layer1AssertionSummary[];
+};
+
+type Layer1LocalityContext = {
+  isLocalByDictionary: boolean;
+  canBypassLocalTermGate: boolean;
+  confidence: "high" | "medium" | "none";
+  evidenceTypes: Array<"direct_jurisdiction" | "normalized_address" | "entity_name_heuristic">;
+  matchedJurisdictionNames: string[];
+  matchedEntityIds: string[];
 };
 
 type PriorArtMatch = {
@@ -474,6 +587,570 @@ function cleanText(value: unknown, max = 8000): string {
   return String(value || "").trim().slice(0, max);
 }
 
+function cleanComparableText(value: unknown, max = 8000): string {
+  return cleanText(value, max)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function containsWholePhrase(haystack: string, needle: string): boolean {
+  const normalizedNeedle = cleanComparableText(needle, 240);
+  if (!normalizedNeedle || normalizedNeedle.length < 4) return false;
+  const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(normalizedNeedle)}([^a-z0-9]|$)`, "i");
+  return pattern.test(haystack);
+}
+
+function normalizeSqlComparableExpression(columnSql: string): string {
+  return `regexp_replace(regexp_replace(lower(${columnSql}), '[^a-z0-9\\s-]+', ' ', 'g'), '\\s+', ' ', 'g')`;
+}
+
+function normalizeUuid(value: unknown): string | null {
+  const normalized = cleanText(value, 80).toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(normalized)
+    ? normalized
+    : null;
+}
+
+function toFiniteNumberOrNull(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toJsonObjectOrNull(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+async function loadActiveDictionarySnapshot(sql: any): Promise<ActiveDictionarySnapshot | null> {
+  const rows = await sql`
+    SELECT
+      id,
+      version,
+      published_at as "publishedAt",
+      activated_at as "activatedAt"
+    FROM dictionary.active_snapshot_metadata
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row?.id) return null;
+  return {
+    id: cleanText(row.id, 80),
+    version: Number(row.version || 0),
+    publishedAt: new Date(row.publishedAt || Date.now()).toISOString(),
+    activatedAt: new Date(row.activatedAt || Date.now()).toISOString()
+  };
+}
+
+async function loadLayer1DictionaryContext(
+  sql: any,
+  signal: Pick<SignalRecord, "title" | "snippet" | "sectionHint">
+): Promise<Layer1DictionaryContext> {
+  const snapshot = await loadActiveDictionarySnapshot(sql);
+  if (!snapshot) {
+    return {
+      snapshot: null,
+      entityMatches: [],
+      jurisdictions: [],
+      eligibleAssertions: []
+    };
+  }
+
+  const comparableText = cleanComparableText(
+    [signal.title, signal.snippet, signal.sectionHint].filter(Boolean).join(" "),
+    12000
+  );
+  if (!comparableText) {
+    return {
+      snapshot,
+      entityMatches: [],
+      jurisdictions: [],
+      eligibleAssertions: []
+    };
+  }
+
+  const entityRows = await sql`
+    WITH canonical_matches AS (
+      SELECT
+        se.canonical_record_id as "entityId",
+        se.canonical_name as "canonicalName",
+        se.entity_type as "entityType",
+        se.slug,
+        'canonical_name'::text as "matchSource",
+        se.canonical_name as "matchedText",
+        NULL::text as "aliasType",
+        se.primary_jurisdiction_id as "primaryJurisdictionId",
+        se.normalized_address as "normalizedAddress",
+        se.lat,
+        se.lng,
+        se.spatial_confidence as "spatialConfidence"
+      FROM dictionary.dictionary_snapshot_entities se
+      WHERE se.snapshot_id = ${snapshot.id}::uuid
+        AND length(trim(se.canonical_name)) >= 4
+        AND position(
+          ${sql.unsafe(normalizeSqlComparableExpression("se.canonical_name"))}
+          in ${comparableText}
+        ) > 0
+    ),
+    alias_matches AS (
+      SELECT
+        se.canonical_record_id as "entityId",
+        se.canonical_name as "canonicalName",
+        se.entity_type as "entityType",
+        se.slug,
+        'alias'::text as "matchSource",
+        sa.alias as "matchedText",
+        sa.alias_type as "aliasType",
+        se.primary_jurisdiction_id as "primaryJurisdictionId",
+        se.normalized_address as "normalizedAddress",
+        se.lat,
+        se.lng,
+        se.spatial_confidence as "spatialConfidence"
+      FROM dictionary.dictionary_snapshot_aliases sa
+      JOIN dictionary.dictionary_snapshot_entities se
+        ON se.snapshot_id = sa.snapshot_id
+       AND se.canonical_record_id = sa.entity_id
+      WHERE sa.snapshot_id = ${snapshot.id}::uuid
+        AND length(trim(sa.alias)) >= 4
+        AND position(
+          ${sql.unsafe(normalizeSqlComparableExpression("sa.alias"))}
+          in ${comparableText}
+        ) > 0
+    )
+    SELECT *
+    FROM (
+      SELECT * FROM canonical_matches
+      UNION ALL
+      SELECT * FROM alias_matches
+    ) matches
+    ORDER BY
+      length(matches."matchedText") DESC,
+      matches."canonicalName" ASC
+    LIMIT 25
+  `;
+
+  const entityMatches = entityRows
+    .map((row: any): Layer1DictionaryEntityMatch | null => {
+      const matchedText = cleanText(row.matchedText, 240);
+      if (!containsWholePhrase(comparableText, matchedText)) return null;
+      return {
+        entityId: cleanText(row.entityId, 80),
+        canonicalName: cleanText(row.canonicalName, 240),
+        entityType: cleanText(row.entityType, 120),
+        slug: cleanText(row.slug, 240),
+        matchSource: row.matchSource === "alias" ? "alias" : "canonical_name",
+        matchedText,
+        aliasType: cleanText(row.aliasType || "", 120) || null,
+        primaryJurisdictionId: normalizeUuid(row.primaryJurisdictionId),
+        normalizedAddress: cleanText(row.normalizedAddress || "", 320) || null,
+        lat: toFiniteNumberOrNull(row.lat),
+        lng: toFiniteNumberOrNull(row.lng),
+        spatialConfidence: toFiniteNumberOrNull(row.spatialConfidence)
+      };
+    })
+    .filter((row: Layer1DictionaryEntityMatch | null): row is Layer1DictionaryEntityMatch => Boolean(row));
+
+  if (!entityMatches.length) {
+    return {
+      snapshot,
+      entityMatches: [],
+      jurisdictions: [],
+      eligibleAssertions: []
+    };
+  }
+
+  const uniqueEntityMatches: Layer1DictionaryEntityMatch[] = Array.from(
+    new Map<string, Layer1DictionaryEntityMatch>(
+      entityMatches.map((match) => [
+        `${match.entityId}:${match.matchSource}:${match.matchedText.toLowerCase()}`,
+        match
+      ])
+    ).values()
+  );
+  const entityIds = Array.from(new Set(uniqueEntityMatches.map((match) => match.entityId)));
+  const jurisdictionIds = Array.from(
+    new Set(uniqueEntityMatches.map((match) => match.primaryJurisdictionId).filter(Boolean))
+  ) as string[];
+
+  const [jurisdictionRows, assertionRows] = await Promise.all([
+    jurisdictionIds.length
+      ? sql`
+          SELECT
+            canonical_record_id as id,
+            name,
+            jurisdiction_type as "jurisdictionType",
+            parent_jurisdiction_id as "parentJurisdictionId",
+            centroid_lat as "centroidLat",
+            centroid_lng as "centroidLng",
+            bbox,
+            geojson
+          FROM dictionary.dictionary_snapshot_jurisdictions
+          WHERE snapshot_id = ${snapshot.id}::uuid
+            AND canonical_record_id = ANY(${jurisdictionIds}::uuid[])
+        `
+      : Promise.resolve([]),
+    entityIds.length
+      ? sql`
+          SELECT
+            canonical_record_id as id,
+            assertion_type as "assertionType",
+            subject_entity_id as "subjectEntityId",
+            object_entity_id as "objectEntityId",
+            role_id as "roleId",
+            validity_status as "validityStatus",
+            review_status as "reviewStatus",
+            effective_start_at as "effectiveStartAt",
+            effective_end_at as "effectiveEndAt",
+            term_end_at as "termEndAt",
+            observed_at as "observedAt",
+            last_verified_at as "lastVerifiedAt",
+            next_review_at as "nextReviewAt",
+            assertion_confidence as "assertionConfidence"
+          FROM dictionary.dictionary_snapshot_assertions
+          WHERE snapshot_id = ${snapshot.id}::uuid
+            AND validity_status = 'current'
+            AND review_status IN ('verified', 'pending_refresh')
+            AND (
+              subject_entity_id = ANY(${entityIds}::uuid[])
+              OR object_entity_id = ANY(${entityIds}::uuid[])
+            )
+          ORDER BY last_verified_at DESC NULLS LAST, updated_at DESC, created_at DESC
+          LIMIT 50
+        `
+      : Promise.resolve([])
+  ]);
+
+  return {
+    snapshot,
+    entityMatches: uniqueEntityMatches,
+    jurisdictions: jurisdictionRows.map((row: any): Layer1DictionaryJurisdiction => ({
+      id: cleanText(row.id, 80),
+      name: cleanText(row.name, 240),
+      jurisdictionType: cleanText(row.jurisdictionType, 120),
+      parentJurisdictionId: normalizeUuid(row.parentJurisdictionId),
+      centroidLat: toFiniteNumberOrNull(row.centroidLat),
+      centroidLng: toFiniteNumberOrNull(row.centroidLng),
+      bbox: toJsonObjectOrNull(row.bbox),
+      geojson: toJsonObjectOrNull(row.geojson)
+    })),
+    eligibleAssertions: assertionRows.map((row: any): Layer1EligibleAssertion => ({
+      id: cleanText(row.id, 80),
+      assertionType: cleanText(row.assertionType, 160),
+      subjectEntityId: cleanText(row.subjectEntityId, 80),
+      objectEntityId: normalizeUuid(row.objectEntityId),
+      roleId: normalizeUuid(row.roleId),
+      validityStatus: "current",
+      reviewStatus: row.reviewStatus === "pending_refresh" ? "pending_refresh" : "verified",
+      effectiveStartAt: row.effectiveStartAt ? new Date(row.effectiveStartAt).toISOString() : null,
+      effectiveEndAt: row.effectiveEndAt ? new Date(row.effectiveEndAt).toISOString() : null,
+      termEndAt: row.termEndAt ? new Date(row.termEndAt).toISOString() : null,
+      observedAt: row.observedAt ? new Date(row.observedAt).toISOString() : null,
+      lastVerifiedAt: row.lastVerifiedAt ? new Date(row.lastVerifiedAt).toISOString() : null,
+      nextReviewAt: row.nextReviewAt ? new Date(row.nextReviewAt).toISOString() : null,
+      assertionConfidence: toFiniteNumberOrNull(row.assertionConfidence)
+    }))
+  };
+}
+
+function compareEntityMatchPriority(a: Layer1DictionaryEntityMatch, b: Layer1DictionaryEntityMatch): number {
+  const sourceWeight = (match: Layer1DictionaryEntityMatch) => (match.matchSource === "canonical_name" ? 0 : 1);
+  return (
+    sourceWeight(a) - sourceWeight(b) ||
+    b.matchedText.length - a.matchedText.length ||
+    a.canonicalName.localeCompare(b.canonicalName)
+  );
+}
+
+function buildLayer1NormalizationContext(dictionaryContext: Layer1DictionaryContext): Layer1NormalizationContext {
+  const jurisdictionById = new Map(dictionaryContext.jurisdictions.map((jurisdiction) => [jurisdiction.id, jurisdiction]));
+  const entityById = new Map<string, Layer1NormalizedEntity>();
+
+  const sortedMatches = [...dictionaryContext.entityMatches].sort(compareEntityMatchPriority);
+  for (const match of sortedMatches) {
+    const existing = entityById.get(match.entityId);
+    const jurisdictionName = match.primaryJurisdictionId
+      ? cleanText(jurisdictionById.get(match.primaryJurisdictionId)?.name || "", 240) || null
+      : null;
+
+    if (!existing) {
+      entityById.set(match.entityId, {
+        entityId: match.entityId,
+        canonicalName: match.canonicalName,
+        entityType: match.entityType,
+        slug: match.slug,
+        matchedBy: [match.matchSource],
+        matchedTexts: [match.matchedText],
+        aliasTexts: match.matchSource === "alias" ? [match.matchedText] : [],
+        aliasTypes: match.aliasType ? [match.aliasType] : [],
+        primaryJurisdictionId: match.primaryJurisdictionId,
+        primaryJurisdictionName: jurisdictionName,
+        normalizedAddress: match.normalizedAddress,
+        lat: match.lat,
+        lng: match.lng,
+        spatialConfidence: match.spatialConfidence,
+        eligibleAssertionIds: []
+      });
+      continue;
+    }
+
+    if (!existing.matchedBy.includes(match.matchSource)) {
+      existing.matchedBy.push(match.matchSource);
+    }
+    if (!existing.matchedTexts.includes(match.matchedText)) {
+      existing.matchedTexts.push(match.matchedText);
+    }
+    if (match.matchSource === "alias" && !existing.aliasTexts.includes(match.matchedText)) {
+      existing.aliasTexts.push(match.matchedText);
+    }
+    if (match.aliasType && !existing.aliasTypes.includes(match.aliasType)) {
+      existing.aliasTypes.push(match.aliasType);
+    }
+    if (!existing.primaryJurisdictionId && match.primaryJurisdictionId) {
+      existing.primaryJurisdictionId = match.primaryJurisdictionId;
+      existing.primaryJurisdictionName = jurisdictionName;
+    }
+    if (!existing.normalizedAddress && match.normalizedAddress) {
+      existing.normalizedAddress = match.normalizedAddress;
+    }
+    if (existing.lat === null && match.lat !== null) {
+      existing.lat = match.lat;
+    }
+    if (existing.lng === null && match.lng !== null) {
+      existing.lng = match.lng;
+    }
+    if (existing.spatialConfidence === null && match.spatialConfidence !== null) {
+      existing.spatialConfidence = match.spatialConfidence;
+    }
+  }
+
+  const normalizedEntities = Array.from(entityById.values());
+  const canonicalNameById = new Map(normalizedEntities.map((entity) => [entity.entityId, entity.canonicalName]));
+
+  const assertionSummaries = dictionaryContext.eligibleAssertions.map((assertion) => {
+    const subjectEntity = entityById.get(assertion.subjectEntityId);
+    if (subjectEntity && !subjectEntity.eligibleAssertionIds.includes(assertion.id)) {
+      subjectEntity.eligibleAssertionIds.push(assertion.id);
+    }
+    const objectEntity = assertion.objectEntityId ? entityById.get(assertion.objectEntityId) : null;
+    if (objectEntity && !objectEntity.eligibleAssertionIds.includes(assertion.id)) {
+      objectEntity.eligibleAssertionIds.push(assertion.id);
+    }
+    return {
+      assertionId: assertion.id,
+      assertionType: assertion.assertionType,
+      subjectEntityId: assertion.subjectEntityId,
+      subjectCanonicalName: cleanText(
+        subjectEntity?.canonicalName || canonicalNameById.get(assertion.subjectEntityId) || "",
+        240
+      ) || null,
+      objectEntityId: assertion.objectEntityId,
+      objectCanonicalName: cleanText(
+        (assertion.objectEntityId ? canonicalNameById.get(assertion.objectEntityId) : "") || "",
+        240
+      ) || null,
+      roleId: assertion.roleId,
+      reviewStatus: assertion.reviewStatus,
+      lastVerifiedAt: assertion.lastVerifiedAt,
+      nextReviewAt: assertion.nextReviewAt
+    };
+  });
+
+  return {
+    snapshotId: dictionaryContext.snapshot?.id || null,
+    snapshotVersion: Number.isFinite(dictionaryContext.snapshot?.version)
+      ? Number(dictionaryContext.snapshot?.version)
+      : null,
+    normalizedEntities,
+    normalizedEntityIds: normalizedEntities.map((entity) => entity.entityId),
+    canonicalNames: normalizedEntities.map((entity) => entity.canonicalName),
+    canonicalSlugs: normalizedEntities.map((entity) => entity.slug).filter(Boolean),
+    aliasTexts: Array.from(new Set(normalizedEntities.flatMap((entity) => entity.aliasTexts))),
+    jurisdictionIds: Array.from(
+      new Set(normalizedEntities.map((entity) => entity.primaryJurisdictionId).filter(Boolean))
+    ) as string[],
+    jurisdictionNames: Array.from(
+      new Set(normalizedEntities.map((entity) => entity.primaryJurisdictionName).filter(Boolean))
+    ) as string[],
+    assertionSummaries
+  };
+}
+
+function matchesKnownLocalArea(value: unknown): boolean {
+  const normalized = cleanComparableText(value, 320);
+  if (!normalized) return false;
+  return LOCAL_SCOPE_TERMS.some((term) => containsWholePhrase(normalized, term) || containsWholePhrase(term, normalized));
+}
+
+function buildLayer1LocalityContext(normalizationContext: Layer1NormalizationContext): Layer1LocalityContext {
+  const directJurisdictionEntities = normalizationContext.normalizedEntities.filter(
+    (entity) => entity.primaryJurisdictionName && matchesKnownLocalArea(entity.primaryJurisdictionName)
+  );
+  const addressMatchedEntities = normalizationContext.normalizedEntities.filter(
+    (entity) => entity.normalizedAddress && matchesKnownLocalArea(entity.normalizedAddress)
+  );
+  const entityNameHeuristicMatches = normalizationContext.normalizedEntities.filter(
+    (entity) =>
+      matchesKnownLocalArea(entity.canonicalName) || entity.aliasTexts.some((alias) => matchesKnownLocalArea(alias))
+  );
+
+  const evidenceTypes: Layer1LocalityContext["evidenceTypes"] = [];
+  if (directJurisdictionEntities.length) evidenceTypes.push("direct_jurisdiction");
+  if (addressMatchedEntities.length) evidenceTypes.push("normalized_address");
+  if (!directJurisdictionEntities.length && !addressMatchedEntities.length && entityNameHeuristicMatches.length) {
+    evidenceTypes.push("entity_name_heuristic");
+  }
+
+  const matchedJurisdictionNames = Array.from(
+    new Set(
+      [
+        ...directJurisdictionEntities.map((entity) => entity.primaryJurisdictionName),
+        ...addressMatchedEntities
+          .map((entity) => entity.primaryJurisdictionName)
+          .filter((name): name is string => Boolean(name))
+      ].filter(Boolean)
+    )
+  );
+  const matchedEntityIds = Array.from(
+    new Set(
+      [
+        ...directJurisdictionEntities.map((entity) => entity.entityId),
+        ...addressMatchedEntities.map((entity) => entity.entityId),
+        ...entityNameHeuristicMatches.map((entity) => entity.entityId)
+      ]
+    )
+  );
+
+  return {
+    isLocalByDictionary: evidenceTypes.length > 0,
+    canBypassLocalTermGate: directJurisdictionEntities.length > 0 || addressMatchedEntities.length > 0,
+    confidence: directJurisdictionEntities.length || addressMatchedEntities.length
+      ? "high"
+      : entityNameHeuristicMatches.length
+        ? "medium"
+        : "none",
+    evidenceTypes,
+    matchedJurisdictionNames,
+    matchedEntityIds
+  };
+}
+
+function buildLayer1GroupingProbes(normalizationContext: Layer1NormalizationContext): string[] {
+  return Array.from(
+    new Set(
+      [...normalizationContext.canonicalNames, ...normalizationContext.aliasTexts]
+        .map((value) => cleanText(value, 240))
+        .filter((value) => value.length >= 4)
+        .map((value) => value.toLowerCase())
+    )
+  )
+    .sort((a, b) => b.length - a.length)
+    .slice(0, 10);
+}
+
+function textMatchesGroupingProbe(value: unknown, probes: string[]): boolean {
+  const haystack = cleanComparableText(value, 4000);
+  if (!haystack || !probes.length) return false;
+  return probes.some((probe) => containsWholePhrase(haystack, probe));
+}
+
+function scorePriorArtMatch(
+  title: string,
+  snippet: string,
+  titleProbe: string,
+  snippetProbe: string,
+  groupingProbes: string[]
+): number {
+  let score = 0;
+  const normalizedTitle = cleanComparableText(title, 1000);
+  const normalizedSnippet = cleanComparableText(snippet, 2000);
+
+  if (titleProbe && containsWholePhrase(normalizedTitle, titleProbe)) score += 0.85;
+  if (snippetProbe && containsWholePhrase(normalizedSnippet, snippetProbe)) score += 0.55;
+
+  const matchedGroupingProbes = groupingProbes.filter(
+    (probe) => containsWholePhrase(normalizedTitle, probe) || containsWholePhrase(normalizedSnippet, probe)
+  );
+  if (matchedGroupingProbes.length) {
+    score += Math.min(0.75, matchedGroupingProbes.length * 0.25);
+  }
+
+  return Number(score.toFixed(4));
+}
+
+function buildGatekeeperDictionaryPromptContext(signal: SignalRecord): Record<string, unknown> {
+  return {
+    snapshot: signal.dictionaryContext.snapshot
+      ? {
+          id: signal.dictionaryContext.snapshot.id,
+          version: signal.dictionaryContext.snapshot.version,
+          publishedAt: signal.dictionaryContext.snapshot.publishedAt
+        }
+      : null,
+    normalization: {
+      entityCount: signal.normalizationContext.normalizedEntities.length,
+      canonicalNames: signal.normalizationContext.canonicalNames.slice(0, 8),
+      aliasTexts: signal.normalizationContext.aliasTexts.slice(0, 8),
+      jurisdictionNames: signal.normalizationContext.jurisdictionNames.slice(0, 6),
+      assertionSummaries: signal.normalizationContext.assertionSummaries.slice(0, 8)
+    },
+    locality: {
+      isLocalByDictionary: signal.localityContext.isLocalByDictionary,
+      canBypassLocalTermGate: signal.localityContext.canBypassLocalTermGate,
+      confidence: signal.localityContext.confidence,
+      evidenceTypes: signal.localityContext.evidenceTypes,
+      matchedJurisdictionNames: signal.localityContext.matchedJurisdictionNames
+    }
+  };
+}
+
+function buildDecisionObservabilityMetadata(signal: SignalRecord): Record<string, unknown> {
+  return {
+    phaseGLayer1DictionaryRead: {
+      snapshotId: signal.dictionaryContext.snapshot?.id || null,
+      snapshotVersion: signal.dictionaryContext.snapshot?.version || null,
+      normalization: {
+        normalizedEntityIds: signal.normalizationContext.normalizedEntityIds.slice(0, 12),
+        canonicalNames: signal.normalizationContext.canonicalNames.slice(0, 8),
+        aliasTexts: signal.normalizationContext.aliasTexts.slice(0, 8),
+        jurisdictionNames: signal.normalizationContext.jurisdictionNames.slice(0, 6),
+        assertionSummaryCount: signal.normalizationContext.assertionSummaries.length
+      },
+      locality: {
+        isLocalByDictionary: signal.localityContext.isLocalByDictionary,
+        canBypassLocalTermGate: signal.localityContext.canBypassLocalTermGate,
+        confidence: signal.localityContext.confidence,
+        evidenceTypes: signal.localityContext.evidenceTypes,
+        matchedJurisdictionNames: signal.localityContext.matchedJurisdictionNames.slice(0, 6)
+      }
+    }
+  };
+}
+
+function buildPromptSafeSignalPayload(signal: SignalRecord): Record<string, unknown> {
+  const promptSafeMetadata = toSafeJsonObject(signal.metadata);
+  delete promptSafeMetadata.phaseGLayer1DictionaryRead;
+
+  return {
+    id: signal.id,
+    personaId: signal.personaId,
+    sourceType: signal.sourceType,
+    title: signal.title,
+    snippet: signal.snippet,
+    sectionHint: signal.sectionHint,
+    personaSection: signal.personaSection,
+    personaBeat: signal.personaBeat,
+    beatPolicy: signal.beatPolicy,
+    metadata: promptSafeMetadata,
+    createdAt: signal.createdAt,
+    isAutoPromoteEnabled: signal.isAutoPromoteEnabled
+  };
+}
+
 function getCuratedDraftWriterModels(): Record<DraftWriterProvider, string> {
   return {
     openai: cleanText(process.env.TOPIC_ENGINE_DRAFT_WRITING_OPENAI_MODEL || "", 160) || "gpt-4o-mini",
@@ -686,6 +1363,9 @@ function applyBeatPolicyPreFilter(signal: SignalRecord): GatekeeperOutput | null
 
   const flags: string[] = [];
   if (policy.requiredLocalTerms.length && !hasAnyTerm(text, policy.requiredLocalTerms)) {
+    if (signal.localityContext.canBypassLocalTermGate) {
+      return null;
+    }
     flags.push("local_scope_mismatch");
     return {
       is_newsworthy: 0.25,
@@ -7285,7 +7965,33 @@ async function loadSignalById(signalId: number): Promise<SignalRecord> {
         signalId: TEST_SIGNAL_ID
       },
       createdAt: new Date().toISOString(),
-      isAutoPromoteEnabled: true
+      isAutoPromoteEnabled: true,
+      dictionaryContext: {
+        snapshot: null,
+        entityMatches: [],
+        jurisdictions: [],
+        eligibleAssertions: []
+      },
+      normalizationContext: {
+        snapshotId: null,
+        snapshotVersion: null,
+        normalizedEntities: [],
+        normalizedEntityIds: [],
+        canonicalNames: [],
+        canonicalSlugs: [],
+        aliasTexts: [],
+        jurisdictionIds: [],
+        jurisdictionNames: [],
+        assertionSummaries: []
+      },
+      localityContext: {
+        isLocalByDictionary: false,
+        canBypassLocalTermGate: false,
+        confidence: "none",
+        evidenceTypes: [],
+        matchedJurisdictionNames: [],
+        matchedEntityIds: []
+      }
     };
   }
 
@@ -7319,6 +8025,14 @@ async function loadSignalById(signalId: number): Promise<SignalRecord> {
     throw new Error(`Signal ${signalId} not found`);
   }
 
+  const dictionaryContext = await loadLayer1DictionaryContext(sql, {
+    title: cleanText(row.title, 500),
+    snippet: cleanText(row.snippet, 8000),
+    sectionHint: cleanText(row.sectionHint, 255)
+  });
+  const normalizationContext = buildLayer1NormalizationContext(dictionaryContext);
+  const localityContext = buildLayer1LocalityContext(normalizationContext);
+
   return {
     id: Number(row.id),
     personaId: cleanText(row.personaId, 255),
@@ -7331,7 +8045,10 @@ async function loadSignalById(signalId: number): Promise<SignalRecord> {
     beatPolicy: parseBeatPolicy(row.beatPolicy),
     metadata: toSafeJsonObject(row.metadata),
     createdAt: new Date(row.createdAt).toISOString(),
-    isAutoPromoteEnabled: Boolean(row.isAutoPromoteEnabled)
+    isAutoPromoteEnabled: Boolean(row.isAutoPromoteEnabled),
+    dictionaryContext,
+    normalizationContext,
+    localityContext
   };
 }
 
@@ -7343,8 +8060,9 @@ async function lookupPriorArt(signal: SignalRecord): Promise<PriorArtMatch[]> {
   const title = cleanText(signal.title, 500);
   const snippet = cleanText(signal.snippet, 1000);
   const snippetProbe = cleanText(snippet.split(/\s+/).slice(0, 12).join(" "), 220);
+  const groupingProbes = buildLayer1GroupingProbes(signal.normalizationContext);
 
-  const articleRows = await sql`
+  const baseArticleRows = await sql`
     SELECT
       'article'::text as "sourceType",
       a.id::text as "sourceId",
@@ -7365,7 +8083,7 @@ async function lookupPriorArt(signal: SignalRecord): Promise<PriorArtMatch[]> {
     LIMIT 3
   `;
 
-  const candidateRows = await sql`
+  const baseCandidateRows = await sql`
     SELECT
       'candidate'::text as "sourceType",
       c.id::text as "sourceId",
@@ -7388,18 +8106,76 @@ async function lookupPriorArt(signal: SignalRecord): Promise<PriorArtMatch[]> {
     LIMIT 3
   `;
 
-  return [...articleRows, ...candidateRows]
-    .map((row: any): PriorArtMatch => ({
+  const [anchorArticleRows, anchorCandidateRows] = groupingProbes.length
+    ? await Promise.all([
+        sql`
+          SELECT
+            'article'::text as "sourceType",
+            a.id::text as "sourceId",
+            a.slug::text as "sourceSlug",
+            COALESCE(a.title, '')::text as "title",
+            COALESCE(a.description, '')::text as "snippet",
+            COALESCE(a.section, '')::text as "section",
+            COALESCE(a.pub_date, a.created_at, NOW()) as "occurredAt"
+          FROM articles a
+          WHERE COALESCE(a.pub_date, a.created_at, NOW()) >= NOW() - interval '120 days'
+          ORDER BY COALESCE(a.pub_date, a.created_at) DESC
+          LIMIT 150
+        `,
+        sql`
+          SELECT
+            'candidate'::text as "sourceType",
+            c.id::text as "sourceId",
+            NULL::text as "sourceSlug",
+            COALESCE(c.title, '')::text as "title",
+            COALESCE(c.snippet, '')::text as "snippet",
+            NULL::text as "section",
+            COALESCE(c.published_at, c.created_at, NOW()) as "occurredAt"
+          FROM topic_engine_candidates c
+          WHERE c.persona_id = ${signal.personaId}
+            AND COALESCE(c.published_at, c.created_at, NOW()) >= NOW() - interval '30 days'
+          ORDER BY COALESCE(c.published_at, c.created_at) DESC
+          LIMIT 150
+        `
+      ])
+    : [[], []];
+
+  return [...baseArticleRows, ...baseCandidateRows, ...anchorArticleRows, ...anchorCandidateRows]
+    .map((row: any): PriorArtMatch | null => {
+      const normalizedTitle = cleanText(row.title || "", 600);
+      const normalizedSnippet = cleanText(row.snippet || "", 1200);
+      const score = scorePriorArtMatch(
+        normalizedTitle,
+        normalizedSnippet,
+        title,
+        snippetProbe,
+        groupingProbes
+      );
+      const matchedByExistingHeuristics =
+        containsWholePhrase(normalizedTitle, title) || containsWholePhrase(normalizedSnippet, snippetProbe);
+      const matchedByGroupingProbes =
+        textMatchesGroupingProbe(normalizedTitle, groupingProbes)
+        || textMatchesGroupingProbe(normalizedSnippet, groupingProbes);
+      if (!matchedByExistingHeuristics && !matchedByGroupingProbes) return null;
+
+      return {
       sourceType: (row.sourceType === "candidate" ? "candidate" : "article") as "article" | "candidate",
       sourceId: cleanText(row.sourceId, 80),
       sourceSlug: cleanText(row.sourceSlug || "", 255) || null,
-      title: cleanText(row.title || "", 600),
-      snippet: cleanText(row.snippet || "", 1200),
+      title: normalizedTitle,
+      snippet: normalizedSnippet,
       section: cleanText(row.section || "", 120) || null,
       occurredAt: new Date(row.occurredAt || Date.now()).toISOString(),
-      score: Number.isFinite(Number(row.score)) ? Number(row.score) : 0
-    }))
-    .sort((a, b) => b.score - a.score)
+      score
+      };
+    })
+    .filter((row: PriorArtMatch | null): row is PriorArtMatch => Boolean(row))
+    .sort((a, b) => b.score - a.score || Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
+    .filter(
+      (row, index, collection) =>
+        collection.findIndex((candidate) => candidate.sourceType === row.sourceType && candidate.sourceId === row.sourceId)
+        === index
+    )
     .slice(0, 3);
 }
 
@@ -7410,37 +8186,44 @@ async function checkCorroborationPreAI(signal: SignalRecord): Promise<Corroborat
   const sql = neon(databaseUrl);
   const titleProbe = cleanText(signal.title, 220);
   const snippetProbe = cleanText(signal.snippet.split(/\s+/).slice(0, 12).join(" "), 220);
+  const groupingProbes = buildLayer1GroupingProbes(signal.normalizationContext);
 
   const corroborationRows = await sql`
     SELECT
-      COUNT(*)::int as "similarSignals24h",
-      COALESCE(
-        array_agg(DISTINCT s.source_type) FILTER (WHERE s.source_type IS NOT NULL),
-        ARRAY[]::text[]
-      ) as "distinctSourceTypes24h",
-      (
-        COUNT(DISTINCT s.session_hash) FILTER (
-          WHERE s.source_type IN ('chat_yes', 'chat_specify')
-            AND s.session_hash IS NOT NULL
-            AND length(trim(s.session_hash)) > 0
-        )
-      )::int as "distinctChatSessions24h"
+      s.id,
+      s.source_type as "sourceType",
+      s.session_hash as "sessionHash",
+      COALESCE(s.title, '') as "title",
+      COALESCE(s.snippet, '') as "snippet"
     FROM topic_signals s
     WHERE s.persona_id = ${signal.personaId}
       AND s.id <> ${signal.id}
       AND s.created_at >= NOW() - interval '24 hours'
-      AND (
-        lower(COALESCE(s.title, '')) LIKE '%' || lower(${titleProbe}) || '%'
-        OR lower(COALESCE(s.snippet, '')) LIKE '%' || lower(${snippetProbe}) || '%'
-      )
+    ORDER BY s.created_at DESC
+    LIMIT 250
   `;
-  const row = corroborationRows[0] || {};
+
+  const matchedRows = corroborationRows.filter((row: any) => {
+    const rowTitle = cleanText(row.title || "", 600);
+    const rowSnippet = cleanText(row.snippet || "", 1200);
+    const matchedByExistingHeuristics =
+      containsWholePhrase(rowTitle, titleProbe) || containsWholePhrase(rowSnippet, snippetProbe);
+    const matchedByGroupingProbes =
+      textMatchesGroupingProbe(rowTitle, groupingProbes) || textMatchesGroupingProbe(rowSnippet, groupingProbes);
+    return matchedByExistingHeuristics || matchedByGroupingProbes;
+  });
+
   return {
-    similarSignals24h: Number(row.similarSignals24h || 0),
-    distinctSourceTypes24h: Array.isArray(row.distinctSourceTypes24h)
-      ? row.distinctSourceTypes24h.map((v: unknown) => cleanText(v, 30)).filter(Boolean)
-      : [],
-    distinctChatSessions24h: Number(row.distinctChatSessions24h || 0)
+    similarSignals24h: matchedRows.length,
+    distinctSourceTypes24h: Array.from(
+      new Set(matchedRows.map((row: any) => cleanText(row.sourceType, 30)).filter(Boolean))
+    ),
+    distinctChatSessions24h: new Set(
+      matchedRows
+        .filter((row: any) => row.sourceType === "chat_yes" || row.sourceType === "chat_specify")
+        .map((row: any) => cleanText(row.sessionHash || "", 128))
+        .filter(Boolean)
+    ).size
   };
 }
 
@@ -7462,6 +8245,8 @@ async function classifyWithGatekeeper(
 
   const geminiApiKey = cleanText(process.env.GEMINI_API_KEY || "", 500);
   const openAiApiKey = cleanText(process.env.OPENAI_API_KEY || "", 500);
+  const promptSafeSignal = buildPromptSafeSignalPayload(signal);
+  const dictionaryPromptContext = buildGatekeeperDictionaryPromptContext(signal);
   const prompt = [
     guidanceBundle.compiledPrompt ? `Stage Guidance:\n${guidanceBundle.compiledPrompt}` : "",
     guidanceBundle.promptSourceVersion
@@ -7475,8 +8260,10 @@ async function classifyWithGatekeeper(
     "- Prefer watch over promote when evidence is thin.",
     "- Keep next_step consistent with action.",
     "- event_key should be a stable short key for same event family.",
+    "- Use dictionary context as read-only published-snapshot grounding; do not assume anything beyond it.",
     "",
-    `Signal: ${JSON.stringify(signal)}`,
+    `Signal: ${JSON.stringify(promptSafeSignal)}`,
+    `Dictionary context: ${JSON.stringify(dictionaryPromptContext)}`,
     `Prior art: ${JSON.stringify(priorArt)}`,
     `Corroboration: ${JSON.stringify(corroboration)}`
   ].join("\n");
@@ -7633,7 +8420,8 @@ function applyGatekeeperGuardrails(
 }
 
 // STEP 6: persist_decision
-async function persistDecision(signalId: number, decision: GatekeeperOutput): Promise<PersistedDecision> {
+async function persistDecision(signal: SignalRecord, decision: GatekeeperOutput): Promise<PersistedDecision> {
+  const signalId = signal.id;
   if (isTestSignalId(signalId)) {
     // Test-mode path: avoid DB writes for synthetic signal IDs.
     console.log("test-mode persistDecision skip", {
@@ -7656,6 +8444,7 @@ async function persistDecision(signalId: number, decision: GatekeeperOutput): Pr
 
   const reviewDecision =
     decision.action === "promote" ? "promoted" : decision.action === "reject" ? "rejected" : "pending_review";
+  const observabilityMetadata = buildDecisionObservabilityMetadata(signal);
 
   const rows = await sql`
     UPDATE topic_signals
@@ -7669,6 +8458,7 @@ async function persistDecision(signalId: number, decision: GatekeeperOutput): Pr
       action = ${decision.action},
       next_step = ${decision.next_step},
       policy_flags = ${Array.isArray(decision.policy_flags) ? decision.policy_flags : []},
+      metadata = COALESCE(topic_signals.metadata, '{}'::jsonb) || ${toSafeJsonObject(observabilityMetadata)}::jsonb,
       reasoning = ${cleanText(decision.reasoning, 4000)},
       review_decision = ${reviewDecision},
       processed_at = NOW(),
@@ -7811,7 +8601,7 @@ export function createGatekeeperPipeline(inngest: Inngest) {
       );
       if (policyShortCircuit) {
         const persisted = await step.run("1c-persist_policy_prefilter", async () =>
-          persistDecision(signalId, policyShortCircuit)
+          persistDecision(signal, policyShortCircuit)
         );
         return {
           ok: true,
@@ -7829,7 +8619,7 @@ export function createGatekeeperPipeline(inngest: Inngest) {
       const guarded = await step.run("5-apply_guardrails", async () =>
         applyGatekeeperGuardrails(signal, modelOut, corroboration)
       );
-      const persisted = await step.run("6-persist_decision", async () => persistDecision(signalId, guarded));
+      const persisted = await step.run("6-persist_decision", async () => persistDecision(signal, guarded));
       await step.run("7-route_next_step", async () => routeNextStep(step, signalId, persisted));
 
       return {
