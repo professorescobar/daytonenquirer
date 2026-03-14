@@ -66,7 +66,7 @@
     <section id="dictionary-app" hidden>
       <section class="admin-panel">
         <h2>Dictionary Freshness Review</h2>
-        <p class="hint">Monitor open Phase F review work, attention roots, and recent freshness runs.</p>
+        <p class="hint">Monitor maintenance-mode scheduling, open Phase F review work, attention roots, and recent recurring substrate runs.</p>
         <div class="admin-grid">
           <label>
             Admin Token
@@ -87,6 +87,11 @@
         </div>
         <div id="dictionary-message" class="message" hidden></div>
         <div id="dictionary-summary" class="usage-grid usage-grid-three"></div>
+      </section>
+
+      <section class="admin-panel">
+        <h3>Maintenance Mode</h3>
+        <div id="dictionary-maintenance-status" class="dictionary-review-list"></div>
       </section>
 
       <section class="admin-panel">
@@ -127,6 +132,11 @@
       <section class="admin-panel">
         <h3>Recent Phase F Runs</h3>
         <div id="dictionary-recent-runs" class="dictionary-review-list"></div>
+      </section>
+
+      <section class="admin-panel">
+        <h3>Recent Maintenance Dispatch Runs</h3>
+        <div id="dictionary-recent-dispatch-runs" class="dictionary-review-list"></div>
       </section>
     </section>
   </main>

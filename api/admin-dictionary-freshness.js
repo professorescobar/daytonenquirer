@@ -150,6 +150,29 @@ async function listRecentPhaseFRuns(sql, limit) {
   `;
 }
 
+async function listRecentPhaseBDispatchRuns(sql, limit) {
+  return sql`
+    SELECT
+      id,
+      status,
+      trigger_type as "triggerType",
+      input_payload as "inputPayload",
+      output_payload as "outputPayload",
+      error_payload as "errorPayload",
+      created_at as "createdAt",
+      started_at as "startedAt",
+      ended_at as "endedAt"
+    FROM dictionary.dictionary_pipeline_runs
+    WHERE lower(stage_name) = 'phase_b_ingestion_dispatch'
+      AND COALESCE(
+        input_payload->>'selectionMode',
+        output_payload->>'selectionMode'
+      ) = 'maintenance_selector'
+    ORDER BY created_at DESC, id DESC
+    LIMIT ${limit}
+  `;
+}
+
 async function emitPhaseFScanEvent(req, payload) {
   const endpoint = resolveInngestEventEndpoint(req);
   if (!endpoint) {
@@ -213,11 +236,12 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'rootSourceId must be a valid UUID' });
       }
 
-      const [summary, reviewItems, attentionRoots, recentRuns] = await Promise.all([
+      const [summary, reviewItems, attentionRoots, recentRuns, recentDispatchRuns] = await Promise.all([
         buildReviewSummary(sql),
         listReviewItems(sql, { limit, itemType, rootSourceId, openOnly }),
         listAttentionRootSources(sql, rootLimit),
-        listRecentPhaseFRuns(sql, runLimit)
+        listRecentPhaseFRuns(sql, runLimit),
+        listRecentPhaseBDispatchRuns(sql, runLimit)
       ]);
 
       return res.status(200).json({
@@ -232,7 +256,8 @@ module.exports = async (req, res) => {
         summary,
         reviewItems,
         attentionRoots,
-        recentRuns
+        recentRuns,
+        recentDispatchRuns
       });
     }
 

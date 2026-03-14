@@ -13,9 +13,11 @@ const refreshLimitInput = document.getElementById('refresh-limit');
 const refreshCooldownHoursInput = document.getElementById('refresh-cooldown-hours');
 const messageEl = document.getElementById('dictionary-message');
 const summaryEl = document.getElementById('dictionary-summary');
+const maintenanceStatusEl = document.getElementById('dictionary-maintenance-status');
 const reviewItemsEl = document.getElementById('dictionary-review-items');
 const attentionRootsEl = document.getElementById('dictionary-attention-roots');
 const recentRunsEl = document.getElementById('dictionary-recent-runs');
+const recentDispatchRunsEl = document.getElementById('dictionary-recent-dispatch-runs');
 
 let unlocked = false;
 
@@ -174,6 +176,50 @@ function renderAttentionRoots(roots = []) {
   `).join('');
 }
 
+function renderMaintenanceStatus(recentDispatchRuns = [], recentRuns = []) {
+  const latestDispatch = recentDispatchRuns[0] || null;
+  const latestFreshness = recentRuns[0] || null;
+
+  const cards = [
+    {
+      title: 'Dispatch Scheduler',
+      body: latestDispatch
+        ? `Latest ${latestDispatch.triggerType || 'unknown'} dispatch ${formatDate(latestDispatch.createdAt)} with status ${latestDispatch.status || 'unknown'}.`
+        : 'No maintenance dispatch runs recorded yet.'
+    },
+    {
+      title: 'Dispatch Selection',
+      body: latestDispatch
+        ? `Mode ${latestDispatch.outputPayload?.selectionMode || latestDispatch.inputPayload?.selectionMode || 'unknown'} | eligible ${latestDispatch.outputPayload?.eligibleRootSourceCount || 0} | selected ${latestDispatch.outputPayload?.selectedRootSourceCount || 0} | skipped ${latestDispatch.outputPayload?.skippedRootSourceCount || 0}.`
+        : 'No recent dispatch selection data.'
+    },
+    {
+      title: 'Freshness Refresh',
+      body: latestFreshness
+        ? `Latest freshness run emitted ${latestFreshness.outputPayload?.refreshDispatchEmittedCount || 0} refreshes, suppressed ${latestFreshness.outputPayload?.refreshDispatchSuppressedCount || 0}, and deferred ${latestFreshness.outputPayload?.refreshDispatchDeferredByLimitCount || 0} by limit.`
+        : 'No recent freshness refresh data.'
+    }
+  ];
+
+  maintenanceStatusEl.innerHTML = cards.map((card) => `
+    <article class="draft-card dictionary-card">
+      <div class="dictionary-card-header">
+        <strong>${escapeHtml(card.title)}</strong>
+        <span class="dictionary-pill">weekly</span>
+      </div>
+      <p>${escapeHtml(card.body)}</p>
+    </article>
+  `).join('');
+}
+
+function formatReasonMap(map = {}) {
+  const entries = Object.entries(map || {}).filter(([, value]) => Number(value) > 0);
+  if (!entries.length) return 'none';
+  return entries
+    .map(([key, value]) => `${key}:${value}`)
+    .join(', ');
+}
+
 function renderRecentRuns(runs = []) {
   if (!runs.length) {
     recentRunsEl.innerHTML = '<p class="hint">No Phase F runs recorded yet.</p>';
@@ -203,6 +249,50 @@ function renderRecentRuns(runs = []) {
           Refresh Dispatch Requested: ${output.refreshDispatchRequested ? 'yes' : 'no'}
           <br />
           Refresh Dispatch Emitted: ${escapeHtml(output.refreshDispatchEmittedCount || 0)}
+          <br />
+          Suppressed: ${escapeHtml(output.refreshDispatchSuppressedCount || 0)} |
+          Deferred By Limit: ${escapeHtml(output.refreshDispatchDeferredByLimitCount || 0)}
+        </p>
+        <p class="hint">
+          Suppression Reasons: ${escapeHtml(formatReasonMap(output.refreshDispatchSuppressedByReason || {}))}
+        </p>
+      </article>
+    `;
+  }).join('');
+}
+
+function renderRecentDispatchRuns(runs = []) {
+  if (!runs.length) {
+    recentDispatchRunsEl.innerHTML = '<p class="hint">No maintenance dispatch runs recorded yet.</p>';
+    return;
+  }
+
+  recentDispatchRunsEl.innerHTML = runs.map((run) => {
+    const output = run.outputPayload || {};
+    return `
+      <article class="draft-card dictionary-card">
+        <div class="dictionary-card-header">
+          <strong>${escapeHtml(run.status || 'unknown')}</strong>
+          <span class="dictionary-pill">${escapeHtml(run.triggerType || 'unknown')}</span>
+        </div>
+        <p class="dictionary-card-meta">
+          Created: ${escapeHtml(formatDate(run.createdAt))}
+          <br />
+          Ended: ${escapeHtml(formatDate(run.endedAt))}
+        </p>
+        <p class="hint">
+          Mode: ${escapeHtml(output.selectionMode || run.inputPayload?.selectionMode || 'unknown')} |
+          Cooldown: ${escapeHtml(output.maintenanceCooldownHours || run.inputPayload?.maintenanceCooldownHours || 'n/a')}
+        </p>
+        <p class="dictionary-card-meta">
+          Evaluated: ${escapeHtml(output.evaluatedRootSourceCount || 0)} |
+          Eligible: ${escapeHtml(output.eligibleRootSourceCount || 0)} |
+          Selected: ${escapeHtml(output.selectedRootSourceCount || 0)}
+          <br />
+          Skipped: ${escapeHtml(output.skippedRootSourceCount || 0)}
+        </p>
+        <p class="hint">
+          Skip Reasons: ${escapeHtml(formatReasonMap(output.skippedByReason || {}))}
         </p>
       </article>
     `;
@@ -215,9 +305,11 @@ async function loadDictionaryFreshnessView() {
   setMessage('Loading dictionary freshness state...');
   const data = await apiRequest(`/api/admin-dictionary-freshness?limit=${limit}&rootLimit=${rootLimit}&runLimit=10&openOnly=true`);
   renderSummary(data.summary || {});
+  renderMaintenanceStatus(data.recentDispatchRuns || [], data.recentRuns || []);
   renderReviewItems(data.reviewItems || []);
   renderAttentionRoots(data.attentionRoots || []);
   renderRecentRuns(data.recentRuns || []);
+  renderRecentDispatchRuns(data.recentDispatchRuns || []);
   setMessage('Dictionary freshness view updated.');
 }
 

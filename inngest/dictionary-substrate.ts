@@ -31,6 +31,7 @@ const PHASE_F_STAGE_NAME = "phase_f_freshness_review";
 const PHASE_F_SCAN_EVENT = "dictionary.substrate.freshness.scan";
 const PHASE_F_REFRESH_LIMIT_DEFAULT = 10;
 const PHASE_F_REFRESH_COOLDOWN_HOURS_DEFAULT = 24;
+const PHASE_H_MAINTENANCE_DISPATCH_COOLDOWN_HOURS_DEFAULT = 24;
 
 type RootSourceRow = {
   id: string;
@@ -287,6 +288,42 @@ type PhaseFDispatchCandidateRow = PhaseFRootSourceAttentionRow & {
   recentIngestionCreatedAt: string | null;
 };
 
+type PhaseHMaintenanceDispatchCandidateRow = {
+  rootSourceId: string;
+  sourceName: string;
+  sourceType: string;
+  sourceDomain: string;
+  rootUrl: string;
+  trustTier: RootSourceRow["trustTier"];
+  enabled: boolean;
+  crawlCadenceDays: number | null;
+  freshnessSlaDays: number | null;
+  failureThreshold: number;
+  dueByCadence: boolean;
+  overdueByFreshnessSla: boolean;
+  dueSelectionReason: string;
+  shouldDispatch: boolean;
+  skipReason:
+    | "not_due"
+    | "disabled"
+    | "active_run"
+    | "recent_run_cooldown"
+    | "failure_blocked"
+    | "review_blocked"
+    | null;
+  activeRunId: string | null;
+  activeRunCreatedAt: string | null;
+  recentRunId: string | null;
+  recentRunStatus: string | null;
+  recentRunCreatedAt: string | null;
+  blockingFailureRetryCount: number;
+  blockingFailureItemTypes: string[];
+  extractionFailureRetryCount: number;
+  extractionFailureOpenCount: number;
+  reviewBlockerOpenCount: number;
+  reviewBlockerItemTypes: string[];
+};
+
 type ExtractionExecutionCandidate = {
   candidateType: CandidateType;
   status: "extracted" | "rejected";
@@ -500,11 +537,17 @@ async function markPhaseFRefreshDispatch(params: {
   refreshDispatchCooldownHours?: number | null;
   refreshDispatchRequested?: boolean | null;
   refreshDispatchCandidateCount?: number | null;
+  refreshDispatchEligibleCount?: number | null;
   refreshDispatchSelectedCount?: number | null;
   refreshDispatchSkippedRecentCount?: number | null;
+  refreshDispatchSuppressedCount?: number | null;
+  refreshDispatchSuppressedByReason?: Record<string, number> | null;
+  refreshDispatchDeferredByLimitCount?: number | null;
   refreshDispatchEmittedCount?: number | null;
   refreshDispatchRootSourceIds?: string[];
   refreshDispatchRecentRootSourceIds?: string[];
+  refreshDispatchSuppressedRootSourceIds?: string[];
+  refreshDispatchDeferredByLimitRootSourceIds?: string[];
   refreshDispatchError?: string | null;
 }) {
   const sql = getSql();
@@ -524,11 +567,17 @@ async function markPhaseFRefreshDispatch(params: {
     refreshDispatchLimit: params.refreshDispatchLimit ?? null,
     refreshDispatchCooldownHours: params.refreshDispatchCooldownHours ?? null,
     refreshDispatchCandidateCount: params.refreshDispatchCandidateCount ?? null,
+    refreshDispatchEligibleCount: params.refreshDispatchEligibleCount ?? null,
     refreshDispatchSelectedCount: params.refreshDispatchSelectedCount ?? null,
     refreshDispatchSkippedRecentCount: params.refreshDispatchSkippedRecentCount ?? null,
+    refreshDispatchSuppressedCount: params.refreshDispatchSuppressedCount ?? null,
+    refreshDispatchSuppressedByReason: params.refreshDispatchSuppressedByReason || {},
+    refreshDispatchDeferredByLimitCount: params.refreshDispatchDeferredByLimitCount ?? null,
     refreshDispatchEmittedCount: params.refreshDispatchEmittedCount ?? null,
     refreshDispatchRootSourceIds: params.refreshDispatchRootSourceIds || [],
     refreshDispatchRecentRootSourceIds: params.refreshDispatchRecentRootSourceIds || [],
+    refreshDispatchSuppressedRootSourceIds: params.refreshDispatchSuppressedRootSourceIds || [],
+    refreshDispatchDeferredByLimitRootSourceIds: params.refreshDispatchDeferredByLimitRootSourceIds || [],
     refreshDispatchError: params.refreshDispatchError || null
   };
 
@@ -1441,7 +1490,14 @@ async function loadPhaseFRefreshDispatchCandidates(params: {
   cooldownHours: number;
 }): Promise<{
   candidates: PhaseFDispatchCandidateRow[];
+  evaluatedRootSourceCount: number;
+  eligibleRootSourceCount: number;
   skippedRecentRootSourceIds: string[];
+  suppressedRootSourceCount: number;
+  suppressedRootSourceIds: string[];
+  suppressedByReason: Record<string, number>;
+  deferredByLimitRootSourceCount: number;
+  deferredByLimitRootSourceIds: string[];
 }> {
   const sql = getSql();
   const rows = await sql`
@@ -1450,18 +1506,12 @@ async function loadPhaseFRefreshDispatchCandidates(params: {
       FROM dictionary.phase_f_root_sources_requiring_attention(${params.asOf}::timestamptz)
       WHERE should_dispatch_refresh = true
     ),
-    recent_runs AS (
-      SELECT DISTINCT ON (pr.root_source_id)
-        pr.root_source_id,
-        pr.id,
-        pr.status,
-        pr.created_at
-      FROM dictionary.dictionary_pipeline_runs pr
-      JOIN attention a
-        ON a.root_source_id = pr.root_source_id
-      WHERE lower(pr.stage_name) = 'phase_b_root_ingestion'
-        AND pr.created_at >= ${params.asOf}::timestamptz - make_interval(hours => ${params.cooldownHours})
-      ORDER BY pr.root_source_id, pr.created_at DESC, pr.id DESC
+    maintenance AS (
+      SELECT *
+      FROM dictionary.phase_h_maintenance_dispatch_candidates(
+        ${params.asOf}::timestamptz,
+        make_interval(hours => ${params.cooldownHours})
+      )
     )
     SELECT
       a.root_source_id as "rootSourceId",
@@ -1485,12 +1535,14 @@ async function loadPhaseFRefreshDispatchCandidates(params: {
       a.is_blocked as "isBlocked",
       a.attention_reason as "attentionReason",
       a.should_dispatch_refresh as "shouldDispatchRefresh",
-      rr.id as "recentIngestionRunId",
-      rr.status as "recentIngestionRunStatus",
-      rr.created_at as "recentIngestionCreatedAt"
+      m.recent_run_id as "recentIngestionRunId",
+      m.recent_run_status as "recentIngestionRunStatus",
+      m.recent_run_created_at as "recentIngestionCreatedAt",
+      m.should_dispatch as "maintenanceShouldDispatch",
+      m.skip_reason as "maintenanceSkipReason"
     FROM attention a
-    LEFT JOIN recent_runs rr
-      ON rr.root_source_id = a.root_source_id
+    JOIN maintenance m
+      ON m.root_source_id = a.root_source_id
     ORDER BY
       a.overdue_by_freshness_sla DESC,
       CASE a.trust_tier
@@ -1502,17 +1554,129 @@ async function loadPhaseFRefreshDispatchCandidates(params: {
       a.source_name ASC
   `;
 
-  const allRows = rows as PhaseFDispatchCandidateRow[];
-  const skippedRecentRootSourceIds = allRows
-    .filter((row) => Boolean(row.recentIngestionRunId))
+  const allRows = rows as Array<
+    PhaseFDispatchCandidateRow & {
+      maintenanceShouldDispatch: boolean;
+      maintenanceSkipReason: PhaseHMaintenanceDispatchCandidateRow["skipReason"];
+    }
+  >;
+  const suppressedRows = allRows.filter((row) => !row.maintenanceShouldDispatch);
+  const skippedRecentRootSourceIds = suppressedRows
+    .filter((row) => row.maintenanceSkipReason === "recent_run_cooldown")
     .map((row) => row.rootSourceId);
+  const suppressedByReason = suppressedRows.reduce((acc, row) => {
+    const key = row.maintenanceSkipReason || "not_due";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const eligibleRows = allRows.filter((row) => row.maintenanceShouldDispatch);
   const candidates = allRows
-    .filter((row) => !row.recentIngestionRunId)
-    .slice(0, params.limit);
+    .filter((row) => row.maintenanceShouldDispatch)
+    .slice(0, params.limit)
+    .map((row) => ({
+      rootSourceId: row.rootSourceId,
+      sourceName: row.sourceName,
+      sourceType: row.sourceType,
+      sourceDomain: row.sourceDomain,
+      rootUrl: row.rootUrl,
+      trustTier: row.trustTier,
+      crawlCadenceDays: row.crawlCadenceDays,
+      freshnessSlaDays: row.freshnessSlaDays,
+      failureThreshold: row.failureThreshold,
+      lastSuccessfulCrawlAt: row.lastSuccessfulCrawlAt,
+      daysSinceLastSuccess: row.daysSinceLastSuccess,
+      dueByCadence: row.dueByCadence,
+      overdueByFreshnessSla: row.overdueByFreshnessSla,
+      openBlockingFailureCount: row.openBlockingFailureCount,
+      blockingFailureRetryCount: row.blockingFailureRetryCount,
+      blockingItemTypes: row.blockingItemTypes,
+      openExtractionFailureCount: row.openExtractionFailureCount,
+      extractionFailureRetryCount: row.extractionFailureRetryCount,
+      isBlocked: row.isBlocked,
+      attentionReason: row.attentionReason,
+      shouldDispatchRefresh: row.shouldDispatchRefresh,
+      recentIngestionRunId: row.recentIngestionRunId,
+      recentIngestionRunStatus: row.recentIngestionRunStatus,
+      recentIngestionCreatedAt: row.recentIngestionCreatedAt
+    })) as PhaseFDispatchCandidateRow[];
 
   return {
     candidates,
-    skippedRecentRootSourceIds
+    evaluatedRootSourceCount: allRows.length,
+    eligibleRootSourceCount: eligibleRows.length,
+    skippedRecentRootSourceIds,
+    suppressedRootSourceCount: suppressedRows.length,
+    suppressedRootSourceIds: suppressedRows.slice(0, 50).map((row) => row.rootSourceId),
+    suppressedByReason,
+    deferredByLimitRootSourceCount: Math.max(eligibleRows.length - candidates.length, 0),
+    deferredByLimitRootSourceIds: eligibleRows.slice(params.limit, params.limit + 50).map((row) => row.rootSourceId)
+  };
+}
+
+async function loadPhaseHMaintenanceDispatchCandidates(params: {
+  asOf: string;
+  cooldownHours: number;
+  limit?: number;
+  sqlClient?: any;
+}): Promise<PhaseHMaintenanceDispatchCandidateRow[]> {
+  const sql = params.sqlClient || getSql();
+  const baseQuery = sql`
+    SELECT
+      root_source_id as "rootSourceId",
+      source_name as "sourceName",
+      source_type as "sourceType",
+      source_domain as "sourceDomain",
+      root_url as "rootUrl",
+      trust_tier as "trustTier",
+      enabled,
+      crawl_cadence_days as "crawlCadenceDays",
+      freshness_sla_days as "freshnessSlaDays",
+      failure_threshold as "failureThreshold",
+      due_by_cadence as "dueByCadence",
+      overdue_by_freshness_sla as "overdueByFreshnessSla",
+      due_selection_reason as "dueSelectionReason",
+      should_dispatch as "shouldDispatch",
+      skip_reason as "skipReason",
+      active_run_id as "activeRunId",
+      active_run_created_at as "activeRunCreatedAt",
+      recent_run_id as "recentRunId",
+      recent_run_status as "recentRunStatus",
+      recent_run_created_at as "recentRunCreatedAt",
+      blocking_failure_retry_count as "blockingFailureRetryCount",
+      blocking_failure_item_types as "blockingFailureItemTypes",
+      extraction_failure_retry_count as "extractionFailureRetryCount",
+      extraction_failure_open_count as "extractionFailureOpenCount",
+      review_blocker_open_count as "reviewBlockerOpenCount",
+      review_blocker_item_types as "reviewBlockerItemTypes"
+    FROM dictionary.phase_h_maintenance_dispatch_candidates(
+      ${params.asOf}::timestamptz,
+      make_interval(hours => ${params.cooldownHours})
+    )
+    ORDER BY
+      should_dispatch DESC,
+      overdue_by_freshness_sla DESC,
+      due_by_cadence DESC,
+      source_name ASC
+  `;
+
+  const rows = params.limit
+    ? await sql`${baseQuery} LIMIT ${params.limit}`
+    : await baseQuery;
+  return rows as PhaseHMaintenanceDispatchCandidateRow[];
+}
+
+function summarizePhaseHDispatchSkips(rows: PhaseHMaintenanceDispatchCandidateRow[]) {
+  const skippedRows = rows.filter((row) => !row.shouldDispatch);
+  const skippedByReason = skippedRows.reduce((acc, row) => {
+    const key = row.skipReason || "not_due";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  return {
+    skippedRootSourceCount: skippedRows.length,
+    skippedByReason,
+    skippedRootSourceIds: skippedRows.slice(0, 50).map((row) => row.rootSourceId)
   };
 }
 
@@ -3941,6 +4105,12 @@ export function createDictionarySubstrateDispatchFunction(inngest: Inngest) {
       const trigger = cleanText(event?.data?.trigger || "manual", 20) === "scheduled" ? "scheduled" : "manual";
       const limit = parsePositiveInt(event?.data?.limit, 25, 1, 200);
       const rootSourceId = cleanText(event?.data?.rootSourceId || "", 80) || null;
+      const maintenanceCooldownHours = parsePositiveInt(
+        event?.data?.maintenanceCooldownHours,
+        PHASE_H_MAINTENANCE_DISPATCH_COOLDOWN_HOURS_DEFAULT,
+        1,
+        168
+      );
       if (rootSourceId && !UUID_RE.test(rootSourceId)) {
         throw new Error("Invalid rootSourceId");
       }
@@ -3952,24 +4122,71 @@ export function createDictionarySubstrateDispatchFunction(inngest: Inngest) {
           inputPayload: {
             rootSourceId,
             limit,
-            trigger
+            trigger,
+            selectionMode: rootSourceId ? "root_source_override" : "maintenance_selector",
+            maintenanceCooldownHours: rootSourceId ? null : maintenanceCooldownHours
           }
         })
       );
 
       try {
-        const rootSources = await step.run("select-root-sources", async () => {
+        const dispatchSelection = await step.run("select-root-sources", async () => {
           if (rootSourceId) {
             const row = await loadRootSourceById(rootSourceId);
             if (!row) {
               throw new Error(`Unknown root source ${rootSourceId}`);
             }
-            return [row];
+            return {
+              rootSources: [row],
+              selectionMode: "root_source_override" as const,
+              evaluatedRootSourceCount: 1,
+              eligibleRootSourceCount: 1,
+              skippedRootSourceCount: 0,
+              skippedByReason: {} as Record<string, number>,
+              skippedRootSourceIds: [] as string[],
+              maintenanceCooldownHours: null as number | null
+            };
           }
-          return loadDueRootSources(limit);
+
+          const asOf = new Date().toISOString();
+          const maintenanceRows = await loadPhaseHMaintenanceDispatchCandidates({
+            asOf,
+            cooldownHours: maintenanceCooldownHours
+          });
+          const rootSources = maintenanceRows
+            .filter((row) => row.shouldDispatch)
+            .slice(0, limit)
+            .map((row) => ({
+              id: row.rootSourceId,
+              sourceName: row.sourceName,
+              sourceType: row.sourceType,
+              sourceDomain: row.sourceDomain,
+              rootUrl: row.rootUrl,
+              trustTier: row.trustTier,
+              supportedEntityClasses: [],
+              crawlCadenceDays: row.crawlCadenceDays,
+              freshnessSlaDays: row.freshnessSlaDays,
+              failureThreshold: row.failureThreshold,
+              enabled: row.enabled,
+              lastCrawledAt: null,
+              latestArtifactId: null,
+              latestArtifactContentHash: null
+            })) as RootSourceRow[];
+
+          const skipSummary = summarizePhaseHDispatchSkips(maintenanceRows);
+          return {
+            rootSources,
+            selectionMode: "maintenance_selector" as const,
+            evaluatedRootSourceCount: maintenanceRows.length,
+            eligibleRootSourceCount: maintenanceRows.filter((row) => row.shouldDispatch).length,
+            skippedRootSourceCount: skipSummary.skippedRootSourceCount,
+            skippedByReason: skipSummary.skippedByReason,
+            skippedRootSourceIds: skipSummary.skippedRootSourceIds,
+            maintenanceCooldownHours
+          };
         });
 
-        for (const rootSource of rootSources) {
+        for (const rootSource of dispatchSelection.rootSources) {
           await step.sendEvent(`emit-root-ingestion-${rootSource.id}`, {
             name: "dictionary.substrate.ingestion.root",
             data: {
@@ -3987,8 +4204,15 @@ export function createDictionarySubstrateDispatchFunction(inngest: Inngest) {
             outputPayload: {
               trigger,
               rootSourceId,
-              selectedRootSourceCount: rootSources.length,
-              selectedRootSourceIds: rootSources.map((row) => row.id)
+              selectionMode: dispatchSelection.selectionMode,
+              maintenanceCooldownHours: dispatchSelection.maintenanceCooldownHours,
+              evaluatedRootSourceCount: dispatchSelection.evaluatedRootSourceCount,
+              eligibleRootSourceCount: dispatchSelection.eligibleRootSourceCount,
+              selectedRootSourceCount: dispatchSelection.rootSources.length,
+              selectedRootSourceIds: dispatchSelection.rootSources.map((row) => row.id),
+              skippedRootSourceCount: dispatchSelection.skippedRootSourceCount,
+              skippedByReason: dispatchSelection.skippedByReason,
+              skippedRootSourceIds: dispatchSelection.skippedRootSourceIds
             }
           })
         );
@@ -3997,8 +4221,15 @@ export function createDictionarySubstrateDispatchFunction(inngest: Inngest) {
           ok: true,
           trigger,
           dispatchRunId: dispatchRun.id,
-          selectedRootSourceCount: rootSources.length,
-          selectedRootSourceIds: rootSources.map((row) => row.id)
+          selectionMode: dispatchSelection.selectionMode,
+          maintenanceCooldownHours: dispatchSelection.maintenanceCooldownHours,
+          evaluatedRootSourceCount: dispatchSelection.evaluatedRootSourceCount,
+          eligibleRootSourceCount: dispatchSelection.eligibleRootSourceCount,
+          selectedRootSourceCount: dispatchSelection.rootSources.length,
+          selectedRootSourceIds: dispatchSelection.rootSources.map((row) => row.id),
+          skippedRootSourceCount: dispatchSelection.skippedRootSourceCount,
+          skippedByReason: dispatchSelection.skippedByReason,
+          skippedRootSourceIds: dispatchSelection.skippedRootSourceIds
         };
       } catch (error: any) {
         await step.run("finalize-dispatch-run-failed", async () =>
@@ -4008,7 +4239,8 @@ export function createDictionarySubstrateDispatchFunction(inngest: Inngest) {
             errorPayload: {
               message: cleanText(error?.message || "dictionary_dispatch_failed", 2000),
               trigger,
-              rootSourceId
+              rootSourceId,
+              selectionMode: rootSourceId ? "root_source_override" : "maintenance_selector"
             }
           })
         );
@@ -4705,11 +4937,17 @@ export function createDictionarySubstrateFreshnessScanFunction(inngest: Inngest)
             refreshDispatchLimit: refreshLimit,
             refreshDispatchCooldownHours: refreshCooldownHours,
             refreshDispatchCandidateCount: 0,
+            refreshDispatchEligibleCount: 0,
             refreshDispatchSelectedCount: 0,
             refreshDispatchSkippedRecentCount: 0,
+            refreshDispatchSuppressedCount: 0,
+            refreshDispatchSuppressedByReason: {},
+            refreshDispatchDeferredByLimitCount: 0,
             refreshDispatchEmittedCount: 0,
             refreshDispatchRootSourceIds: [],
-            refreshDispatchRecentRootSourceIds: []
+            refreshDispatchRecentRootSourceIds: [],
+            refreshDispatchSuppressedRootSourceIds: [],
+            refreshDispatchDeferredByLimitRootSourceIds: []
           })
         );
         return {
@@ -4723,10 +4961,24 @@ export function createDictionarySubstrateFreshnessScanFunction(inngest: Inngest)
       let retryCountAdvanced = 0;
       let dispatchCandidates: {
         candidates: PhaseFDispatchCandidateRow[];
+        evaluatedRootSourceCount: number;
+        eligibleRootSourceCount: number;
         skippedRecentRootSourceIds: string[];
+        suppressedRootSourceCount: number;
+        suppressedRootSourceIds: string[];
+        suppressedByReason: Record<string, number>;
+        deferredByLimitRootSourceCount: number;
+        deferredByLimitRootSourceIds: string[];
       } = {
         candidates: [],
-        skippedRecentRootSourceIds: []
+        evaluatedRootSourceCount: 0,
+        eligibleRootSourceCount: 0,
+        skippedRecentRootSourceIds: [],
+        suppressedRootSourceCount: 0,
+        suppressedRootSourceIds: [],
+        suppressedByReason: {},
+        deferredByLimitRootSourceCount: 0,
+        deferredByLimitRootSourceIds: []
       };
       try {
         dispatchCandidates = await step.run("load-phase-f-refresh-dispatch-candidates", async () =>
@@ -4764,26 +5016,36 @@ export function createDictionarySubstrateFreshnessScanFunction(inngest: Inngest)
             refreshDispatchRequested: true,
             refreshDispatchLimit: refreshLimit,
             refreshDispatchCooldownHours: refreshCooldownHours,
-            refreshDispatchCandidateCount:
-              dispatchCandidates.candidates.length + dispatchCandidates.skippedRecentRootSourceIds.length,
+            refreshDispatchCandidateCount: dispatchCandidates.evaluatedRootSourceCount,
+            refreshDispatchEligibleCount: dispatchCandidates.eligibleRootSourceCount,
             refreshDispatchSelectedCount: dispatchCandidates.candidates.length,
             refreshDispatchSkippedRecentCount: dispatchCandidates.skippedRecentRootSourceIds.length,
+            refreshDispatchSuppressedCount: dispatchCandidates.suppressedRootSourceCount,
+            refreshDispatchSuppressedByReason: dispatchCandidates.suppressedByReason,
+            refreshDispatchDeferredByLimitCount: dispatchCandidates.deferredByLimitRootSourceCount,
             refreshDispatchEmittedCount: emittedRootSourceIds.length,
             refreshDispatchRootSourceIds: emittedRootSourceIds,
-            refreshDispatchRecentRootSourceIds: dispatchCandidates.skippedRecentRootSourceIds
+            refreshDispatchRecentRootSourceIds: dispatchCandidates.skippedRecentRootSourceIds,
+            refreshDispatchSuppressedRootSourceIds: dispatchCandidates.suppressedRootSourceIds,
+            refreshDispatchDeferredByLimitRootSourceIds: dispatchCandidates.deferredByLimitRootSourceIds
           })
         );
 
         return {
           ...result,
           refreshDispatchRequested: true,
-          refreshDispatchCandidateCount:
-            dispatchCandidates.candidates.length + dispatchCandidates.skippedRecentRootSourceIds.length,
+          refreshDispatchCandidateCount: dispatchCandidates.evaluatedRootSourceCount,
+          refreshDispatchEligibleCount: dispatchCandidates.eligibleRootSourceCount,
           refreshDispatchSelectedCount: dispatchCandidates.candidates.length,
           refreshDispatchSkippedRecentCount: dispatchCandidates.skippedRecentRootSourceIds.length,
+          refreshDispatchSuppressedCount: dispatchCandidates.suppressedRootSourceCount,
+          refreshDispatchSuppressedByReason: dispatchCandidates.suppressedByReason,
+          refreshDispatchDeferredByLimitCount: dispatchCandidates.deferredByLimitRootSourceCount,
           refreshDispatchEmittedCount: emittedRootSourceIds.length,
           refreshDispatchRootSourceIds: emittedRootSourceIds,
           refreshDispatchRecentRootSourceIds: dispatchCandidates.skippedRecentRootSourceIds,
+          refreshDispatchSuppressedRootSourceIds: dispatchCandidates.suppressedRootSourceIds,
+          refreshDispatchDeferredByLimitRootSourceIds: dispatchCandidates.deferredByLimitRootSourceIds,
           refreshRetryCountAdvanced: retryCountAdvanced
         };
       } catch (error: any) {
@@ -4804,13 +5066,18 @@ export function createDictionarySubstrateFreshnessScanFunction(inngest: Inngest)
             refreshDispatchRequested: true,
             refreshDispatchLimit: refreshLimit,
             refreshDispatchCooldownHours: refreshCooldownHours,
-            refreshDispatchCandidateCount:
-              dispatchCandidates.candidates.length + dispatchCandidates.skippedRecentRootSourceIds.length,
+            refreshDispatchCandidateCount: dispatchCandidates.evaluatedRootSourceCount,
+            refreshDispatchEligibleCount: dispatchCandidates.eligibleRootSourceCount,
             refreshDispatchSelectedCount: dispatchCandidates.candidates.length,
             refreshDispatchSkippedRecentCount: dispatchCandidates.skippedRecentRootSourceIds.length,
+            refreshDispatchSuppressedCount: dispatchCandidates.suppressedRootSourceCount,
+            refreshDispatchSuppressedByReason: dispatchCandidates.suppressedByReason,
+            refreshDispatchDeferredByLimitCount: dispatchCandidates.deferredByLimitRootSourceCount,
             refreshDispatchEmittedCount: emittedRootSourceIds.length,
             refreshDispatchRootSourceIds: emittedRootSourceIds,
             refreshDispatchRecentRootSourceIds: dispatchCandidates.skippedRecentRootSourceIds,
+            refreshDispatchSuppressedRootSourceIds: dispatchCandidates.suppressedRootSourceIds,
+            refreshDispatchDeferredByLimitRootSourceIds: dispatchCandidates.deferredByLimitRootSourceIds,
             refreshDispatchError: cleanText(
               error?.message || "phase_f_refresh_dispatch_failed",
               2000
