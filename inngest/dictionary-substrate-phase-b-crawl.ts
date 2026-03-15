@@ -57,6 +57,8 @@ type PhaseBProviderSelection = {
   overrideMetadata: Record<string, unknown> | null;
 };
 
+const PHASE_B_PROVIDER_OVERRIDE_RUNTIME_MARKER = "phase_b_provider_override_v1";
+
 function cleanText(value: unknown, max = 1000): string {
   return String(value || "").trim().slice(0, max);
 }
@@ -164,6 +166,20 @@ function createProviderMetadata(params: {
   };
 }
 
+function buildOverrideRuntimeMarker(
+  providerSelection: PhaseBProviderSelection
+): Record<string, unknown> | null {
+  if (!providerSelection.overrideMetadata) return null;
+  return {
+    marker: PHASE_B_PROVIDER_OVERRIDE_RUNTIME_MARKER,
+    branch: "provider_override_resolution",
+    requested_provider: cleanOptionalText(providerSelection.overrideMetadata.requested_provider, 40),
+    applied_provider: providerSelection.providerName,
+    source: cleanOptionalText(providerSelection.overrideMetadata.source, 80),
+    ignored_reason: cleanOptionalText(providerSelection.overrideMetadata.ignored_reason, 120)
+  };
+}
+
 function mapWebCrawlerApiHttpError(status: number): {
   errorCode: PhaseBProviderCaptureFailure["errorCode"];
   retryable: boolean;
@@ -190,6 +206,7 @@ async function captureWithDirectHttpProvider(
   providerSelection: PhaseBProviderSelection
 ): Promise<PhaseBProviderCaptureResult> {
   const startedAt = Date.now();
+  const overrideRuntimeMarker = buildOverrideRuntimeMarker(providerSelection);
   const response = await fetch(rootSource.rootUrl, {
     method: "GET",
     headers: {
@@ -212,7 +229,8 @@ async function captureWithDirectHttpProvider(
     durationMs: Date.now() - startedAt,
     providerDetails: {
       transport: "native_fetch",
-      ...(providerSelection.overrideMetadata ? { override: providerSelection.overrideMetadata } : {})
+      ...(providerSelection.overrideMetadata ? { override: providerSelection.overrideMetadata } : {}),
+      ...(overrideRuntimeMarker ? { override_runtime: overrideRuntimeMarker } : {})
     }
   });
 
@@ -251,6 +269,7 @@ async function captureWithWebCrawlerApiProvider(
   rootSource: PhaseBRootSourceContext,
   providerSelection: PhaseBProviderSelection
 ): Promise<PhaseBProviderCaptureResult> {
+  const overrideRuntimeMarker = buildOverrideRuntimeMarker(providerSelection);
   const apiKey = cleanText(process.env.WEBCRAWLERAPI_API_KEY || "", 400);
   if (!apiKey) {
     const fetchedAt = new Date().toISOString();
@@ -265,7 +284,8 @@ async function captureWithWebCrawlerApiProvider(
         fetchedAt,
         providerDetails: {
           configError: "missing_api_key",
-          ...(providerSelection.overrideMetadata ? { override: providerSelection.overrideMetadata } : {})
+          ...(providerSelection.overrideMetadata ? { override: providerSelection.overrideMetadata } : {}),
+          ...(overrideRuntimeMarker ? { override_runtime: overrideRuntimeMarker } : {})
         }
       }),
       message: "Missing WEBCRAWLERAPI_API_KEY",
@@ -309,7 +329,8 @@ async function captureWithWebCrawlerApiProvider(
       error_message: cleanOptionalText(parsed?.error_message, 1000),
       page_title: cleanOptionalText(parsed?.page_title, 500),
       output_format: "markdown",
-      ...(providerSelection.overrideMetadata ? { override: providerSelection.overrideMetadata } : {})
+      ...(providerSelection.overrideMetadata ? { override: providerSelection.overrideMetadata } : {}),
+      ...(overrideRuntimeMarker ? { override_runtime: overrideRuntimeMarker } : {})
     }
   });
 
