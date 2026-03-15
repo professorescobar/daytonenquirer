@@ -4067,7 +4067,11 @@ async function runRootSourceIngestion(input: {
         itemType,
         reviewQueueId: reviewState.reviewQueueId,
         reviewSeverity: reviewState.severity,
-        failureCount: reviewState.failureCount
+        failureCount: reviewState.failureCount,
+        details:
+          error?.details && typeof error.details === "object"
+            ? error.details
+            : {}
       }
     });
     if (isParseFailure) {
