@@ -8,6 +8,7 @@ import {
   type CandidateType,
   type ExtractionCandidatePayloadByType
 } from "./dictionary-substrate-phase-c-contract";
+import { buildPhaseBFetchArtifact } from "./dictionary-substrate-phase-b-crawl";
 
 type DispatchTrigger = "scheduled" | "manual";
 type PipelineRunStatus = "running" | "succeeded" | "failed" | "needs_review";
@@ -41,6 +42,7 @@ type RootSourceRow = {
   rootUrl: string;
   trustTier: "authoritative" | "corroborative" | "contextual";
   supportedEntityClasses: string[];
+  urlMetadata: Record<string, unknown>;
   crawlCadenceDays: number | null;
   freshnessSlaDays: number | null;
   failureThreshold: number;
@@ -853,9 +855,12 @@ function buildPhaseCPrompt(params: {
     `Extraction contract version: ${params.extractionVersion}.`,
     "This is Phase C extraction only. Do not resolve merges, canonical IDs, or validation outcomes.",
     "Rules:",
+    "- Use the exact snake_case field names shown in the schema example. Do not switch to camelCase or shortened key names.",
     "- Emit fully qualified canonical names only.",
     "- jurisdiction_hint is non-authoritative scoping context only, never a resolved canonical link.",
     "- Reject vague or generic references like 'the mayor', 'police', 'city hall', or 'downtown' unless the reference is anchored to a fully qualified proposed record.",
+    "- If the page is mostly navigation, utility chrome, calendars, or homepage boilerplate, prefer diagnostics or rejections over partial extracted candidates.",
+    "- Do not emit partially filled candidate_payload objects. If a required field such as canonical_name is missing, move the item to rejections or diagnostics instead.",
     "- Non-diagnostic items must include at least one evidence snippet copied from the artifact text.",
     "- If unsure, reject the item instead of inventing detail.",
     "Allowed normalized vocab:",
@@ -934,6 +939,84 @@ function normalizeDiagnosticArray(value: unknown): Record<string, unknown>[] {
     .filter(Boolean) as Record<string, unknown>[];
 }
 
+function detectPayloadNormalizationAdjustments(
+  candidateType: CandidateType,
+  value: unknown
+): Record<string, unknown>[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+
+  const raw = value as Record<string, unknown>;
+  const aliasMaps: Record<CandidateType, Array<{ canonical: string; alternates: string[] }>> = {
+    entity: [
+      { canonical: "canonical_name", alternates: ["canonicalName", "name"] },
+      { canonical: "entity_kind", alternates: ["entityKind", "kind"] },
+      { canonical: "jurisdiction_hint", alternates: ["jurisdictionHint"] },
+      { canonical: "source_mentions", alternates: ["sourceMentions", "mentions"] }
+    ],
+    alias: [
+      { canonical: "alias_name", alternates: ["aliasName", "name"] },
+      { canonical: "target_canonical_name", alternates: ["targetCanonicalName", "target_name"] },
+      { canonical: "alias_kind", alternates: ["aliasKind", "kind"] },
+      { canonical: "jurisdiction_hint", alternates: ["jurisdictionHint"] },
+      { canonical: "source_mentions", alternates: ["sourceMentions", "mentions"] }
+    ],
+    role: [
+      { canonical: "role_name", alternates: ["roleName", "name"] },
+      { canonical: "role_kind", alternates: ["roleKind", "kind"] },
+      { canonical: "governing_body_name", alternates: ["governingBodyName"] },
+      { canonical: "jurisdiction_hint", alternates: ["jurisdictionHint"] },
+      { canonical: "is_time_bounded", alternates: ["isTimeBounded"] }
+    ],
+    assertion: [
+      { canonical: "assertion_type", alternates: ["assertionType", "type"] },
+      { canonical: "subject_canonical_name", alternates: ["subjectCanonicalName", "subject_name"] },
+      { canonical: "object_canonical_name", alternates: ["objectCanonicalName", "object_name"] },
+      { canonical: "role_name", alternates: ["roleName"] },
+      { canonical: "effective_start_at", alternates: ["effectiveStartAt"] },
+      { canonical: "effective_end_at", alternates: ["effectiveEndAt"] },
+      { canonical: "term_end_at", alternates: ["termEndAt"] },
+      { canonical: "observed_at", alternates: ["observedAt"] },
+      { canonical: "assertion_confidence", alternates: ["assertionConfidence"] },
+      { canonical: "is_time_sensitive", alternates: ["isTimeSensitive"] }
+    ],
+    jurisdiction: [
+      { canonical: "canonical_name", alternates: ["canonicalName", "name"] },
+      { canonical: "jurisdiction_type", alternates: ["jurisdictionType", "kind"] },
+      { canonical: "parent_jurisdiction_name", alternates: ["parentJurisdictionName"] },
+      { canonical: "state_code", alternates: ["stateCode"] },
+      { canonical: "country_code", alternates: ["countryCode"] },
+      { canonical: "source_mentions", alternates: ["sourceMentions", "mentions"] }
+    ],
+    diagnostic: [
+      { canonical: "diagnostic_type", alternates: ["diagnosticType", "type"] },
+      { canonical: "related_candidate_key", alternates: ["relatedCandidateKey"] }
+    ]
+  };
+
+  const usedAliases = aliasMaps[candidateType]
+    .map(({ canonical, alternates }) => ({
+      canonical,
+      used: alternates.find((alternate) => raw[canonical] === undefined && raw[alternate] !== undefined) || null
+    }))
+    .filter((entry) => entry.used);
+
+  if (!usedAliases.length) return [];
+
+  return [
+    {
+      code: "normalization_adjustment",
+      message: `${candidateType} candidate payload used non-canonical field names`,
+      details: {
+        candidate_type: candidateType,
+        adjusted_fields: usedAliases.map((entry) => ({
+          canonical: entry.canonical,
+          observed: entry.used
+        }))
+      }
+    }
+  ];
+}
+
 function normalizeRawExtractionItem(
   candidateType: CandidateType,
   raw: unknown,
@@ -945,9 +1028,10 @@ function normalizeRawExtractionItem(
   }
 
   const item = raw as Record<string, unknown>;
+  const rawPayload = item.candidate_payload || item.payload || {};
   const normalizedPayload = normalizeCandidatePayload(
     candidateType,
-    item.candidate_payload || item.payload || {}
+    rawPayload
   ) as Record<string, unknown>;
   const candidateKey = deriveCandidateKey(candidateType, normalizedPayload as any);
   const evidenceSnippets =
@@ -962,7 +1046,10 @@ function normalizeRawExtractionItem(
     candidateKey,
     candidatePayload: normalizedPayload,
     evidenceSnippets,
-    diagnostics: normalizeDiagnosticArray(item.diagnostics),
+    diagnostics: [
+      ...normalizeDiagnosticArray(item.diagnostics),
+      ...detectPayloadNormalizationAdjustments(candidateType, rawPayload)
+    ],
     rejectionReason: status === "rejected" ? cleanText(explicitRejectionReason || item.rejection_reason, 120) || "unsupported_candidate_type" : null
   };
 }
@@ -1152,38 +1239,6 @@ function shouldEscalateZeroOutputToReview(params: {
   });
 }
 
-function stripHtmlToText(html: string): string {
-  return normalizeWhitespace(
-    html
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
-      .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">")
-      .replace(/&#39;/gi, "'")
-      .replace(/&quot;/gi, "\"")
-  );
-}
-
-function buildNormalizedArtifact(body: string, contentType: string | null) {
-  const normalizedBody = normalizeWhitespace(body);
-  const isHtml = cleanText(contentType || "", 200).toLowerCase().includes("html");
-  const extractedText = normalizedBody ? (isHtml ? stripHtmlToText(body) : normalizedBody) : null;
-  const comparisonBasis = extractedText || normalizedBody;
-  const contentHash = createHash("sha256").update(comparisonBasis).digest("hex");
-
-  return {
-    rawHtml: isHtml ? body : null,
-    extractedText,
-    comparisonBasis,
-    contentHash,
-    hashAlgorithm: "sha256"
-  };
-}
-
 async function loadDueRootSources(limit: number): Promise<RootSourceRow[]> {
   const sql = getSql();
   const rows = await sql`
@@ -1195,6 +1250,7 @@ async function loadDueRootSources(limit: number): Promise<RootSourceRow[]> {
       rs.root_url as "rootUrl",
       rs.trust_tier as "trustTier",
       rs.supported_entity_classes as "supportedEntityClasses",
+      rs.url_metadata as "urlMetadata",
       rs.crawl_cadence_days as "crawlCadenceDays",
       rs.freshness_sla_days as "freshnessSlaDays",
       rs.failure_threshold as "failureThreshold",
@@ -1231,6 +1287,7 @@ async function loadRootSourceById(rootSourceId: string): Promise<RootSourceRow |
       rs.root_url as "rootUrl",
       rs.trust_tier as "trustTier",
       rs.supported_entity_classes as "supportedEntityClasses",
+      rs.url_metadata as "urlMetadata",
       rs.crawl_cadence_days as "crawlCadenceDays",
       rs.freshness_sla_days as "freshnessSlaDays",
       rs.failure_threshold as "failureThreshold",
@@ -3875,75 +3932,32 @@ async function persistCrawlArtifact(rootSource: RootSourceRow, runId: string, ar
 }
 
 async function fetchAndBuildArtifact(rootSource: RootSourceRow, trigger: string, parentRunId: string | null): Promise<FetchArtifactResult> {
-  const startedAt = Date.now();
-  const response = await fetch(rootSource.rootUrl, {
-    method: "GET",
-    headers: {
-      "User-Agent": "DaytonEnquirerDictionarySubstrateBot/1.0 (+https://thedaytonenquirer.com)",
-      Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8"
-    }
+  const result = await buildPhaseBFetchArtifact({
+    rootSource: {
+      rootUrl: rootSource.rootUrl,
+      sourceDomain: rootSource.sourceDomain,
+      trustTier: rootSource.trustTier,
+      supportedEntityClasses: rootSource.supportedEntityClasses,
+      urlMetadata: rootSource.urlMetadata,
+      crawlCadenceDays: rootSource.crawlCadenceDays,
+      freshnessSlaDays: rootSource.freshnessSlaDays,
+      failureThreshold: rootSource.failureThreshold,
+      latestArtifactId: rootSource.latestArtifactId,
+      latestArtifactContentHash: rootSource.latestArtifactContentHash
+    },
+    trigger,
+    parentRunId
   });
 
-  const body = await response.text();
-  if (!response.ok) {
+  if (result.ok === false) {
+    const failedResult = result;
     throw createIngestionFailure(
-      "fetch_failure",
-      `Fetch failed for ${rootSource.rootUrl} with status ${response.status}`,
-      {
-        rootUrl: rootSource.rootUrl,
-        httpStatus: response.status
-      }
+      failedResult.itemType,
+      failedResult.message,
+      failedResult.details
     );
   }
-  const contentType = cleanText(response.headers.get("content-type") || "", 255) || null;
-  const normalized = buildNormalizedArtifact(body, contentType);
-  const priorArtifactId = rootSource.latestArtifactId || null;
-  const previousHash = cleanText(rootSource.latestArtifactContentHash || "", 128) || null;
-  const changeState: "initial" | "unchanged" | "changed" =
-    !priorArtifactId ? "initial" : previousHash === normalized.contentHash ? "unchanged" : "changed";
-  const fetchedAt = new Date().toISOString();
-
-  return {
-    sourceUrl: rootSource.rootUrl,
-    sourceDomain: rootSource.sourceDomain,
-    fetchedAt,
-    httpStatus: response.status,
-    contentType,
-    rawHtml: normalized.rawHtml,
-    extractedText: normalized.extractedText,
-    contentHash: normalized.contentHash,
-    changeState,
-    priorArtifactId,
-    metadata: {
-      change_state: changeState,
-      hash_algorithm: normalized.hashAlgorithm,
-      fetch: {
-        requested_url: rootSource.rootUrl,
-        final_url: cleanText(response.url || rootSource.rootUrl, 2000),
-        http_status: response.status,
-        ok: response.ok,
-        duration_ms: Date.now() - startedAt,
-        content_length_bytes: Buffer.byteLength(body, "utf8")
-      },
-      parser: {
-        content_type: contentType,
-        extracted_text_length: normalized.extractedText ? normalized.extractedText.length : 0,
-        raw_html_length: normalized.rawHtml ? normalized.rawHtml.length : 0
-      },
-      source_policy: {
-        trust_tier: rootSource.trustTier,
-        crawl_cadence_days: rootSource.crawlCadenceDays,
-        freshness_sla_days: rootSource.freshnessSlaDays,
-        failure_threshold: rootSource.failureThreshold,
-        supported_entity_classes: rootSource.supportedEntityClasses
-      },
-      handoff: {
-        extraction_ready: response.ok && Boolean(normalized.extractedText),
-        trigger,
-        parent_run_id: parentRunId
-      }
-    }
-  };
+  return result.artifact;
 }
 
 async function runRootSourceIngestion(input: {
@@ -4164,6 +4178,7 @@ export function createDictionarySubstrateDispatchFunction(inngest: Inngest) {
               rootUrl: row.rootUrl,
               trustTier: row.trustTier,
               supportedEntityClasses: [],
+              urlMetadata: {},
               crawlCadenceDays: row.crawlCadenceDays,
               freshnessSlaDays: row.freshnessSlaDays,
               failureThreshold: row.failureThreshold,
