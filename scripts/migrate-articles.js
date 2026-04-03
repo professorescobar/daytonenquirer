@@ -25,7 +25,7 @@ async function migrateArticles() {
   for (const article of articles) {
     try {
       // Generate slug if missing
-      const slug = article.slug || generateSlug(article.title);
+      const slug = article.slug || article.url || generateSlug(article.title);
       
       await sql`
         INSERT INTO articles (slug, title, description, content, section, image, image_caption, image_credit, pub_date, status)

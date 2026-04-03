@@ -10,7 +10,7 @@ function generateSlug(title) {
 }
 
 function normalizeArticle(article) {
-  const slug = article.slug || generateSlug(article.title);
+  const slug = article.slug || article.url || generateSlug(article.title);
   return {
     slug,
     title: article.title || '',
